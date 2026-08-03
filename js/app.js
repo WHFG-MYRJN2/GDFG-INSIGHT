@@ -521,7 +521,7 @@ function _restoreSession() {
     var sess = localStorage.getItem('gdfgSession');
     if (!sess) return false;
     var data = JSON.parse(sess);
-    if (Date.now() - data.ts > 7 * 24 * 60 * 60 * 1000) {
+    if (Date.now() - data.ts > 30 * 24 * 60 * 60 * 1000) {
       localStorage.removeItem('gdfgSession');
       return false;
     }
@@ -788,6 +788,7 @@ async function _kaCallAPI(userMsg) {
         provider: 'gemini',
         model: 'gemini-2.5-flash-lite',
         max_tokens: 1000,
+        token: API.getToken(),
         system: _kaSystemPrompt + (_kaDataContext.length ? '\n\n' + _kaDataContext.join('\n') : ''),
         messages: _kaHistory
       })
