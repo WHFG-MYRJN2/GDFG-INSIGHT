@@ -6,7 +6,7 @@
 
 const API = (function () {
 
-  const WORKER_URL = "https://monitorgdfg.kemalrifael71.workers.dev/";
+  const WORKER_URL = "https://insight.gdfg-app.online/";
 
   // ----------------------------------------------------------
   // Token auth — disimpan di memori, disisipkan otomatis ke tiap request
