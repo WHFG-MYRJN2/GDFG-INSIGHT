@@ -4,7 +4,7 @@
 // ============================================================
 
 const CACHE_VERSION  = 'v1.0.5';
-const CACHE_NAME     = 'monitoring-gdfg' + CACHE_VERSION;
+const CACHE_NAME     = 'monitoring-gdfg-' + CACHE_VERSION;
 
 // File yang di-cache saat install
 const PRECACHE_URLS = [
