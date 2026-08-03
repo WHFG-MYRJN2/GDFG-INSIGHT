@@ -521,10 +521,6 @@ function _restoreSession() {
     var sess = localStorage.getItem('gdfgSession');
     if (!sess) return false;
     var data = JSON.parse(sess);
-    if (Date.now() - data.ts > 30 * 24 * 60 * 60 * 1000) {
-      localStorage.removeItem('gdfgSession');
-      return false;
-    }
     if (!data.token) {
       // sesi lama dari sebelum patch auth -- token tidak ada, paksa login ulang
       localStorage.removeItem('gdfgSession');
