@@ -781,7 +781,7 @@ async function _kaCallAPI(userMsg) {
   _kaHistory.push({ role: 'user', content: userMsg });
   var typing = _kaAddTyping();
   try {
-    var response = await fetch('https://monitorgdfg.kemalrifael71.workers.dev/karina', {
+    var response = await fetch('https://insight.gdfg-app.online/karina', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
