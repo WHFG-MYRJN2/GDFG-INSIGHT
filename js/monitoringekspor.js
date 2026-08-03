@@ -580,7 +580,7 @@ function _mekRenderSummaryTable(data) {
 }
 
 function _mekEsc(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/'/g,'&#39;').replace(/"/g,'&quot;');
 }
 
 // ════════════════════════════════════════════════════════════
@@ -1465,7 +1465,7 @@ function _mekCollectManualRows() {
   var tbody = document.getElementById('mekEmailManualTbody');
   if (!tbody) return [];
   var weekOverride = parseInt((document.getElementById('mekEmailWeek')||{}).value||'')||0;
-  var MONTHS = {jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
+  var MONTHS = {jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12,mei:5,agu:8,ags:8,okt:10,des:12};
   function parseTgl(s) {
     if (!s) return '';
     s = String(s).trim();
@@ -1771,7 +1771,7 @@ function _mekParseEmailTable(text, stdCache) {
   var yearOverride = parseInt((document.getElementById('mekEmailYear')||{}).value||'') || new Date().getFullYear();
 
   // Bulan map
-  var MONTHS = {jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
+  var MONTHS = {jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12,mei:5,agu:8,ags:8,okt:10,des:12};
 
   function parseTgl(s) {
     if (!s) return '';
