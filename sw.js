@@ -3,8 +3,8 @@
 // Ganti CACHE_VERSION setiap kali ada update file
 // ============================================================
 
-const CACHE_VERSION  = 'v1.0.4';
-const CACHE_NAME     = 'gdfg-insight' + CACHE_VERSION;
+const CACHE_VERSION  = 'v1.0.5';
+const CACHE_NAME     = 'monitoring-gdfg' + CACHE_VERSION;
 
 // File yang di-cache saat install
 const PRECACHE_URLS = [
