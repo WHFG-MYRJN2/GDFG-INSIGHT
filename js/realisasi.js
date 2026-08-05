@@ -3080,24 +3080,44 @@ function initRealForm(){
       });
       var grandTotalKrtWk = 0;
       var grandPlanMobil  = 0; // total planning mobil dari FDOS (per week)
-      weeks.forEach(function(wk){ grandTotalKrtWk += wk.totalQty || 0; grandPlanMobil += wk.planningMobil || 0; });
+      // PENTING: cuma jumlahin minggu yang beneran punya tanggal ter-render
+      // (weekOrder), bukan loop mentah semua entri "weeks" dari backend —
+      // supaya tidak dobel-hitung minggu yang tidak tampil kartunya.
+      var _countedFdosIdx = {};
+      weekOrder.forEach(function(isoWk){
+        var grp = weekGroups[isoWk];
+        if(!grp || !grp.dates || grp.dates.length === 0) return;
+        var fi = grp.fdosIdx;
+        if(fi === undefined || fi === null) return;
+        if(_countedFdosIdx[fi]) return; // cegah dobel kalau 2 isoWeek nunjuk ke fdosIdx yang sama
+        _countedFdosIdx[fi] = true;
+        var wk = weeks[fi];
+        if(wk){ grandTotalKrtWk += wk.totalQty || 0; grandPlanMobil += wk.planningMobil || 0; }
+      });
       var grandSisaPlan   = grandTotalKrtWk - grandTotalRealKrt;
       var grandPctReal    = grandTotalKrtWk > 0 ? (grandTotalRealKrt/grandTotalKrtWk*100).toFixed(2) : 0;
-      // Pendingan mobil = pendingan di tanggal terakhir yang ada data
+      // Pendingan mobil = akumulasi Realisasi SEMINGGU (bukan cuma hari
+      // terakhir, karena SPE Turun/Realisasi harian itu angka lepas per
+      // hari, bukan kumulatif) dibanding Plan Mobil mingguan.
       var _lastDateDirect = null;
       for(var _di=dates.length-1;_di>=0;_di--){
         var _dr=realByDate[dates[_di]]||{};
         if((_dr.totalSpe||0)>0||(_dr.planSub||0)>0){ _lastDateDirect=dates[_di]; break; }
       }
-      var _lastDr = _lastDateDirect ? (realByDate[_lastDateDirect]||{}) : {};
-      // Cari planMobil di hari terakhir (dari FDOS week yang sesuai)
-      var _lastPlanMobil = 0;
+      var _lastPlanMobil  = 0;
+      var _weekRealSum    = 0; // total Realisasi (mobil) se-minggu yang memuat _lastDateDirect
       if(_lastDateDirect){
         var _lWk = getISOWeek(_lastDateDirect);
         weeks.forEach(function(wk){ if(wk.isoWeek===_lWk) _lastPlanMobil=wk.planningMobil||0; });
+        var _lGrp = weekGroups[_lWk];
+        if(_lGrp && _lGrp.dates){
+          _lGrp.dates.forEach(function(tgl){
+            _weekRealSum += Number((realByDate[tgl]||{}).totalSpe) || 0;
+          });
+        }
       }
-      var grandPendMobil  = (_lastDr.totalSpe||0) - _lastPlanMobil;
-      var _lastDateLabel  = _lastDateDirect ? ' ('+formatTglDisplay(_lastDateDirect)+')' : '';
+      var grandPendMobil  = _weekRealSum - _lastPlanMobil;
+      var _lastDateLabel  = _lastDateDirect ? ' (s/d '+formatTglDisplay(_lastDateDirect)+')' : '';
 
       var html = '';
 
