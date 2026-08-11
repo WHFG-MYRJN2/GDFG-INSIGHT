@@ -4734,16 +4734,16 @@
 
         <!-- Toggle mode: Capaian / Detail -->
         <div style="padding:8px 14px 4px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-          <button id="mekCapModeAll" class="sum-view-btn active" onclick="mekCapSwitchMode('all')">
+          <button id="mekCapModeAll" class="sum-view-btn" onclick="mekCapSwitchMode('all')">
             <i class="fas fa-chart-bar"></i> Capaian
           </button>
-          <button id="mekCapModeEmail" class="sum-view-btn" onclick="mekCapSwitchMode('email')" style="border-color:#f6d860;">
+          <button id="mekCapModeEmail" class="sum-view-btn active" onclick="mekCapSwitchMode('email')" style="border-color:#f6d860;">
             <i class="fas fa-envelope" style="color:#d69e2e;"></i> Detail
           </button>
         </div>
 
         <!-- Sub-toggle Email: By Planning / By Aktual -->
-        <div id="mekCapEmailViewToggle" style="display:none;padding:6px 14px 4px;border-bottom:1px solid #e2e8f0;">
+        <div id="mekCapEmailViewToggle" style="display:block;padding:6px 14px 4px;border-bottom:1px solid #e2e8f0;">
           <div style="display:flex;gap:6px;">
             <button id="mekCapEmailByPlan" class="sum-view-btn active" onclick="mekCapEmailSwitchView('plan')">
               <i class="fas fa-calendar-alt"></i> By Planning
