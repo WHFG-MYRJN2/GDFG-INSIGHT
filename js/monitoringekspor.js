@@ -181,7 +181,7 @@ function mekInitPage() {
   window.addEventListener('resize', _mekApplyResponsive);
   window.addEventListener('orientationchange', function(){ setTimeout(_mekApplyResponsive, 300); });
   mekStartAutoRefresh();
-  _mekCapMode = 'all';
+  _mekCapMode = 'email';
   _mekInitPlanningWa();
 }
 
@@ -2750,7 +2750,7 @@ function mekLoadCapaian() {
 var _mekCapData   = [];
 var _mekBySkuLastState = null;
 var _mekCapFilter = 'all';  // 'all' | 'datang' | 'belum'
-var _mekCapMode   = 'all';  // 'all' | 'wa' | 'si'
+var _mekCapMode   = 'email';  // 'all' | 'wa' | 'si' | 'email' (default: Detail)
 
 function mekCapSwitchMode(mode) {
   _mekCapEmailLastFrom = ''; _mekCapEmailLastTo = ''; _mekCapEmailLastView = '';
