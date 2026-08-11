@@ -2466,7 +2466,6 @@
       #monitoringEksporPage .mek-card-val{ font-size:16px; }
       #monitoringEksporPage .mek-card-lbl{ font-size:9px; letter-spacing:0; }
       /* Toggle */
-      #mekSumViewToggle{ gap:4px; }
       .sum-view-btn{ padding:6px 11px; font-size:11px; }
       /* Tabel */
       #monitoringEksporPage .mek-sum-tbl{ font-size:11px; }
@@ -4727,154 +4726,11 @@
     </div>
 
     <!-- ════ TAB SUMMARY ════ -->
-    <!-- Toggle ALL / CAPAIAN — di luar scrollable area supaya selalu bisa diklik -->
-    <div id="mekSumViewToggle" style="display:flex;gap:6px;padding:8px 14px 0;background:#fff;flex-shrink:0;">
-      <button id="mekSumViewAll" class="sum-view-btn active" onclick="mekSwitchSumView('all')">
-        <i class="fas fa-list"></i> All
-      </button>
-      <button id="mekSumViewCapaian" class="sum-view-btn" onclick="mekSwitchSumView('capaian')">
-        <i class="fas fa-chart-pie"></i> Capaian Planning
-      </button>
-    </div>
 
     <div id="mekSummaryPane" style="overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;flex:1;min-height:0;">
 
-      <!-- ════ PANE ALL ════ -->
-      <div id="mekPaneAll">
-      <div style="padding:6px 14px 0;">
-
-        <!-- Toggle mode: Tanggal / Week -->
-        <div style="display:flex;gap:6px;margin-bottom:8px;">
-          <button id="mekBtnFilterDate" class="sum-view-btn active" onclick="mekSwitchFilterMode('date')">
-            <i class="fas fa-calendar-day"></i> Tanggal
-          </button>
-          <button id="mekBtnFilterWeek" class="sum-view-btn" onclick="mekSwitchFilterMode('week')">
-            <i class="fas fa-calendar-week"></i> Week
-          </button>
-        </div>
-
-        <!-- Filter by Tanggal -->
-        <div id="mekFilterModeDate" class="real-filter-bar">
-          <label>Dari</label>
-          <input type="date" id="mekFilterFrom">
-          <label>Sampai</label>
-          <input type="date" id="mekFilterTo">
-          <label>No. Pol</label>
-          <input type="text" id="mekFilterNopol" placeholder="Cari no. polisi..."
-            style="width:130px;border:1px solid #e2e8f0;border-radius:8px;padding:6px 8px;font-size:13px;">
-          <label>No. DOC</label>
-          <input type="text" id="mekFilterNoDoc" placeholder="Cari no. DOC..."
-            style="width:120px;border:1px solid #e2e8f0;border-radius:8px;padding:6px 8px;font-size:13px;">
-          <label>Tujuan</label>
-          <input type="text" id="mekFilterDest" placeholder="Filter tujuan..."
-            style="width:110px;border:1px solid #e2e8f0;border-radius:8px;padding:6px 8px;font-size:13px;">
-          <button class="btn-filter" onclick="mekLoadSummary()"><i class="fas fa-search"></i> Tampilkan</button>
-          <button class="btn-filter secondary" onclick="mekResetFilter()"><i class="fas fa-times"></i> Reset</button>
-        </div>
-
-        <!-- Filter by Week -->
-        <div id="mekFilterModeWeek" class="real-filter-bar" style="display:none;">
-          <label>Week</label>
-          <input type="number" id="mekFilterWeekFrom" min="1" max="53" placeholder=""
-            style="width:60px;border:1px solid #e2e8f0;border-radius:8px;padding:6px 8px;font-size:13px;">
-          <label>—</label>
-          <input type="number" id="mekFilterWeekTo" min="1" max="53" placeholder=""
-            style="width:60px;border:1px solid #e2e8f0;border-radius:8px;padding:6px 8px;font-size:13px;">
-          <input type="number" id="mekFilterWeekYear" min="2020" max="2099" placeholder=""
-            style="width:72px;border:1px solid #e2e8f0;border-radius:8px;padding:6px 8px;font-size:13px;">
-          <label style="font-size:10px;opacity:.7;">tahun</label>
-          <label>No. Pol</label>
-          <input type="text" id="mekFilterSkuW" placeholder="Cari no. polisi..."
-            style="width:120px;border:1px solid #e2e8f0;border-radius:8px;padding:6px 8px;font-size:13px;">
-          <label>No. DOC</label>
-          <input type="text" id="mekFilterNoDocW" placeholder="Cari no. DOC..."
-            style="width:110px;border:1px solid #e2e8f0;border-radius:8px;padding:6px 8px;font-size:13px;">
-          <label>Tujuan</label>
-          <input type="text" id="mekFilterDestW" placeholder="Filter tujuan..."
-            style="width:100px;border:1px solid #e2e8f0;border-radius:8px;padding:6px 8px;font-size:13px;">
-          <button class="btn-filter" onclick="mekApplyWeekFilter()"><i class="fas fa-search"></i> Tampilkan</button>
-          <button class="btn-filter secondary" onclick="mekResetFilter()"><i class="fas fa-times"></i> Reset</button>
-        </div>
-
-        <!-- Info tanggal hasil konversi week -->
-        <div id="mekWeekFilterInfo" style="display:none;font-size:11px;color:#718096;margin-top:6px;padding:0 2px;">
-          <i class="fas fa-info-circle"></i> <span id="mekWeekFilterInfoText"></span>
-        </div>
-
-      </div>
-
-      <!-- Summary cards -->
-      <div class="mek-card-grid">
-        <div class="mek-card">
-          <div class="mek-card-ico" style="background:#ebf8ff;color:#2b6cb0;"><i class="fas fa-truck"></i></div>
-          <div><div class="mek-card-val" id="mekCardTruck">—</div><div class="mek-card-lbl">Total Kendaraan</div></div>
-        </div>
-        <div class="mek-card">
-          <div class="mek-card-ico" style="background:#e9d8fd;color:#6b46c1;"><i class="fas fa-map-marker-alt"></i></div>
-          <div><div class="mek-card-val" id="mekCardDest">—</div><div class="mek-card-lbl">Tujuan</div></div>
-        </div>
-        <div class="mek-card">
-          <div class="mek-card-ico" style="background:#fefcbf;color:#744210;"><i class="fas fa-shipping-fast"></i></div>
-          <div><div class="mek-card-val" id="mekCardEksp">—</div><div class="mek-card-lbl">Ekspedisi</div></div>
-        </div>
-        <div class="mek-card">
-          <div class="mek-card-ico" style="background:#c6f6d5;color:#276749;"><i class="fas fa-check-circle"></i></div>
-          <div><div class="mek-card-val" id="mekCardKeluar">—</div><div class="mek-card-lbl">Sudah Keluar</div></div>
-        </div>
-      </div>
-
-      <!-- Summary table -->
-      <div class="opname-view-card" style="margin:0 14px 14px;">
-        <div class="opname-view-header" style="background:linear-gradient(135deg,#0f2027,#1a3a5c);">
-          <span style="font-size:13px;font-weight:800;"><i class="fas fa-table" style="margin-right:6px;"></i>Data Antrian Ekspor</span>
-          <div style="display:flex;align-items:center;gap:8px;">
-            <span id="mekSumRowCount" style="background:rgba(255,255,255,.2);border-radius:20px;padding:2px 10px;font-size:11px;font-weight:700;">0 DATA</span>
-            <button onclick="mekDownloadAllPdf()" style="margin-left:4px;padding:5px 12px;border-radius:8px;border:none;background:rgba(255,255,255,.15);color:#fff;font-size:11px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px;">
-              <i class="fas fa-file-pdf"></i> PDF
-            </button>
-            <!-- Download dropdown -->
-            <div style="position:relative;display:inline-block;" id="mekDownloadWrap">
-              <button onclick="mekToggleDownloadMenu()" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:6px;padding:4px 12px;font-size:11px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px;transition:background .15s;" onmouseover="this.style.background='rgba(255,255,255,.28)'" onmouseout="this.style.background='rgba(255,255,255,.15)'">
-                <i class="fas fa-download"></i> Download <i class="fas fa-chevron-down" style="font-size:9px;"></i>
-              </button>
-              <div id="mekDownloadMenu" style="display:none;position:absolute;right:0;top:calc(100% + 4px);background:#fff;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.15);border:1px solid #e2e8f0;overflow:hidden;z-index:99;min-width:140px;">
-                <button onclick="mekDownloadPdf()" style="width:100%;text-align:left;padding:9px 14px;border:none;background:none;font-size:12px;font-weight:600;color:#2d3748;cursor:pointer;display:flex;align-items:center;gap:8px;" onmouseover="this.style.background='#f7fafc'" onmouseout="this.style.background='none'">
-                  <i class="fas fa-file-pdf" style="color:#e53e3e;width:14px;"></i> Download PDF
-                </button>
-                <button onclick="mekDownloadExcel()" style="width:100%;text-align:left;padding:9px 14px;border:none;background:none;font-size:12px;font-weight:600;color:#2d3748;cursor:pointer;display:flex;align-items:center;gap:8px;border-top:1px solid #f0f0f0;" onmouseover="this.style.background='#f7fafc'" onmouseout="this.style.background='none'">
-                  <i class="fas fa-file-excel" style="color:#276749;width:14px;"></i> Download Excel
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="mek-sum-tbl-wrap">
-          <table class="mek-sum-tbl" id="mekSumTbl">
-            <thead>
-              <tr>
-                <th style="width:36px;text-align:center;">#</th>
-                <th>No. Pol</th>
-                <th>Ekspedisi</th>
-                <th>No. DOC</th>
-                <th>Tujuan</th>
-                <th>Waktu Daftar</th>
-                <th>Waktu Keluar</th>
-                <th style="text-align:center;">Status</th>
-              </tr>
-            </thead>
-            <tbody id="mekSumTbody">
-              <tr><td colspan="8" style="text-align:center;padding:60px;color:#a0aec0;font-size:13px;">
-                <i class="fas fa-search" style="font-size:32px;display:block;margin-bottom:12px;opacity:.2;"></i>
-                Pilih rentang tanggal lalu klik <b>Tampilkan</b>
-              </td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-      </div><!-- /mekPaneAll -->
-
       <!-- ════ PANE CAPAIAN PLANNING ════ -->
-      <div id="mekPaneCapaian" style="display:none;">
+      <div id="mekPaneCapaian" style="display:block;">
 
         <!-- Toggle mode: Capaian / Detail -->
         <div style="padding:8px 14px 4px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
@@ -5510,9 +5366,9 @@
       </div>
 
       <!-- Card: Antrian GDFG -->
-      <div class="app-portal-card" onclick="_openApp('https://whfg-myrjn2.github.io/LOADFLOW/')">
+      <div class="app-portal-card" onclick="_openApp('https://gdfg-jn2.github.io/ANTRIAN-GDFG/')">
         <div class="app-portal-icon" style="background:#fff;border:1px solid #e2e8f0;">
-          <img src="https://whfg-myrjn2.github.io/LOADFLOW/icons/icon-192.png" alt="Antrian GDFG" style="width:64px;height:64px;border-radius:14px;object-fit:cover;">
+          <img src="https://gdfg-jn2.github.io/ANTRIAN-GDFG/icons/icon-192.png" alt="Antrian GDFG" style="width:64px;height:64px;border-radius:14px;object-fit:cover;">
         </div>
         <div class="app-portal-info">
           <div class="app-portal-name">Sistem Antrian GDFG</div>
