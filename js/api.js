@@ -37,7 +37,7 @@ const API = (function () {
         // Token invalid/expired di tengah pemakaian -> paksa balik ke login
         clearToken();
         if (typeof window.handleAuthExpired === "function") {
-          window.handleAuthExpired();
+          window.handleAuthExpired(json.message);
         }
       }
       return json;
