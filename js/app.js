@@ -536,7 +536,7 @@ function _restoreSession() {
     return true;
   } catch(e) { return false; }
 }
-window.addEventListener('load', function(){ setTimeout(_restoreSession, 100); });
+window.addEventListener('load', _restoreSession);
 
 // ── KARINA AI ─────────────────────────────────────────────────
 function karinaToggle() {
