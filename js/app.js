@@ -90,13 +90,13 @@ function showLoginError(msg) {
   el.style.display = 'block';
 }
 
-function handleAuthExpired() {
+function handleAuthExpired(serverMsg) {
   try { localStorage.removeItem('gdfgSession'); } catch(e){}
   var dash = document.getElementById('dashboard');
   var lw   = document.getElementById('loginWrap');
   if (dash) dash.style.display = 'none';
   if (lw)   lw.style.display   = 'flex';
-  showLoginError('Sesi kadaluarsa, silakan login ulang.');
+  showLoginError(serverMsg || 'Sesi kadaluarsa, silakan login ulang.');
 }
 
 function logout() {
