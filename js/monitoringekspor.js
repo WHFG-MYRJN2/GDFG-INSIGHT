@@ -17,7 +17,7 @@ function _mekApplyResponsive() {
 
   // Toolbar padding — semua div yang punya padding inline
   var toolbars = page.querySelectorAll(
-    '#mekSummaryPane > div, #mekPaneCapaian > div, #mekPaneAll > div, ' +
+    '#mekSummaryPane > div, #mekPaneCapaian > div, ' +
     '#mekInputPane > div, #mekPlanningPane > div, #mekEmailPanel > div'
   );
   toolbars.forEach(function(el) {
@@ -76,15 +76,7 @@ function _mekUpdateRefreshLabel() {
 function mekRefreshData() {
   // Reset cache supaya reload dari GAS
   _mekCapEmailLastFrom = ''; _mekCapEmailLastTo = '';
-  // Reload sesuai mode aktif
-  if (_mekCapMode === 'email') {
-    mekLoadCapaian();
-  } else if (_mekCapMode !== 'all' || document.getElementById('mekSumViewCapaian') &&
-             document.getElementById('mekSumViewCapaian').classList.contains('active')) {
-    mekLoadCapaian();
-  } else {
-    mekLoadSummary();
-  }
+  mekLoadCapaian();
 }
 
 function _mekAutoRefreshData() {
@@ -184,7 +176,7 @@ function mekInitPage() {
 
   mekSwitchFilterMode('date');
   mekSwitchTab('summary');
-  mekSwitchSumView('all');
+  mekSwitchSumView();
   _mekApplyResponsive();
   window.addEventListener('resize', _mekApplyResponsive);
   window.addEventListener('orientationchange', function(){ setTimeout(_mekApplyResponsive, 300); });
@@ -314,10 +306,6 @@ function mekSwitchTab(tab) {
 
   var bsEl = document.getElementById('btnMekSummary'); if (bsEl) bsEl.style.background = tab==='summary'?'rgba(255,255,255,.35)':'rgba(255,255,255,.2)';
   var biEl = document.getElementById('btnMekInput');   if (biEl) biEl.style.background = tab==='input'?'rgba(255,255,255,.35)':'rgba(255,255,255,.2)';
-
-  // Sembunyikan toggle Capaian/Detail saat di tab selain Summary
-  var sumToggle = document.getElementById('mekSumViewToggle');
-  if (sumToggle) sumToggle.style.display = tab === 'summary' ? '' : 'none';
 }
 
 // ════════════════════════════════════════════════════════════
@@ -1658,9 +1646,12 @@ function _mekRenderCapaianEmail(data, skuFilter, docFilter, tujFilter) {
 
       if(r.isFirstRow) rowNum++;
       var isPend=r.isPendingan;
-      var bg=isPend?'background:#fffff0;':(r.status==='belum'?'background:#fff5f5;':'');
+      var isMaju=r.isMaju;
+      var bg=isPend?'background:#fffff0;':(isMaju?'background:#f0fff4;':(r.status==='belum'?'background:#fff5f5;':''));
       var badge = _mekCapBadge(r.status, r.statusRaw);
-      var ket = isPend ? '<span style="background:#f6d860;color:#744210;border-radius:6px;padding:1px 7px;font-size:10px;font-weight:700;margin-right:3px;">Pendingan tgl '+_mekFmtTglDisplay(r.pendinganDari)+'</span>' : '';
+      var ket = isPend ? '<span style="background:#f6d860;color:#744210;border-radius:6px;padding:1px 7px;font-size:10px;font-weight:700;margin-right:3px;">Delay dari tgl '+_mekFmtTglDisplay(r.pendinganDari)+'</span>'
+              : isMaju ? '<span style="background:#c6f6d5;color:#276749;border-radius:6px;padding:1px 7px;font-size:10px;font-weight:700;margin-right:3px;">Tarik maju dari tgl '+_mekFmtTglDisplay(r.majuDari)+'</span>'
+              : '';
       if (r.outOfPlanWeek) ket += '<span style="background:#e9d8fd;color:#553c9a;border-radius:6px;padding:1px 7px;font-size:10px;font-weight:700;">Dikirim di luar planning week '+r.outOfPlanWeek+'</span>';
       var noSoClean  = _mekStripLeadingZero(r.noSo||'');
       var hasDoc = !!noSoClean && !!(r.nopol||'').trim() && r.status !== 'belum';
@@ -2649,55 +2640,19 @@ function _mekUpdateSiFileStatus(name, state, msg) {
 }
 
 // ════════════════════════════════════════════════════════════
-// TOGGLE SUMMARY VIEW: ALL / CAPAIAN PLANNING
+// CAPAIAN PLANNING — init tanggal default (dulu ada toggle All/
+// Capaian di sini, All sudah dihapus karena tidak dipakai lagi)
 // ════════════════════════════════════════════════════════════
-var   _mekSumView = 'all';
-  // Sembunyikan toggle All/Capaian saat di tab Input Planning
-  var sumToggle = document.getElementById('mekSumViewToggle');
-  if (sumToggle) sumToggle.style.display = 'none';
-
-function _mekFadeSwitch(showEl, hideEl) {
-  if (!showEl || !hideEl) return;
-  hideEl.style.transition = 'opacity .15s ease';
-  hideEl.style.opacity = '0';
-  setTimeout(function(){
-    hideEl.style.display = 'none';
-    hideEl.style.opacity = '';
-    showEl.style.opacity = '0';
-    showEl.style.display = '';
-    showEl.style.transition = 'opacity .18s ease';
-    requestAnimationFrame(function(){ requestAnimationFrame(function(){
-      showEl.style.opacity = '1';
-    }); });
-  }, 150);
-}
-
 function mekSwitchSumView(view) {
-  // Tampilkan toggle kalau sempat disembunyikan
-  var sumToggle = document.getElementById('mekSumViewToggle');
-  if (sumToggle) sumToggle.style.display = '';
-  _mekSumView = view;
-  var paneAll     = document.getElementById('mekPaneAll');
-  var paneCapaian = document.getElementById('mekPaneCapaian');
-  var btnAll      = document.getElementById('mekSumViewAll');
-  var btnCap      = document.getElementById('mekSumViewCapaian');
-
-  if (paneAll)     paneAll.style.display     = view === 'all'     ? '' : 'none';
-  if (paneCapaian) paneCapaian.style.display = view === 'capaian' ? '' : 'none';
-  if (btnAll) btnAll.classList.toggle('active', view === 'all');
-  if (btnCap) btnCap.classList.toggle('active', view === 'capaian');
-
   // Init tanggal default capaian saat pertama dibuka
-  if (view === 'capaian') {
-    var today  = new Date();
-    var yyyy   = today.getFullYear();
-    var mm     = String(today.getMonth()+1).padStart(2,'0');
-    var dd     = String(today.getDate()).padStart(2,'0');
-    var elFrom = document.getElementById('mekCapFrom');
-    var elTo   = document.getElementById('mekCapTo');
-    if (elFrom && !elFrom.value) elFrom.value = yyyy+'-'+mm+'-01';
-    if (elTo   && !elTo.value)   elTo.value   = yyyy+'-'+mm+'-'+dd;
-  }
+  var today  = new Date();
+  var yyyy   = today.getFullYear();
+  var mm     = String(today.getMonth()+1).padStart(2,'0');
+  var dd     = String(today.getDate()).padStart(2,'0');
+  var elFrom = document.getElementById('mekCapFrom');
+  var elTo   = document.getElementById('mekCapTo');
+  if (elFrom && !elFrom.value) elFrom.value = yyyy+'-'+mm+'-01';
+  if (elTo   && !elTo.value)   elTo.value   = yyyy+'-'+mm+'-'+dd;
 }
 
 // ════════════════════════════════════════════════════════════
@@ -2918,12 +2873,15 @@ function _mekRenderCapaianEmailAktual(data) {
       seenSo[r.noSo]++;
 
       var isPend = r.isPendingan;
-      var bg = isPend ? 'background:#fffff0;' : '';
+      var isMaju = r.isMaju;
+      var bg = isPend ? 'background:#fffff0;' : (isMaju ? 'background:#f0fff4;' : '');
 
       var badge = _mekCapBadge(r.status, r.statusRaw);
 
       var ket = isPend
-        ? '<span style="background:#f6d860;color:#744210;border-radius:6px;padding:1px 7px;font-size:10px;font-weight:700;">Pendingan tgl '+_mekFmtTglDisplay(r.pendinganDari)+'</span>'
+        ? '<span style="background:#f6d860;color:#744210;border-radius:6px;padding:1px 7px;font-size:10px;font-weight:700;">Delay dari tgl '+_mekFmtTglDisplay(r.pendinganDari)+'</span>'
+        : isMaju
+        ? '<span style="background:#c6f6d5;color:#276749;border-radius:6px;padding:1px 7px;font-size:10px;font-weight:700;">Tarik maju dari tgl '+_mekFmtTglDisplay(r.majuDari)+'</span>'
         : '';
       if (r.outOfPlanWeek) ket += '<span style="background:#e9d8fd;color:#553c9a;border-radius:6px;padding:1px 7px;font-size:10px;font-weight:700;">Dikirim di luar planning week '+r.outOfPlanWeek+'</span>';
 
