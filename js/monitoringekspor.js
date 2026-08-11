@@ -181,7 +181,7 @@ function mekInitPage() {
   window.addEventListener('resize', _mekApplyResponsive);
   window.addEventListener('orientationchange', function(){ setTimeout(_mekApplyResponsive, 300); });
   mekStartAutoRefresh();
-  _mekCapMode = 'email';
+  mekCapSwitchMode('email');
   _mekInitPlanningWa();
 }
 
