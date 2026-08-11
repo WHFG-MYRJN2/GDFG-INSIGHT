@@ -138,8 +138,19 @@ function updateRowCount(){
     }
 
     // Pre-load semua STD ke cache saat halaman input dibuka
-    function _preloadStdCache(){
+    function _preloadStdCache(retryCount){
       if(Object.keys(_stdLookupMap).length > 0) return;
+      // Pengaman: kalau token belum siap (restore session belum kelar di file
+      // lain), tunggu sebentar dan coba lagi -- daripada nembak API duluan
+      // tanpa token dan ke-anggap "sesi kadaluarsa". Dibatasi ~20x percobaan
+      // (3 detik) supaya tidak infinite-loop kalau memang belum login sama
+      // sekali (cache akan otomatis terisi lagi nanti pas halaman Input dibuka).
+      retryCount = retryCount || 0;
+      if (typeof API !== 'undefined' && API.getToken && !API.getToken()) {
+        if (retryCount >= 20) return;
+        setTimeout(function(){ _preloadStdCache(retryCount+1); }, 150);
+        return;
+      }
       if(true){
         google.script.run
           .withSuccessHandler(function(res){
