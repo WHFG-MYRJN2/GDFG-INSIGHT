@@ -2873,15 +2873,12 @@ function _mekRenderCapaianEmailAktual(data) {
       seenSo[r.noSo]++;
 
       var isPend = r.isPendingan;
-      var isMaju = r.isMaju;
-      var bg = isPend ? 'background:#fffff0;' : (isMaju ? 'background:#f0fff4;' : '');
+      var bg = isPend ? 'background:#fffff0;' : '';
 
       var badge = _mekCapBadge(r.status, r.statusRaw);
 
       var ket = isPend
-        ? '<span style="background:#f6d860;color:#744210;border-radius:6px;padding:1px 7px;font-size:10px;font-weight:700;">Delay dari tgl '+_mekFmtTglDisplay(r.pendinganDari)+'</span>'
-        : isMaju
-        ? '<span style="background:#c6f6d5;color:#276749;border-radius:6px;padding:1px 7px;font-size:10px;font-weight:700;">Tarik maju dari tgl '+_mekFmtTglDisplay(r.majuDari)+'</span>'
+        ? '<span style="background:#f6d860;color:#744210;border-radius:6px;padding:1px 7px;font-size:10px;font-weight:700;">Pendingan tgl '+_mekFmtTglDisplay(r.pendinganDari)+'</span>'
         : '';
       if (r.outOfPlanWeek) ket += '<span style="background:#e9d8fd;color:#553c9a;border-radius:6px;padding:1px 7px;font-size:10px;font-weight:700;">Dikirim di luar planning week '+r.outOfPlanWeek+'</span>';
 
