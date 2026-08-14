@@ -3926,13 +3926,17 @@ function mekShowBySkuDetail() {
       m.qtyKrt   += (groupQtyArr[pk]||[]).reduce(function(a,b){ return a+b; }, 0);
     }
 
-    // Baris realisasi (truk sudah ada di antrian) → ambil krt sesuai urutan container
+    // Index krt tetap jalan buat SEMUA truk terdaftar (keluar/loading/daftar)
+    // supaya urutan angka di QTY_KRT tetap nempel ke truk yang benar --
+    // tapi yang dihitung ke "Termuat" cuma yang status-nya sudah KELUAR.
     if (r.status === 'keluar' || r.status === 'loading' || r.status === 'daftar') {
       var idx = groupRowIdx[pk]++;
       var krt = (groupQtyArr[pk]||[])[idx] || 0;
-      groupQtyUsed[pk] += krt;
-      m.termuat     += krt;
-      m.termuatCont += 1;
+      if (r.status === 'keluar') {
+        groupQtyUsed[pk] += krt;
+        m.termuat     += krt;
+        m.termuatCont += 1;
+      }
     }
   });
 
