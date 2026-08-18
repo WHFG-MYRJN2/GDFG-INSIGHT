@@ -1156,6 +1156,33 @@
       -webkit-overflow-scrolling:touch;
     }
     .sidebar.active{ left:0; }
+
+    /* Scrollbar custom — senada tema sidebar (navy-teal), tipis & halus */
+    .sidebar, .sidebar-menu{
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255,255,255,.18) transparent;
+    }
+    .sidebar::-webkit-scrollbar,
+    .sidebar-menu::-webkit-scrollbar{
+      width: 5px;
+    }
+    .sidebar::-webkit-scrollbar-track,
+    .sidebar-menu::-webkit-scrollbar-track{
+      background: transparent;
+    }
+    .sidebar::-webkit-scrollbar-thumb,
+    .sidebar-menu::-webkit-scrollbar-thumb{
+      background: rgba(255,255,255,.18);
+      border-radius: 10px;
+      border: 1px solid transparent;
+      background-clip: padding-box;
+    }
+    .sidebar::-webkit-scrollbar-thumb:hover,
+    .sidebar-menu::-webkit-scrollbar-thumb:hover{
+      background: rgba(255,255,255,.32);
+      background-clip: padding-box;
+    }
+
     /* Landscape mobile: sidebar lebih compact */
     @media(max-height:500px){
       .sidebar{ width:220px; left:-220px; }
