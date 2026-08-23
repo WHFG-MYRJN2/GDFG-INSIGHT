@@ -3094,7 +3094,7 @@ function initRealForm(){
         var wk = weeks[fi];
         if(wk){ grandTotalKrtWk += wk.totalQty || 0; grandPlanMobil += wk.planningMobil || 0; }
       });
-      var grandSisaPlan   = grandTotalKrtWk - grandTotalRealKrt;
+      var grandSisaPlan   = grandTotalRealKrt - grandTotalKrtWk;
       var grandPctReal    = grandTotalKrtWk > 0 ? (grandTotalRealKrt/grandTotalKrtWk*100).toFixed(2) : 0;
       // Pendingan mobil = akumulasi Realisasi SEMINGGU (bukan cuma hari
       // terakhir, karena SPE Turun/Realisasi harian itu angka lepas per
@@ -3233,7 +3233,7 @@ function initRealForm(){
           +'<span class="direct-sisa-val">'+fmtN(grandTotalRealKrt)+' © ('+grandPctReal+'%)</span></div>';
         html += '<div style="display:flex;justify-content:space-between;width:100%;align-items:center;">'
           +'<span class="direct-sisa-label">Sisa Planning</span>'
-          +'<span class="direct-sisa-val" style="color:'+(grandSisaPlan>0?'#f6e05e':'#68d391')+';">'+fmtN(grandSisaPlan)+' ©</span></div>';
+          +'<span class="direct-sisa-val" style="color:'+(grandSisaPlan<0?'#f6e05e':'#68d391')+';">'+fmtN(grandSisaPlan)+' ©</span></div>';
         html += '<div style="display:flex;justify-content:space-between;width:100%;align-items:center;">'
           +'<span class="direct-sisa-label">Pendingan SPE/DO'+_lastDateLabel+'</span>'
           +'<span class="direct-sisa-val" style="color:'+pMobilColor+';">'+( grandPendMobil===0 ? '—' : pMobilSign+fmtN(grandPendMobil)+' mobil')+'</span></div>';
