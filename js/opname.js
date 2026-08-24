@@ -163,7 +163,7 @@ function initOpnamePage(){
               var row=this.closest('tr');
               var nCell=row&&row.querySelector('[data-col="item"]');
               var stdCell=row&&row.querySelector('[data-col="std"]');
-              var sapColLookup=_opCurrentTipe==='EKSPOR'?'sap_detail':'sap';
+              var sapColLookup=_opCurrentTipe==='EKSPOR'?'sap_total':'sap';
               var sapCell=row&&row.querySelector('[data-col="'+sapColLookup+'"]');
               if(skuVal){
                 if(_opnameNamaMap[skuVal]){
@@ -747,7 +747,7 @@ function initOpnamePage(){
     function _opLookupRow(tr){
       var skuVal = (_getCell(tr,'sku')||'').trim();
       if(!skuVal) return;
-      var sapColLookup = _opCurrentTipe==='EKSPOR' ? 'sap_detail' : 'sap';
+      var sapColLookup = _opCurrentTipe==='EKSPOR' ? 'sap_total' : 'sap';
       var nCell   = tr.querySelector('[data-col="item"]');
       var stdCell = tr.querySelector('[data-col="std"]');
       var sapCell = tr.querySelector('[data-col="'+sapColLookup+'"]');
