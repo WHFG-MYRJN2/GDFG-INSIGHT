@@ -119,6 +119,16 @@ var KPI_COLS = [
     return h+' JAM '+m+' MENIT';
   }
 
+  // Sama seperti _kpiFmtMin tapi tampilkan hari kalau durasinya lebih dari 24 jam
+  // (dipakai di tab Waktu Kembali — truk bisa saja baru balik beberapa hari kemudian)
+  function _kpiFmtMinLong(min){
+    if(min===null||min===undefined||isNaN(min)) return '-';
+    var totalH=Math.floor(min/60), m=Math.round(min%60);
+    var d=Math.floor(totalH/24), h=totalH%24;
+    if(d>0) return d+' HARI '+h+' JAM '+m+' MENIT';
+    return h+' JAM '+m+' MENIT';
+  }
+
   var _kpiRitaseMode = 'all';
   var _kpiRitaseGroupMode = 'day'; // 'day' | 'shift'
   var _kpiFilterMode = 'tanggal'; // 'tanggal' | 'week'
@@ -205,6 +215,7 @@ var KPI_COLS = [
     if(tab==='ritase')  kpiLoadRitase();
     if(tab==='stay')    kpiLoadStay();
     if(tab==='loading') kpiLoadLoading();
+    if(tab==='kembali') kpiLoadKembali();
   }
 
   function kpiToggleRitaseMode(mode){
@@ -308,6 +319,64 @@ var KPI_COLS = [
       .getKpiLoadingSummary(f.from, f.to);
   }
 
+  // ══════════════════════════════════════════════════════════════
+  // TAB: WAKTU KEMBALI
+  // Per No. Mobil: pasangkan trip berurutan — (Tanggal+Jam Keluar) trip ke-N
+  // → (Tanggal+Jam Tiba) trip ke-N+1 = lama mobil itu "hilang" sebelum balik lagi.
+  // ══════════════════════════════════════════════════════════════
+  function kpiLoadKembali(){
+    var f=kpiLoadFilters();
+    window._kpiCurrentYear = f.to ? parseInt(f.to.substring(0,4)) : new Date().getFullYear();
+    var pane=document.getElementById('kpiKembaliPane');
+    if(pane) pane.innerHTML='<div style="text-align:center;padding:60px;color:#a0aec0;"><i class="fas fa-spinner fa-spin" style="font-size:24px;"></i></div>';
+    google.script.run
+      .withSuccessHandler(function(res){ _kpiRenderKembali(res); })
+      .withFailureHandler(function(err){ if(pane) pane.innerHTML='<div style="text-align:center;padding:40px;color:#e53e3e;">Error: '+err.message+'</div>'; })
+      .getKpiKembaliSummary(f.from, f.to);
+  }
+
+  function _kpiRenderKembali(res){
+    var pane=document.getElementById('kpiKembaliPane');
+    if(!pane) return;
+    if(!res||!res.success){ pane.innerHTML='<div style="text-align:center;padding:40px;color:#e53e3e;">'+(res?res.message:'Gagal memuat')+'</div>'; return; }
+    var list=res.perMobil||[];
+    var html='';
+
+    // ── Kartu ringkasan global — gradient header ala tab lain ──
+    html+='<div style="background:#fff;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,.08);border:1px solid #e2e8f0;margin:16px 0 18px;overflow:hidden;">'
+        +'<div style="background:linear-gradient(135deg,#0f2027,#2c5364);color:#fff;padding:16px 20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px;">'
+        +'<div><div style="font-size:11px;opacity:.7;text-transform:uppercase;letter-spacing:.5px;">Rata-rata Waktu Kembali</div>'
+        +'<div style="font-size:26px;font-weight:800;">'+_kpiFmtMinLong(res.globalAvg)+'</div></div>'
+        +'<div style="text-align:right;"><div style="font-size:10px;opacity:.65;">Pasangan Keluar &rarr; Kembali</div><div style="font-size:15px;font-weight:800;">'+res.globalCount+'</div></div>'
+        +'<div style="text-align:right;"><div style="font-size:10px;opacity:.65;">Jumlah Mobil</div><div style="font-size:15px;font-weight:800;">'+list.length+'</div></div>'
+        +'</div></div>';
+
+    if(!list.length){
+      html+='<div style="text-align:center;padding:50px;color:#a0aec0;background:#fff;border-radius:12px;border:1px solid #e2e8f0;"><i class="fas fa-inbox" style="font-size:30px;display:block;margin-bottom:10px;opacity:.3;"></i>Tidak ada data untuk rentang ini</div>';
+    } else {
+      html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;">';
+      list.forEach(function(m){
+        html+='<div style="background:#fff;border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,.06);border:1px solid #e2e8f0;overflow:hidden;">'
+            +'<div style="background:linear-gradient(135deg,#1a3a5c,#2d6a9f);color:#fff;padding:10px 14px;">'
+            +'<div style="font-size:14px;font-weight:800;">'+_kpiEsc(m.mobil)+'</div>'
+            +'<div style="font-size:11px;opacity:.8;margin-top:2px;">Rata-rata <b>'+_kpiFmtMinLong(m.avgMinutes)+'</b> &middot; '+m.count+' trip</div>'
+            +'</div>'
+            +'<div style="padding:10px 14px;display:flex;flex-direction:column;gap:6px;">'
+            +m.gaps.map(function(g,i){
+              var bg = i%2===0 ? '#fff' : '#f7fafc';
+              return '<div style="padding:6px 8px;background:'+bg+';border-radius:6px;font-size:11px;">'
+                +'<div style="color:#718096;">'+_kpiEsc(g.keluarTgl)+' '+_kpiEsc(g.keluarJam)+' <i class="fas fa-arrow-right" style="margin:0 4px;opacity:.5;"></i> '+_kpiEsc(g.tibaTgl)+' '+_kpiEsc(g.tibaJam)+'</div>'
+                +'<div style="color:#2c5364;font-weight:800;margin-top:2px;">'+_kpiFmtMinLong(g.menit)+'</div>'
+                +'</div>';
+            }).join('')
+            +'</div>'
+            +'</div>';
+      });
+      html+='</div>';
+    }
+    pane.innerHTML=html;
+  }
+
   function _kpiRenderPlantSummary(res, paneId, title, apiType){
     var pane=document.getElementById(paneId);
     if(!pane) return;
@@ -358,12 +427,14 @@ var KPI_COLS = [
       ritase:  document.getElementById('kpiRitasePane'),
       stay:    document.getElementById('kpiStayPane'),
       loading: document.getElementById('kpiLoadingPane'),
+      kembali: document.getElementById('kpiKembaliPane'),
       input:   document.getElementById('kpiInputPane')
     };
     var btns={
       ritase:  document.getElementById('kpiTabRitase'),
       stay:    document.getElementById('kpiTabStay'),
       loading: document.getElementById('kpiTabLoading'),
+      kembali: document.getElementById('kpiTabKembali'),
       input:   document.getElementById('kpiTabInput')
     };
     Object.keys(panes).forEach(function(k){
@@ -376,6 +447,7 @@ var KPI_COLS = [
     if(tab==='ritase'  && !window._kpiRitaseLoaded)  { window._kpiRitaseLoaded=true;  kpiLoadRitase(); }
     if(tab==='stay'    && !window._kpiStayLoaded)    { window._kpiStayLoaded=true;    kpiLoadStay(); }
     if(tab==='loading' && !window._kpiLoadingLoaded) { window._kpiLoadingLoaded=true; kpiLoadLoading(); }
+    if(tab==='kembali' && !window._kpiKembaliLoaded) { window._kpiKembaliLoaded=true; kpiLoadKembali(); }
   }
 
   // ── Helpers ──
