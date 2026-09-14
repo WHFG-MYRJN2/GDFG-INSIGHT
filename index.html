@@ -1156,33 +1156,6 @@
       -webkit-overflow-scrolling:touch;
     }
     .sidebar.active{ left:0; }
-
-    /* Scrollbar custom — senada tema sidebar (navy-teal), tipis & halus */
-    .sidebar, .sidebar-menu{
-      scrollbar-width: thin;
-      scrollbar-color: rgba(255,255,255,.18) transparent;
-    }
-    .sidebar::-webkit-scrollbar,
-    .sidebar-menu::-webkit-scrollbar{
-      width: 5px;
-    }
-    .sidebar::-webkit-scrollbar-track,
-    .sidebar-menu::-webkit-scrollbar-track{
-      background: transparent;
-    }
-    .sidebar::-webkit-scrollbar-thumb,
-    .sidebar-menu::-webkit-scrollbar-thumb{
-      background: rgba(255,255,255,.18);
-      border-radius: 10px;
-      border: 1px solid transparent;
-      background-clip: padding-box;
-    }
-    .sidebar::-webkit-scrollbar-thumb:hover,
-    .sidebar-menu::-webkit-scrollbar-thumb:hover{
-      background: rgba(255,255,255,.32);
-      background-clip: padding-box;
-    }
-
     /* Landscape mobile: sidebar lebih compact */
     @media(max-height:500px){
       .sidebar{ width:220px; left:-220px; }
@@ -5235,6 +5208,7 @@
         <button id="kpiTabRitase" class="real-tab" onclick="kpiSwitchTab('ritase')"><i class="fas fa-truck-moving"></i> Ritase/Day</button>
         <button id="kpiTabStay" class="real-tab" onclick="kpiSwitchTab('stay')"><i class="fas fa-parking"></i> Waktu Stay</button>
         <button id="kpiTabLoading" class="real-tab" onclick="kpiSwitchTab('loading')"><i class="fas fa-boxes"></i> Waktu Loading</button>
+        <button id="kpiTabKembali" class="real-tab" onclick="kpiSwitchTab('kembali')"><i class="fas fa-route"></i> Waktu Kembali</button>
         <button id="kpiTabInput" class="real-tab active" onclick="kpiSwitchTab('input')"><i class="fas fa-plus-circle"></i> Input Data</button>
       </div>
 
@@ -5265,6 +5239,7 @@
       <div id="kpiRitasePane" style="display:none;padding:0 4px;"></div>
       <div id="kpiStayPane" style="display:none;padding:0 4px;"></div>
       <div id="kpiLoadingPane" style="display:none;padding:0 4px;"></div>
+      <div id="kpiKembaliPane" style="display:none;padding:0 4px;"></div>
 
       <!-- Input Data pane -->
       <div id="kpiInputPane" style="display:block;">
