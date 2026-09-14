@@ -51,6 +51,7 @@
     'getKpiRitaseSummary':  function(a){ return {from:a[0]||'', to:a[1]||'', mode:a[2]||'all', groupMode:a[3]||'day'}; },
     'getKpiStaySummary':    function(a){ return {from:a[0]||'', to:a[1]||''}; },
     'getKpiLoadingSummary': function(a){ return {from:a[0]||'', to:a[1]||''}; },
+    'getKpiKembaliSummary': function(a){ return {from:a[0]||'', to:a[1]||''}; },
     'getKpiSemesterGrade':  function(a){ return {type:a[0]||'', subKey:a[1]||'', year:a[2]||''}; },
     'getRdcData':          function(a){ return {from:a[0]||'', to:a[1]||''}; },
     'saveRdcCatatan':      function(a){ return a[0]||{}; },
