@@ -133,6 +133,12 @@ var KPI_COLS = [
   var _kpiRitaseGroupMode = 'day'; // 'day' | 'shift'
   var _kpiFilterMode = 'tanggal'; // 'tanggal' | 'week'
 
+  // Request-guard per pane — supaya respons yang "basi" (misal dari auto-load
+  // default minggu berjalan pas tab baru dibuka) tidak menimpa hasil dari klik
+  // "Tampilkan" yang lebih baru kalau ternyata respons lama itu baru selesai
+  // belakangan.
+  var _kpiReqSeq = { ritase:0, stay:0, loading:0, kembali:0 };
+
   function kpiInitPage(){
     var today=new Date();
     var yyyy=today.getFullYear();
@@ -151,6 +157,11 @@ var KPI_COLS = [
     var curWeek=Math.ceil((((thu-jan1)/86400000)+1)/7);
     var elW=document.getElementById('kpiFilterWeek'); if(elW&&!elW.value) elW.value=curWeek;
     var elY=document.getElementById('kpiFilterYear'); if(elY&&!elY.value) elY.value=thu.getUTCFullYear();
+
+    // Default mode filter = Week (minggu berjalan), BUKAN Tanggal (rentang 1
+    // bulan) — supaya pertama kali tab report dibuka, request-nya lebih
+    // ringan (1 minggu, bukan 1 bulan) dan langsung nunjukin minggu berjalan.
+    kpiToggleFilterMode('week');
 
     if(_kpiTbody().rows.length===0) kpiInitRows(20);
     _kpiBindEvents();
@@ -234,9 +245,16 @@ var KPI_COLS = [
     window._kpiCurrentYear = f.to ? parseInt(f.to.substring(0,4)) : new Date().getFullYear();
     var pane=document.getElementById('kpiRitasePane');
     if(pane) pane.innerHTML='<div style="text-align:center;padding:60px;color:#a0aec0;"><i class="fas fa-spinner fa-spin" style="font-size:24px;"></i></div>';
+    var myReq = ++_kpiReqSeq.ritase;
     google.script.run
-      .withSuccessHandler(function(res){ _kpiRenderRitase(res); })
-      .withFailureHandler(function(err){ if(pane) pane.innerHTML='<div style="text-align:center;padding:40px;color:#e53e3e;">Error: '+err.message+'</div>'; })
+      .withSuccessHandler(function(res){
+        if(myReq!==_kpiReqSeq.ritase) return; // ada request lebih baru sesudah ini → abaikan, jangan render
+        _kpiRenderRitase(res);
+      })
+      .withFailureHandler(function(err){
+        if(myReq!==_kpiReqSeq.ritase) return;
+        if(pane) pane.innerHTML='<div style="text-align:center;padding:40px;color:#e53e3e;">Error: '+err.message+'</div>';
+      })
       .getKpiRitaseSummary(f.from, f.to, _kpiRitaseMode, _kpiRitaseGroupMode);
   }
 
@@ -302,9 +320,16 @@ var KPI_COLS = [
     window._kpiCurrentYear = f.to ? parseInt(f.to.substring(0,4)) : new Date().getFullYear();
     var pane=document.getElementById('kpiStayPane');
     if(pane) pane.innerHTML='<div style="text-align:center;padding:60px;color:#a0aec0;"><i class="fas fa-spinner fa-spin" style="font-size:24px;"></i></div>';
+    var myReq = ++_kpiReqSeq.stay;
     google.script.run
-      .withSuccessHandler(function(res){ _kpiRenderPlantSummary(res,'kpiStayPane','Waktu Stay','stay'); })
-      .withFailureHandler(function(err){ if(pane) pane.innerHTML='<div style="text-align:center;padding:40px;color:#e53e3e;">Error: '+err.message+'</div>'; })
+      .withSuccessHandler(function(res){
+        if(myReq!==_kpiReqSeq.stay) return;
+        _kpiRenderPlantSummary(res,'kpiStayPane','Waktu Stay','stay');
+      })
+      .withFailureHandler(function(err){
+        if(myReq!==_kpiReqSeq.stay) return;
+        if(pane) pane.innerHTML='<div style="text-align:center;padding:40px;color:#e53e3e;">Error: '+err.message+'</div>';
+      })
       .getKpiStaySummary(f.from, f.to);
   }
 
@@ -313,9 +338,16 @@ var KPI_COLS = [
     window._kpiCurrentYear = f.to ? parseInt(f.to.substring(0,4)) : new Date().getFullYear();
     var pane=document.getElementById('kpiLoadingPane');
     if(pane) pane.innerHTML='<div style="text-align:center;padding:60px;color:#a0aec0;"><i class="fas fa-spinner fa-spin" style="font-size:24px;"></i></div>';
+    var myReq = ++_kpiReqSeq.loading;
     google.script.run
-      .withSuccessHandler(function(res){ _kpiRenderPlantSummary(res,'kpiLoadingPane','Waktu Loading','loading'); })
-      .withFailureHandler(function(err){ if(pane) pane.innerHTML='<div style="text-align:center;padding:40px;color:#e53e3e;">Error: '+err.message+'</div>'; })
+      .withSuccessHandler(function(res){
+        if(myReq!==_kpiReqSeq.loading) return;
+        _kpiRenderPlantSummary(res,'kpiLoadingPane','Waktu Loading','loading');
+      })
+      .withFailureHandler(function(err){
+        if(myReq!==_kpiReqSeq.loading) return;
+        if(pane) pane.innerHTML='<div style="text-align:center;padding:40px;color:#e53e3e;">Error: '+err.message+'</div>';
+      })
       .getKpiLoadingSummary(f.from, f.to);
   }
 
@@ -329,9 +361,16 @@ var KPI_COLS = [
     window._kpiCurrentYear = f.to ? parseInt(f.to.substring(0,4)) : new Date().getFullYear();
     var pane=document.getElementById('kpiKembaliPane');
     if(pane) pane.innerHTML='<div style="text-align:center;padding:60px;color:#a0aec0;"><i class="fas fa-spinner fa-spin" style="font-size:24px;"></i></div>';
+    var myReq = ++_kpiReqSeq.kembali;
     google.script.run
-      .withSuccessHandler(function(res){ _kpiRenderKembali(res); })
-      .withFailureHandler(function(err){ if(pane) pane.innerHTML='<div style="text-align:center;padding:40px;color:#e53e3e;">Error: '+err.message+'</div>'; })
+      .withSuccessHandler(function(res){
+        if(myReq!==_kpiReqSeq.kembali) return;
+        _kpiRenderKembali(res);
+      })
+      .withFailureHandler(function(err){
+        if(myReq!==_kpiReqSeq.kembali) return;
+        if(pane) pane.innerHTML='<div style="text-align:center;padding:40px;color:#e53e3e;">Error: '+err.message+'</div>';
+      })
       .getKpiKembaliSummary(f.from, f.to);
   }
 
