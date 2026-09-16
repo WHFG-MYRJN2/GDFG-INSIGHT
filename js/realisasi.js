@@ -275,7 +275,7 @@ function initRealForm(){
 
     var currentSumView = 'realisasi'; // 'realisasi'|'detail'|'direct'|'directdetail'
 
-    var _rekapSubMode  = 'detail'; // 'detail' | 'grafik'
+    var _rekapSubMode  = 'detail'; // 'detail' | 'grafik' | 'tujuan'
     var _rekapDayFilter = 'all';   // 'all' | 'weekday' | 'weekend'
     var _rekapGrafikTujuan = 'ALL'; // 'ALL'|'MDC'|'MT'|'LK'|'SUB'|'EXP'
 
@@ -295,7 +295,7 @@ function initRealForm(){
 
     function switchRekapSub(sub){
       _rekapSubMode = sub;
-      ['detail','grafik'].forEach(function(s){
+      ['detail','grafik','tujuan'].forEach(function(s){
         var btn = document.getElementById('btnRekapSub_'+s);
         if(btn) btn.classList.toggle('active', s===sub);
       });
@@ -563,6 +563,10 @@ function initRealForm(){
         renderRekapGrafik(data, viewMode);
         return;
       }
+      if(_rekapSubMode === 'tujuan'){
+        renderRekapTujuan(data, viewMode);
+        return;
+      }
 
       // ── MODE DETAIL ──
       var byGroup = {}, groupOrder = [];
@@ -660,6 +664,100 @@ function initRealForm(){
       body.innerHTML = html;
     }
 
+
+    // ── MODE TUJUAN — dari total karton keseluruhan yg dikirim, dibagi ke
+    // tujuan mana saja + persentasenya. Ada 2 bagian: (1) Total keseluruhan
+    // (gabungan semua TIM/Shift), dan (2) breakdown per TIM/Shift, masing2
+    // dengan 2 persentase: % dari total kelompok itu sendiri, & % dari total
+    // keseluruhan gudang. ──
+    function renderRekapTujuan(data, viewMode){
+      var body = document.getElementById('realSummaryBody');
+      var groupKey = viewMode === 'rekapShift' ? 2 : 3;
+      var groupLabel = viewMode === 'rekapShift' ? 'Shift' : 'TIM';
+
+      function sumCol(rows,idx){return rows.reduce(function(s,r){return s+(Number(r[idx])||0);},0);}
+      function fmt(v){return v>0?v.toLocaleString('id-ID'):'-';}
+      function pct(a,b){return b>0?Math.round(a/b*100):0;}
+
+      var tujuan=['MDC','MT','LK','SUB','EXP'];
+      var speIdx={MDC:10,MT:12,LK:14,SUB:16,EXP:18};
+      var krtIdx={MDC:11,MT:13,LK:15,SUB:17,EXP:19};
+      var tujuanColors={MDC:'#2563eb',MT:'#dc2626',LK:'#16a34a',SUB:'#9333ea',EXP:'#d97706'};
+
+      // ── Grand total keseluruhan (semua TIM/Shift digabung jadi satu) ──
+      var gt={spe:0,krt:0}, gtT={};
+      tujuan.forEach(function(t){gtT[t]={spe:0,krt:0};});
+      data.forEach(function(r){
+        gt.spe+=Number(r[20])||0; gt.krt+=Number(r[21])||0;
+        tujuan.forEach(function(t){ gtT[t].spe+=Number(r[speIdx[t]])||0; gtT[t].krt+=Number(r[krtIdx[t]])||0; });
+      });
+
+      // ── Kelompokkan per TIM/Shift ──
+      var byGroup={}, groupOrder=[];
+      data.forEach(function(r){
+        var key=String(r[groupKey]||'-').trim();
+        if(!byGroup[key]){byGroup[key]=[];groupOrder.push(key);}
+        byGroup[key].push(r);
+      });
+      if(viewMode==='rekapShift') groupOrder.sort(function(a,b){return Number(a)-Number(b);});
+      else groupOrder.sort();
+
+      var TIM_MEMBERS = { 'A':'RIZAL & SEHAB', 'B':'ARIF & FERRY', 'C':'DIAR & FIRMAN' };
+      function timLabel(key){
+        var m=TIM_MEMBERS[key];
+        return key+(m?' <span style="font-size:11px;font-weight:500;color:#a0aec0;">('+m+')</span>':'');
+      }
+
+      var html='';
+
+      // ── Kartu Total Keseluruhan ──
+      html+='<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;margin-bottom:14px;">';
+      html+='<div style="padding:11px 16px;border-bottom:1px solid #f0f4f8;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">';
+      html+='<span style="font-size:15px;font-weight:700;color:#2d3748;"><i class="fas fa-globe" style="margin-right:6px;color:#718096;"></i>Total Keseluruhan</span>';
+      html+='<span style="font-size:13px;font-weight:700;color:#2d3748;">'+fmt(gt.krt)+' KRT / '+fmt(gt.spe)+' SPE</span></div>';
+      html+='<div style="padding:14px 16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;">';
+      tujuan.forEach(function(t){
+        var p = pct(gtT[t].krt, gt.krt);
+        html+='<div style="background:#f7fafc;border-radius:8px;padding:10px 12px;">'
+          +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'
+          +'<span style="font-size:11px;font-weight:700;color:'+tujuanColors[t]+';">'+t+'</span>'
+          +'<span style="font-size:12px;font-weight:800;color:#2d3748;">'+p+'%</span></div>'
+          +'<div style="font-size:14px;font-weight:700;color:#2d3748;">'+fmt(gtT[t].krt)+' <span style="font-size:11px;font-weight:500;color:#a0aec0;">KRT</span></div>'
+          +'<div style="font-size:11px;color:#718096;">'+fmt(gtT[t].spe)+' SPE</div>'
+          +'<div style="height:4px;background:#edf2f7;border-radius:3px;margin-top:6px;overflow:hidden;"><div style="height:4px;width:'+p+'%;background:'+tujuanColors[t]+';border-radius:3px;"></div></div>'
+          +'</div>';
+      });
+      html+='</div></div>';
+
+      // ── Breakdown per TIM/Shift ──
+      html+='<div style="font-size:12px;font-weight:700;color:#718096;text-transform:uppercase;letter-spacing:.4px;margin:4px 0 8px;">Per '+groupLabel+'</div>';
+      html+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(0,1fr));gap:10px;">';
+      groupOrder.forEach(function(key){
+        var rows=byGroup[key];
+        var gKrt=sumCol(rows,21), gSpe=sumCol(rows,20);
+        html+='<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;">';
+        html+='<div style="padding:11px 16px;border-bottom:1px solid #f0f4f8;display:flex;justify-content:space-between;align-items:center;">';
+        html+='<span style="font-size:14px;font-weight:700;color:#2d3748;">'+(viewMode==='rekapShift'?('Shift '+key):timLabel(key))+'</span>';
+        html+='<span style="font-size:12px;font-weight:700;color:#2d3748;">'+fmt(gKrt)+' KRT</span></div>';
+        html+='<div style="padding:12px 14px;display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
+        tujuan.forEach(function(t){
+          var tk = sumCol(rows,krtIdx[t]), tspe = sumCol(rows,speIdx[t]);
+          var pIn = pct(tk, gKrt);    // % dari total kelompok (TIM/Shift) ini sendiri
+          var pAll = pct(tk, gt.krt); // % dari total keseluruhan gudang
+          html+='<div style="background:#f7fafc;border-radius:6px;padding:8px 10px;">'
+            +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">'
+            +'<span style="font-size:11px;font-weight:700;color:'+tujuanColors[t]+';">'+t+'</span>'
+            +'<span style="font-size:11px;font-weight:800;color:#2d3748;">'+pIn+'%</span></div>'
+            +'<div style="font-size:13px;font-weight:700;color:#2d3748;">'+fmt(tk)+' <span style="font-size:10px;font-weight:500;color:#a0aec0;">KRT</span></div>'
+            +'<div style="font-size:10px;color:#718096;">'+fmt(tspe)+' SPE &middot; '+pAll+'% dr total</div>'
+            +'</div>';
+        });
+        html+='</div></div>';
+      });
+      html+='</div>';
+
+      body.innerHTML = html;
+    }
 
     function renderRekapGrafik(data, viewMode){
       var body = document.getElementById('realSummaryBody');
