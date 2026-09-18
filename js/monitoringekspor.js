@@ -374,8 +374,9 @@ function _mekRenderStockReadiness() {
       if (!detailF.length) return null;
       var butuhF = detailF.reduce(function(s,x){ return s + (x.sisaQty||0); }, 0);
       var selisihF = d.tersedia - butuhF;
+      var allClosedF = detailF.every(function(x){ return x.closed; });
       return { sku: d.sku, nama: d.nama, butuh: butuhF, tersedia: d.tersedia,
-               selisih: selisihF, cukup: selisihF >= 0, detail: detailF, binDetail: d.binDetail };
+               selisih: selisihF, cukup: selisihF >= 0, allClosed: allClosedF, detail: detailF, binDetail: d.binDetail };
     }).filter(function(d){ return d; });
     data.sort(function(a,b){
       if (a.cukup !== b.cukup) return a.cukup ? 1 : -1;
@@ -386,9 +387,11 @@ function _mekRenderStockReadiness() {
   _mekStockView = data;
 
   var kurang = data.filter(function(d){ return !d.cukup; });
-  var cukup  = data.filter(function(d){ return d.cukup; });
+  var closed = data.filter(function(d){ return d.cukup && d.allClosed; });
+  var cukup  = data.filter(function(d){ return d.cukup && !d.allClosed; });
   var cardK = document.getElementById('mekStockCardKurang'); if (cardK) cardK.textContent = kurang.length;
   var cardC = document.getElementById('mekStockCardCukup');  if (cardC) cardC.textContent = cukup.length;
+  var cardX = document.getElementById('mekStockCardClosed'); if (cardX) cardX.textContent = closed.length;
 
   if (!data.length) {
     list.innerHTML = '';
@@ -402,10 +405,18 @@ function _mekRenderStockReadiness() {
 
   var html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;">';
   data.forEach(function(d, idx) {
-    var badgeBg = d.cukup ? '#c6f6d5' : '#fed7d7';
-    var badgeFg = d.cukup ? '#276749' : '#c53030';
-    var badgeTx = d.cukup ? 'Cukup' : 'Kurang ' + Math.abs(d.selisih).toLocaleString('id-ID');
-    html += '<div onclick="_mekShowStockDetail(' + idx + ')" style="cursor:pointer;background:#fff;border:1px solid ' + (d.cukup?'#e2e8f0':'#feb2b2') + ';border-radius:10px;overflow:hidden;">'
+    var badgeBg, badgeFg, badgeTx, borderC, dim;
+    if (d.allClosed) {
+      badgeBg = '#e2e8f0'; badgeFg = '#4a5568'; badgeTx = 'Sudah Closed';
+      borderC = '#e2e8f0'; dim = 'opacity:.65;';
+    } else if (d.cukup) {
+      badgeBg = '#c6f6d5'; badgeFg = '#276749'; badgeTx = 'Cukup';
+      borderC = '#e2e8f0'; dim = '';
+    } else {
+      badgeBg = '#fed7d7'; badgeFg = '#c53030'; badgeTx = 'Kurang ' + Math.abs(d.selisih).toLocaleString('id-ID');
+      borderC = '#feb2b2'; dim = '';
+    }
+    html += '<div onclick="_mekShowStockDetail(' + idx + ')" style="cursor:pointer;background:#fff;border:1px solid ' + borderC + ';border-radius:10px;overflow:hidden;' + dim + '">'
       + '<div style="padding:10px 14px;border-bottom:1px solid #f0f4f8;display:flex;justify-content:space-between;align-items:center;gap:8px;">'
       + '<div style="min-width:0;"><div style="font-size:13px;font-weight:800;color:#2d3748;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + _mekEsc(d.sku) + '</div>'
       + '<div style="font-size:11px;color:#718096;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + _mekEsc(d.nama||'-') + '</div></div>'
