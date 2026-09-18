@@ -1731,24 +1731,27 @@ function _mekRvUpdateFilteredKpis(rows) {
   if (elL) elL.textContent = longestLabel;
 }
 
-// Strip "Status Container" (Proses/Loading/Keluar) di bawah tabel — ganti versi
-// lama yang time-based (aging bucket) dengan status shipment asli dari ANTRIAN.
+// Strip "Status Container" (Belum/Proses/Keluar) di bawah tabel — sama persis
+// vocab-nya kaya KPI di tab Summary (Capaian Planning): belum = belum ada truk
+// sama sekali, proses = truk sudah daftar/lagi loading, keluar = sudah kirim.
 function _mekRvRenderStatusBreakdown(rows) {
-  var b = { proses: 0, loading: 0, keluar: 0 };
+  var b = { belum: 0, proses: 0, keluar: 0 };
   rows.forEach(function(r){
-    var st = r.containerStatus === 'loading' ? 'loading' : (r.containerStatus === 'keluar' ? 'keluar' : 'proses');
+    var st = (r.containerStatus === 'daftar' || r.containerStatus === 'loading') ? 'proses'
+           : (r.containerStatus === 'keluar' ? 'keluar' : 'belum');
     b[st]++;
   });
+  var elB  = document.getElementById('mekRvStatusBelum');
   var elP  = document.getElementById('mekRvStatusProses');
-  var elLo = document.getElementById('mekRvStatusLoading');
   var elK  = document.getElementById('mekRvStatusKeluar');
+  if (elB)  elB.textContent  = b.belum;
   if (elP)  elP.textContent  = b.proses;
-  if (elLo) elLo.textContent = b.loading;
   if (elK)  elK.textContent  = b.keluar;
 }
 
 var _MEK_RV_STATUS_STYLE = {
-  proses:  { bg:'#edf2f7', fg:'#4a5568' },
+  belum:   { bg:'#fed7d7', fg:'#c53030' },
+  daftar:  { bg:'#feebc8', fg:'#c05621' },
   loading: { bg:'#feebc8', fg:'#c05621' },
   keluar:  { bg:'#c6f6d5', fg:'#276749' }
 };
@@ -1773,19 +1776,25 @@ function _mekRvRenderRowsList(rows, filterActive) {
 
   var rowsHtml = rows.map(function(r){
     var isLong = r.tier === 'gt24';
-    var stSt = _MEK_RV_STATUS_STYLE[r.containerStatus] || _MEK_RV_STATUS_STYLE.proses;
-    return '<tr>'
+    var stSt = _MEK_RV_STATUS_STYLE[r.containerStatus] || _MEK_RV_STATUS_STYLE.belum;
+    var qtyCell = r.closed
+      ? '<span style="color:#a0aec0;">0</span> <span style="font-size:9px;color:#276749;">(terkirim ' + (r.qtyTotal||0).toLocaleString('id-ID') + ')</span>'
+      : (r.qtyReserved||0).toLocaleString('id-ID');
+    var waitCell = r.closed
+      ? '<span style="color:#a0aec0;font-weight:400;">selesai</span>'
+      : (_mekReservedFmtHours(r.waitHours) + (isLong ? ' <span style="font-size:9px;font-weight:800;">(Delay)</span>' : ''));
+    return '<tr' + (r.closed ? ' style="opacity:.7;"' : '') + '>'
       + '<td style="padding:8px 10px;border-bottom:1px solid #edf2f7;">'
         + '<div style="font-weight:800;font-size:12px;color:#2d3748;">' + _mekEsc(r.sku||'-') + '</div>'
         + '<div style="font-size:10px;color:#a0aec0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px;">' + _mekEsc(r.nama||'-') + '</div>'
       + '</td>'
       + '<td style="padding:8px 10px;border-bottom:1px solid #edf2f7;font-size:11px;color:#2d3748;white-space:nowrap;">' + _mekEsc(r.noSo||'-') + '</td>'
       + '<td style="padding:8px 10px;border-bottom:1px solid #edf2f7;font-size:11px;color:#2d3748;white-space:nowrap;">' + (r.tanggal ? _mekEsc(_mekFmtTglDisplay(r.tanggal)) : '-') + '</td>'
-      + '<td style="padding:8px 10px;border-bottom:1px solid #edf2f7;font-size:11px;color:#2d3748;text-align:right;white-space:nowrap;">' + (r.qtyReserved||0).toLocaleString('id-ID') + '</td>'
+      + '<td style="padding:8px 10px;border-bottom:1px solid #edf2f7;font-size:11px;color:#2d3748;text-align:right;white-space:nowrap;">' + qtyCell + '</td>'
       + '<td style="padding:8px 10px;border-bottom:1px solid #edf2f7;text-align:center;white-space:nowrap;">'
-        + '<span style="padding:3px 9px;border-radius:12px;font-size:10px;font-weight:700;background:' + stSt.bg + ';color:' + stSt.fg + ';">' + _mekEsc(r.containerStatusLabel||'Proses') + '</span>'
+        + '<span style="padding:3px 9px;border-radius:12px;font-size:10px;font-weight:700;background:' + stSt.bg + ';color:' + stSt.fg + ';">' + _mekEsc(r.containerStatusLabel||'Belum') + '</span>'
       + '</td>'
-      + '<td style="padding:8px 10px;border-bottom:1px solid #edf2f7;font-size:11px;font-weight:700;white-space:nowrap;color:' + (isLong?'#c53030':'#c05621') + ';">' + _mekReservedFmtHours(r.waitHours) + (isLong ? ' <span style="font-size:9px;font-weight:800;">(Delay)</span>' : '') + '</td>'
+      + '<td style="padding:8px 10px;border-bottom:1px solid #edf2f7;font-size:11px;font-weight:700;white-space:nowrap;color:' + (r.closed?'#a0aec0':(isLong?'#c53030':'#c05621')) + ';">' + waitCell + '</td>'
       + '<td style="padding:8px 10px;border-bottom:1px solid #edf2f7;font-size:11px;color:#2d3748;white-space:nowrap;">' + _mekEsc(r.tujuan||'-') + '</td>'
     + '</tr>';
   }).join('');
@@ -1799,7 +1808,7 @@ function _mekRvRenderRowsList(rows, filterActive) {
         + '<th style="text-align:right;padding:8px 10px;font-size:10px;color:#718096;text-transform:uppercase;background:#f8fafc;border-bottom:2px solid #e2e8f0;">Qty Reserved</th>'
         + '<th style="text-align:center;padding:8px 10px;font-size:10px;color:#718096;text-transform:uppercase;background:#f8fafc;border-bottom:2px solid #e2e8f0;">Container Status</th>'
         + '<th style="text-align:left;padding:8px 10px;font-size:10px;color:#718096;text-transform:uppercase;background:#f8fafc;border-bottom:2px solid #e2e8f0;">Waiting Time</th>'
-        + '<th style="text-align:left;padding:8px 10px;font-size:10px;color:#718096;text-transform:uppercase;background:#f8fafc;border-bottom:2px solid #e2e8f0;">Location</th>'
+        + '<th style="text-align:left;padding:8px 10px;font-size:10px;color:#718096;text-transform:uppercase;background:#f8fafc;border-bottom:2px solid #e2e8f0;">Tujuan</th>'
       + '</tr></thead>'
       + '<tbody>' + rowsHtml + '</tbody>'
     + '</table>'
