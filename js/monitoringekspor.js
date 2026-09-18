@@ -634,20 +634,24 @@ function _mekRvColorClass(agg) {
 
 function mekRvSetMode(mode) {
   _mekRvMode = mode;
-  ['simple','aktual','3d'].forEach(function(m){
+  ['simple','aktual','3d','aktual3d'].forEach(function(m){
     var btn = document.getElementById('mekRvMode' + m.charAt(0).toUpperCase() + m.slice(1) + 'Btn');
     if (btn) { btn.classList.toggle('active', m === mode); btn.style.color = m===mode?'#1a3a5c':'#718096'; }
   });
   document.getElementById('mekRv2dSimpleWrap').style.display = mode === 'simple' ? 'block' : 'none';
   document.getElementById('mekRv2dAktualWrap').style.display = mode === 'aktual' ? 'block' : 'none';
   document.getElementById('mekRv3dWrap').style.display       = mode === '3d'     ? 'block' : 'none';
+  document.getElementById('mekRv3dAktualWrap').style.display = mode === 'aktual3d' ? 'block' : 'none';
+  var chipsEl = document.getElementById('mekRvAktual3dChips');
+  if (chipsEl) chipsEl.style.display = mode === 'aktual3d' ? 'flex' : 'none';
   mekRvRenderCurrentMode();
 }
 
 function mekRvRenderCurrentMode() {
   if (!_mekReservedData) return;
-  if (_mekRvMode === 'simple')      _mekRvRenderSimple();
-  else if (_mekRvMode === 'aktual') _mekRvRenderAktual();
+  if (_mekRvMode === 'simple')        _mekRvRenderSimple();
+  else if (_mekRvMode === 'aktual')   _mekRvRenderAktual();
+  else if (_mekRvMode === 'aktual3d') _mekRvRenderAktual3D();
   else if (typeof window.mekReserved3DRender === 'function') {
     var longWaitBins = {};
     Object.keys(_mekRvBinAgg).forEach(function(k){ if (_mekRvBinAgg[k].hasLongWait) longWaitBins[k] = true; });
@@ -702,6 +706,836 @@ function _mekRvRenderAktual() {
   wrap.innerHTML = html;
 }
 
+// ── Peta 3D Aktual — port geometri isometrik SVG dari app BinLoc (referensi
+// index BinLoc versi terbaru yang dikirim user). Konstanta tata letak di
+// bawah ini (T_BIN_DATA/BORDER_POINTS/LAYOUT_ORDER/MIRRORED/gShiftOffset dkk)
+// adalah koordinat FISIK gudang asli hasil tuning manual di app BinLoc —
+// disalin apa adanya (gudangnya sama persis dgn BinLoc), bukan hasil hitung
+// dari data kita. Yang beda cuma sumber data (data reservasi kita, bukan
+// _petaData BinLoc) dan warna (status reservasi: hijau/oranye/merah, bukan
+// tipe/bulan prodate) — pipeline gambarnya (proyeksi iso, kubus, rangka rak)
+// sama persis dengan BinLoc.
+var MEKP3D_TILE_W = 30, MEKP3D_TILE_H = 17;
+var MEKP3D_LEVEL_H = Math.sqrt(Math.pow(MEKP3D_TILE_W/2, 2) + Math.pow(MEKP3D_TILE_H/2, 2)) * 1.12;
+function mekp3dIsoProject(x, y, z) {
+  return { x: (x - y) * (MEKP3D_TILE_W / 2), y: (x + y) * (MEKP3D_TILE_H / 2) - z * MEKP3D_LEVEL_H };
+}
+function mekp3dShadeColor(hex, percent) {
+  var num = parseInt(hex.slice(1), 16);
+  var r = Math.max(0, Math.min(255, (num >> 16) + percent));
+  var g = Math.max(0, Math.min(255, ((num >> 8) & 0xff) + percent));
+  var b = Math.max(0, Math.min(255, (num & 0xff) + percent));
+  return '#' + ((1<<24) + (r<<16) + (g<<8) + b).toString(16).slice(1);
+}
+var MEKP3D_COLOR_AVAILABLE = '#10b981';
+var MEKP3D_COLOR_WAITING   = '#f59e0b';
+var MEKP3D_COLOR_LONGWAIT  = '#ef4444';
+var MEKP3D_RACK_COLOR = '#1e3a8a';
+var MEKP3D_RACK_WIDTH = 3;
+
+function mekp3dColorInfo(hexOrEmpty) {
+  var navy = '#1e293b';
+  if (!hexOrEmpty) return { color: '#bfe3f0', opacity: 0.14, strokeColor: navy, strokeOp: 0.9 };
+  return { color: hexOrEmpty, opacity: 1, strokeColor: navy, strokeOp: 1 };
+}
+
+function mekp3dCubePolygons(x, y, z, colorInfo, drawFlags) {
+  var isFilled = colorInfo.opacity === 1;
+  var s = isFilled ? 0.94 : 1;
+  var pad = (1 - s) / 2;
+  var x0 = x + pad, x1 = x + 1 - pad;
+  var y0 = y + pad, y1 = y + 1 - pad;
+  var z0 = z + 0.06, z1 = z + 1;
+
+  var p = {};
+  p.top_fl = mekp3dIsoProject(x0, y0, z1);
+  p.top_fr = mekp3dIsoProject(x1, y0, z1);
+  p.top_bl = mekp3dIsoProject(x0, y1, z1);
+  p.top_br = mekp3dIsoProject(x1, y1, z1);
+  p.bot_fl = mekp3dIsoProject(x0, y0, z0);
+  p.bot_fr = mekp3dIsoProject(x1, y0, z0);
+  p.bot_bl = mekp3dIsoProject(x0, y1, z0);
+  p.bot_br = mekp3dIsoProject(x1, y1, z0);
+  function pts(arr) { return arr.map(function(pt){ return pt.x.toFixed(1)+','+pt.y.toFixed(1); }).join(' '); }
+
+  var shadeTop = colorInfo.color;
+  var shadeX   = mekp3dShadeColor(colorInfo.color, -55);
+  var shadeY   = mekp3dShadeColor(colorInfo.color, -22);
+  var strokeColor = isFilled ? '#000' : colorInfo.strokeColor;
+  var strokeOp    = isFilled ? 1 : colorInfo.strokeOp;
+  var strokeW     = isFilled ? 0.5 : 2.3;
+
+  var faces = [];
+  if (drawFlags.top)   faces.push({ pts: pts([p.top_fl,p.top_fr,p.top_br,p.top_bl]), fill: shadeTop, op: colorInfo.opacity, stroke: strokeColor, strokeOp: strokeOp, strokeW: strokeW });
+  if (drawFlags.faceX) faces.push({ pts: pts([p.top_fr,p.top_br,p.bot_br,p.bot_fr]), fill: shadeX,   op: colorInfo.opacity, stroke: strokeColor, strokeOp: strokeOp, strokeW: strokeW });
+  if (drawFlags.faceY) faces.push({ pts: pts([p.top_bl,p.top_br,p.bot_br,p.bot_bl]), fill: shadeY,   op: colorInfo.opacity, stroke: strokeColor, strokeOp: strokeOp, strokeW: strokeW });
+
+  var cartonPolys = [];
+  var cartonLines = [];
+  var PALLET_COLOR = '#946d1c';
+  var palletT = 0.12;
+  function lerpZ(zt) { return z0 + (z1 - z0) * zt; }
+
+  if (isFilled && drawFlags.faceX) {
+    var fxBL = mekp3dIsoProject(x1, y0, lerpZ(0)), fxBR = mekp3dIsoProject(x1, y1, lerpZ(0));
+    var fxPalletTop1 = mekp3dIsoProject(x1, y0, lerpZ(palletT)), fxPalletTop2 = mekp3dIsoProject(x1, y1, lerpZ(palletT));
+    cartonPolys.push({ pts: pts([fxBL, fxBR, fxPalletTop2, fxPalletTop1]), fill: PALLET_COLOR });
+    [0.12, 0.4, 0.68].forEach(function(t) {
+      cartonLines.push({ p1: mekp3dIsoProject(x1, y0, lerpZ(t)), p2: mekp3dIsoProject(x1, y1, lerpZ(t)) });
+    });
+    [0.26, 0.54, 0.84].forEach(function(tBot, i) {
+      var tTop = [0.4, 0.68, 1][i];
+      cartonLines.push({ p1: mekp3dIsoProject(x1, (y0+y1)/2, lerpZ(tBot)), p2: mekp3dIsoProject(x1, (y0+y1)/2, lerpZ(tTop)) });
+    });
+  }
+  if (isFilled && drawFlags.faceY) {
+    var fyBL = mekp3dIsoProject(x0, y1, lerpZ(0)), fyBR = mekp3dIsoProject(x1, y1, lerpZ(0));
+    var fyPalletTop1 = mekp3dIsoProject(x0, y1, lerpZ(palletT)), fyPalletTop2 = mekp3dIsoProject(x1, y1, lerpZ(palletT));
+    cartonPolys.push({ pts: pts([fyBL, fyBR, fyPalletTop2, fyPalletTop1]), fill: PALLET_COLOR });
+    [0.12, 0.4, 0.68].forEach(function(t) {
+      cartonLines.push({ p1: mekp3dIsoProject(x0, y1, lerpZ(t)), p2: mekp3dIsoProject(x1, y1, lerpZ(t)) });
+    });
+    [0.26, 0.54, 0.84].forEach(function(tBot, i) {
+      var tTop = [0.4, 0.68, 1][i];
+      cartonLines.push({ p1: mekp3dIsoProject((x0+x1)/2, y1, lerpZ(tBot)), p2: mekp3dIsoProject((x0+x1)/2, y1, lerpZ(tTop)) });
+    });
+  }
+  if (isFilled && drawFlags.top) {
+    [1/3, 2/3].forEach(function(t) {
+      var yA = y0 + (y1-y0)*t;
+      cartonLines.push({ p1: mekp3dIsoProject(x0, yA, z1), p2: mekp3dIsoProject(x1, yA, z1) });
+      var xA = x0 + (x1-x0)*t;
+      cartonLines.push({ p1: mekp3dIsoProject(xA, y0, z1), p2: mekp3dIsoProject(xA, y1, z1) });
+    });
+  }
+
+  var edges = [];
+  if (isFilled) {
+    edges = [
+      { p1: p.bot_bl, p2: p.top_bl, w: MEKP3D_RACK_WIDTH },
+      { p1: p.bot_br, p2: p.top_br, w: MEKP3D_RACK_WIDTH },
+      { p1: p.bot_fr, p2: p.top_fr, w: MEKP3D_RACK_WIDTH }
+    ];
+    var levelGanjil = (z % 2) === 1;
+    var depthGanjil = (y % 2) === 1;
+    var miringKiri = levelGanjil !== depthGanjil;
+    var decorP1 = miringKiri ? p.top_fr : p.top_br;
+    var decorP2 = miringKiri ? p.bot_br : p.bot_fr;
+    edges.push({ p1: decorP1, p2: decorP2, w: 1.4 });
+  }
+
+  return { faces: faces, edges: edges, cartonPolys: cartonPolys, cartonLines: cartonLines };
+}
+
+// Data bin T (area non-racking) & garis tepi luar gudang — koordinat fisik
+// asli, sama persis dengan app BinLoc.
+var MEKP3D_T_BIN_DATA = [
+  {num:1, x:0, w:25, rowMid:5.9, thick:0.9},
+  {num:2, x:0, w:25, rowMid:7.1, thick:0.9},
+  {num:4, x:0, w:25, rowMid:12.15, thick:0.9},
+  {num:5, x:0, w:25, rowMid:15.12, thick:0.9},
+  {num:6, x:0, w:25, rowMid:16.3, thick:0.9},
+  {num:7, x:0, w:25, rowMid:20.2, thick:0.9},
+  {num:8, x:0, w:25, rowMid:21.35, thick:0.9},
+  {num:9, x:27, w:1, rowMid:6, thick:4},
+  {num:10, x:27, w:1, rowMid:7.4, thick:5},
+  {num:11, x:27, w:1, rowMid:9.1, thick:5},
+  {num:12, x:27, w:1, rowMid:10.8, thick:5},
+  {num:13, x:27, w:1, rowMid:12.5, thick:5},
+  {num:14, x:27, w:1, rowMid:14.2, thick:5},
+  {num:15, x:27, w:1, rowMid:16, thick:5},
+  {num:16, x:27, w:1, rowMid:19.1, thick:3},
+  {num:17, x:25, w:1, rowMid:17, thick:3},
+  {num:18, x:25, w:1, rowMid:13, thick:5},
+  {num:19, x:25, w:1, rowMid:8.5, thick:5},
+  {num:20, x:-1, w:1, rowMid:13, thick:5},
+  {num:21, x:-1, w:1, rowMid:17.7, thick:5},
+  {num:22, x:-1, w:1, rowMid:22, thick:4},
+  {num:23, x:0, w:3, rowMid:23.7, thick:0.9},
+  {num:24, x:4, w:3, rowMid:23.7, thick:0.9},
+  {num:25, x:8, w:3, rowMid:23.7, thick:0.9},
+  {num:26, x:12, w:3, rowMid:23.7, thick:0.9},
+  {num:27, x:16, w:3, rowMid:23.7, thick:0.9},
+  {num:28, x:20, w:3, rowMid:23.7, thick:0.9},
+  {num:29, x:24, w:3, rowMid:23.7, thick:0.9},
+  {num:30, x:28, w:3, rowMid:23.7, thick:0.9},
+  {num:31, x:32, w:3, rowMid:23.7, thick:0.9},
+  {num:32, x:36, w:1.2, rowMid:23.7, thick:0.9},
+  {num:33, x:37.2, w:1.2, rowMid:23.7, thick:0.9},
+  {num:34, x:38.4, w:1.2, rowMid:23.7, thick:0.9},
+  {num:35, x:39.6, w:1.2, rowMid:23.7, thick:0.9},
+  {num:36, x:40.8, w:1.2, rowMid:23.7, thick:0.9},
+  {num:3, x:0, w:25, rowMid:11, thick:0.9}
+];
+var MEKP3D_BORDER_POINTS = [
+  {x:-2, y:4}, {x:28.3, y:4}, {x:28.3, y:18.5}, {x:36.5, y:18.5},
+  {x:36.5, y:23.5}, {x:43.5, y:23.5}, {x:43.5, y:27}, {x:-2, y:27}
+];
+var MEKP3D_T_ROW_MIN = 4, MEKP3D_T_ROW_MAX = 27;
+
+// ── State & loader struktur rak (getMekBinCap3D — udah ada di backend) ──
+var _mekRvGroups = null;
+var _mekRvSelectedRack = 'ALL';
+var _mekRvLongWaitSkus = {};
+
+function _mekRvLoadGroupsThen(cb) {
+  if (_mekRvGroups) { cb(); return; }
+  API.run('getMekBinCap3D', {}, function(res){
+    _mekRvGroups = (res && res.success && res.groups) ? res.groups : [];
+    cb();
+  }, function(){ _mekRvGroups = []; cb(); });
+}
+
+function mekRvSelectAktual3dRack(bin) {
+  _mekRvSelectedRack = bin;
+  _mekRvRenderAktual3DBody();
+}
+
+// Susun ulang data.cells jadi binMap {binLoc: {items:[{units,color}]}} — tiap
+// baris BinLoc (SKU/prodate) dipecah jadi maks 2 "sub-item" virtual: bagian
+// yang udah reserved (oranye/merah) dan bagian yang masih available (hijau),
+// proporsional ke jumlah slot fisik (pallet + pecahan) baris itu. Ini yang
+// menggantikan p3dColorForItem(item) versi BinLoc (yang mewarnai 1 warna per
+// item berdasar tipe/bulan prodate) — di sini warnanya status reservasi.
+function _mekAktual3dBuildBinMap() {
+  var binMap = {};
+  ((_mekReservedData && _mekReservedData.cells) || []).forEach(function(c){
+    var bin = c.binLoc; if (!bin) return;
+    if (!binMap[bin]) binMap[bin] = { items: [] };
+    var units = (c.palletNum||0) + (c.pecahanCount||0);
+    if (units <= 0 && c.karton > 0) units = 1; // pengaman — data pallet/pecahan kosong tapi ada karton
+    if (units <= 0) return;
+    var karton = c.karton || 0;
+    var reservedKarton = Math.min(c.reservedKarton||0, karton);
+    var reservedUnits = karton > 0 ? Math.round(units * (reservedKarton / karton)) : 0;
+    if (reservedUnits > units) reservedUnits = units;
+    if (reservedUnits < 0) reservedUnits = 0;
+    var availableUnits = units - reservedUnits;
+    var isLongWait = !!_mekRvLongWaitSkus[c.sku];
+    if (reservedUnits > 0) binMap[bin].items.push({ units: reservedUnits, color: isLongWait ? MEKP3D_COLOR_LONGWAIT : MEKP3D_COLOR_WAITING });
+    if (availableUnits > 0) binMap[bin].items.push({ units: availableUnits, color: MEKP3D_COLOR_AVAILABLE });
+  });
+  return binMap;
+}
+
+function _mekRvRenderAktual3D() {
+  var wrap = document.getElementById('mekRv3dAktualWrap');
+  if (!wrap) return;
+  wrap.innerHTML = '<div style="padding:40px;text-align:center;color:#a0aec0;font-size:12px"><i class="fas fa-spinner fa-spin"></i> Memuat struktur rak...</div>';
+  _mekRvLoadGroupsThen(function(){ _mekRvRenderAktual3DBody(); });
+}
+
+function _mekRvRenderAktual3DBody() {
+  var wrap = document.getElementById('mekRv3dAktualWrap');
+  var chipsEl = document.getElementById('mekRvAktual3dChips');
+  if (!wrap) return;
+  if (!_mekRvGroups || !_mekRvGroups.length) {
+    if (chipsEl) chipsEl.innerHTML = '';
+    wrap.innerHTML = '<div style="padding:40px;text-align:center;color:#a0aec0;font-size:12px">Belum ada data LEVEL/DEPTH di BIN_CAP kolom I-L</div>';
+    return;
+  }
+  var uniqueLetters = [];
+  _mekRvGroups.forEach(function(g){ if (g.bin !== 'T' && uniqueLetters.indexOf(g.bin) === -1) uniqueLetters.push(g.bin); });
+  if (chipsEl) {
+    var allChips = ['ALL'].concat(uniqueLetters).concat(['T']);
+    chipsEl.innerHTML = allChips.map(function(letter){
+      var sel = letter === _mekRvSelectedRack;
+      var label = letter === 'T' ? 'Bin T' : letter;
+      return '<div onclick="mekRvSelectAktual3dRack(\'' + letter + '\')" style="padding:6px 12px;border-radius:8px;cursor:pointer;font-size:11px;font-weight:800;'
+        + (sel ? 'background:#1a3a5c;color:#fff;' : 'background:#f7fafc;color:#718096;border:1px solid #e2e8f0;')
+        + '">' + label + '</div>';
+    }).join('');
+  }
+  if (_mekRvSelectedRack === 'ALL') _mekAktual3dRenderAll(uniqueLetters);
+  else if (_mekRvSelectedRack === 'T') _mekAktual3dRenderTOnly();
+  else _mekAktual3dRenderRack(_mekRvSelectedRack);
+}
+
+// ── Render SEMUA rak sekaligus (overview) — tata letak fisik presisi,
+// diadaptasi dari petaRender3DAll() BinLoc. ──
+function _mekAktual3dRenderAll(allLetters) {
+  var LAYOUT_ORDER = ['A','B','C','D','E','F','G','H','I'].filter(function(l){ return allLetters.indexOf(l) !== -1; });
+  var MIRRORED = ['B','D','F','H','I'];
+  var AISLE_GAP = 5, BACK_GAP = 1.2;
+  var GAP_AFTER = { 'A':'aisle', 'B':'back', 'C':'aisle', 'D':'back', 'E':'aisle', 'F':'back', 'G':'aisle', 'H':'aisle' };
+
+  var wrap = document.getElementById('mekRv3dAktualWrap');
+  if (!wrap) return;
+
+  function maxDepthOfRack(letter) {
+    var segs = _mekRvGroups.filter(function(g){ return g.bin === letter; });
+    return Math.max.apply(null, segs.map(function(s){ return s.depth; }));
+  }
+  function maxLevelOfRack(letter) {
+    var segs = _mekRvGroups.filter(function(g){ return g.bin === letter; });
+    return Math.max.apply(null, segs.map(function(s){ return s.level; }));
+  }
+
+  var rackMeta = {};
+  var cursor = 0;
+  LAYOUT_ORDER.forEach(function(letter, idx) {
+    var depth = maxDepthOfRack(letter);
+    if (idx > 0) {
+      var gapType = GAP_AFTER[LAYOUT_ORDER[idx-1]] || 'aisle';
+      cursor += (gapType === 'aisle') ? AISLE_GAP : BACK_GAP;
+    }
+    var yStart = cursor, yEnd = cursor + depth;
+    rackMeta[letter] = { yStart: yStart, yEnd: yEnd, depth: depth, mirrored: MIRRORED.indexOf(letter) !== -1 };
+    cursor = yEnd;
+  });
+  var globalMaxY = cursor;
+  var globalMaxX = Math.max.apply(null, LAYOUT_ORDER.map(function(l){
+    var segs = _mekRvGroups.filter(function(g){ return g.bin === l; });
+    var o = Math.min.apply(null, segs.map(function(s){return s.rowFrom;}));
+    return Math.max.apply(null, segs.map(function(s){ return s.rowTo - o + 1; }));
+  }));
+  var globalMaxZ = Math.max.apply(null, LAYOUT_ORDER.map(maxLevelOfRack));
+
+  function localToGlobalY(letter, localY) {
+    var m = rackMeta[letter];
+    return m.mirrored ? (m.yEnd - localY) : (m.yStart + localY);
+  }
+
+  function computeScreenXForRow(letter, rowNum) {
+    var s = _mekRvGroups.filter(function(g){ return g.bin === letter; });
+    var o = Math.min.apply(null, s.map(function(x){return x.rowFrom;}));
+    var mR = Math.max.apply(null, s.map(function(x){return x.rowTo;}));
+    var nR = mR - o + 1;
+    var rev = MIRRORED.indexOf(letter) !== -1;
+    var xi = rev ? (mR - rowNum) : (rowNum - o);
+    return rev ? (nR - 1 - xi) : xi;
+  }
+  var gShiftOffset = 0;
+  if (allLetters.indexOf('G') !== -1 && allLetters.indexOf('H') !== -1) {
+    var gShiftCandidate = computeScreenXForRow('H', 29) - computeScreenXForRow('G', 26);
+    if (isFinite(gShiftCandidate) && Math.abs(gShiftCandidate) <= 20) gShiftOffset = gShiftCandidate;
+  }
+
+  var binMap = _mekAktual3dBuildBinMap();
+
+  var allCubes = [];
+  var allFrameLines = [];
+  var allLabels = [];
+  var allFloorRects = [];
+
+  LAYOUT_ORDER.forEach(function(letter) {
+    var segs = _mekRvGroups.filter(function(g){ return g.bin === letter; }).sort(function(a,b){return a.rowFrom-b.rowFrom;});
+    var origin = Math.min.apply(null, segs.map(function(s){return s.rowFrom;}));
+    var maxRow = Math.max.apply(null, segs.map(function(s){return s.rowTo;}));
+    var nxR = maxRow - origin + 1;
+    var isRev = MIRRORED.indexOf(letter) !== -1;
+    function rowNumFor(xi) { return isRev ? (maxRow - xi) : (origin + xi); }
+    function screenX(xi) {
+      var base = isRev ? (nxR - 1 - xi) : xi;
+      if (letter === 'G' && rowNumFor(xi) >= 26) base += gShiftOffset;
+      return base;
+    }
+    function segFor(rowNum) {
+      for (var i=0;i<segs.length;i++) if (rowNum>=segs[i].rowFrom && rowNum<=segs[i].rowTo) return segs[i];
+      return null;
+    }
+    var nyByXR = [], nzByXR = [];
+    for (var xi0=0; xi0<nxR; xi0++) {
+      var seg = segFor(rowNumFor(xi0));
+      nyByXR[xi0] = seg ? seg.depth : 0;
+      nzByXR[xi0] = seg ? seg.level : 0;
+    }
+
+    var yOffsetByX = [];
+    var mainSegDepth = segs.length ? segs[0].depth : 0;
+    for (var xiO=0; xiO<nxR; xiO++) {
+      var thisRow = rowNumFor(xiO);
+      var needsFrontAlign = (letter === 'D' && thisRow === 25) || (letter === 'G' && thisRow >= 26);
+      var rawOffset = needsFrontAlign ? Math.max(0, mainSegDepth - nyByXR[xiO]) : 0;
+      yOffsetByX[xiO] = (isFinite(rawOffset) && rawOffset <= 10) ? rawOffset : 0;
+    }
+
+    var filledSetR = {}, slotColorR = {};
+    for (var xi=0; xi<nxR; xi++) {
+      var rowNum = rowNumFor(xi);
+      var binCode = letter + rowNum;
+      var nyL = nyByXR[xi], nzL = nzByXR[xi];
+      var offY = yOffsetByX[xi] || 0;
+      var info = binMap[binCode];
+      var order = [];
+      for (var z=nzL-1; z>=0; z--) for (var y=nyL-1; y>=0; y--) order.push([offY+y,z]);
+      var slotPtr = 0;
+      if (info && info.items && info.items.length) {
+        info.items.forEach(function(subItem) {
+          var units = subItem.units, col = subItem.color;
+          for (var u=0; u<units && slotPtr<order.length; u++, slotPtr++) {
+            var yz = order[slotPtr][0]+'_'+order[slotPtr][1];
+            filledSetR[xi+'_'+yz] = true;
+            slotColorR[xi+'_'+yz] = col;
+          }
+        });
+      }
+    }
+    function existsAtR(x,y,z){ if(x<0||x>=nxR) return false; var off=yOffsetByX[x]||0; return y>=off && y<off+nyByXR[x] && z>=0 && z<nzByXR[x]; }
+    function isFilledAtR(x,y,z){ if(!existsAtR(x,y,z)) return false; return !!filledSetR[x+'_'+y+'_'+z]; }
+
+    var maxNyR = 0;
+    for (var mi=0; mi<nyByXR.length; mi++) { var top = (yOffsetByX[mi]||0) + nyByXR[mi]; if (top > maxNyR) maxNyR = top; }
+    var maxNzR = nzByXR.length ? Math.max.apply(null, nzByXR) : 0;
+    for (var z2=0; z2<maxNzR; z2++) {
+      for (var y2=0; y2<maxNyR; y2++) {
+        for (var x2=0; x2<nxR; x2++) {
+          if (!existsAtR(x2,y2,z2)) continue;
+          if (!isFilledAtR(x2,y2,z2)) continue;
+          var gYraw = localToGlobalY(letter, y2);
+          var gY = isRev ? (gYraw - 1) : gYraw;
+          var drawTop = !isFilledAtR(x2,y2,z2+1);
+          var cInfo = mekp3dColorInfo(slotColorR[x2+'_'+y2+'_'+z2]);
+          allCubes.push({ x:screenX(x2), y:gY, z:z2, colorInfo:cInfo, drawTop:drawTop });
+        }
+      }
+    }
+
+    function postSegObscuredOwn(sx, fy, fzL, xi) {
+      return isFilledAtR(xi, fy-1, fzL) || isFilledAtR(xi, fy, fzL);
+    }
+    function zigSegObscuredOwn(xi, fy2, fzz) {
+      return isFilledAtR(xi, fy2, fzz) || isFilledAtR(xi, fy2, fzz+1) ||
+             isFilledAtR(xi, fy2+1, fzz) || isFilledAtR(xi, fy2+1, fzz+1);
+    }
+    for (var xiF=0; xiF<nxR; xiF++) {
+      var offF = yOffsetByX[xiF] || 0;
+      var depthF = nyByXR[xiF] || 0;
+      var levelF = nzByXR[xiF] || 0;
+      var sxLeft = screenX(xiF), sxRight = screenX(xiF) + 1;
+      for (var fy=offF; fy<=offF+depthF; fy++) {
+        var gYp = localToGlobalY(letter, fy);
+        for (var fzL=0; fzL<levelF; fzL++) {
+          if (postSegObscuredOwn(sxLeft, fy, fzL, xiF)) continue;
+          allFrameLines.push({ type:'post', x:sxLeft,  y:gYp, z0:fzL, z1:fzL+1 });
+          allFrameLines.push({ type:'post', x:sxRight, y:gYp, z0:fzL, z1:fzL+1 });
+        }
+      }
+      for (var fy2=offF; fy2<offF+depthF; fy2++) {
+        for (var fzz=0; fzz<levelF; fzz++) {
+          if (zigSegObscuredOwn(xiF, fy2, fzz)) continue;
+          var flip = fzz % 2 === 0;
+          var gYa = localToGlobalY(letter, fy2), gYb = localToGlobalY(letter, fy2+1);
+          var fromZ = flip ? fzz : fzz+1, toZ = flip ? fzz+1 : fzz;
+          allFrameLines.push({ type:'zigzag', x:sxLeft,  ya:gYa, yb:gYb, za:fromZ, zb:toZ });
+          allFrameLines.push({ type:'zigzag', x:sxRight, ya:gYa, yb:gYb, za:fromZ, zb:toZ });
+        }
+      }
+    }
+    for (var xi3=0; xi3<nxR; xi3++) {
+      var offFront = (yOffsetByX[xi3]||0) + (nyByXR[xi3] || 0);
+      var offBack  = (yOffsetByX[xi3]||0);
+      var frontGY = localToGlobalY(letter, offFront);
+      var backGY  = localToGlobalY(letter, offBack);
+      var lp = mekp3dIsoProject(screenX(xi3) + 0.5, frontGY, 0);
+      allLabels.push({ x: lp.x, y: lp.y + 11, text: rowNumFor(xi3) });
+      var sX = screenX(xi3);
+      allFloorRects.push({
+        p1: mekp3dIsoProject(sX, Math.min(frontGY,backGY), 0),
+        p2: mekp3dIsoProject(sX+1, Math.min(frontGY,backGY), 0),
+        p3: mekp3dIsoProject(sX+1, Math.max(frontGY,backGY), 0),
+        p4: mekp3dIsoProject(sX, Math.max(frontGY,backGY), 0)
+      });
+    }
+  });
+
+  var minX=1e9,minY=1e9,maxX=-1e9,maxY=-1e9;
+  [0,globalMaxX].forEach(function(bx){ [0,globalMaxY].forEach(function(by){ [0,globalMaxZ].forEach(function(bz){
+    var p = mekp3dIsoProject(bx,by,bz);
+    if (p.x<minX) minX=p.x; if (p.x>maxX) maxX=p.x;
+    if (p.y<minY) minY=p.y; if (p.y>maxY) maxY=p.y;
+  }); }); });
+  var pad = 120;
+  var w = maxX-minX+pad*2, h = maxY-minY+pad*2;
+  var svgParts = [];
+  svgParts.push('<svg viewBox="'+(minX-pad)+' '+(minY-pad)+' '+w+' '+h+'" style="display:block;width:100%;height:auto;">');
+
+  var tBorderPathPts = MEKP3D_BORDER_POINTS.map(function(p) {
+    var yProp = (p.y - MEKP3D_T_ROW_MIN) / (MEKP3D_T_ROW_MAX - MEKP3D_T_ROW_MIN);
+    return mekp3dIsoProject(p.x, yProp * globalMaxY, 0);
+  });
+  var floorPts = tBorderPathPts.map(function(p){ return p.x.toFixed(1)+','+p.y.toFixed(1); }).join(' ');
+  svgParts.push('<polygon points="'+floorPts+'" fill="#dde3ea" stroke="#94a3b8" stroke-width="1.5"/>');
+  var tBorderD = 'M' + tBorderPathPts.map(function(p){ return p.x.toFixed(1)+','+p.y.toFixed(1); }).join(' L') + ' Z';
+  svgParts.push('<path d="'+tBorderD+'" fill="none" stroke="#0f766e" stroke-width="3.5" stroke-linejoin="round"/>');
+  allFloorRects.forEach(function(r) {
+    var pts = [r.p1, r.p2, r.p3, r.p4].map(function(p){ return p.x.toFixed(1)+','+p.y.toFixed(1); }).join(' ');
+    svgParts.push('<polygon points="'+pts+'" fill="#6b7280"/>');
+  });
+
+  var tBinCubes3D = [];
+  MEKP3D_T_BIN_DATA.forEach(function(t) {
+    var yProp = (t.rowMid - MEKP3D_T_ROW_MIN) / (MEKP3D_T_ROW_MAX - MEKP3D_T_ROW_MIN);
+    var yPos = yProp * globalMaxY;
+    var areaPts = [
+      mekp3dIsoProject(t.x, yPos, 0), mekp3dIsoProject(t.x+t.w, yPos, 0),
+      mekp3dIsoProject(t.x+t.w, yPos+t.thick, 0), mekp3dIsoProject(t.x, yPos+t.thick, 0)
+    ].map(function(p){ return p.x.toFixed(1)+','+p.y.toFixed(1); }).join(' ');
+    svgParts.push('<polygon points="'+areaPts+'" fill="#6b7280"/>');
+    var tCode = 'T' + t.num;
+    var tInfo = binMap[tCode];
+    if (!tInfo || !tInfo.items || !tInfo.items.length) return;
+    var alongX = t.w >= t.thick;
+    var maxFit = Math.max(1, Math.floor(alongX ? t.w : t.thick));
+    var slotPtr = 0;
+    tInfo.items.forEach(function(subItem) {
+      var units = subItem.units, col = subItem.color;
+      for (var u = 0; u < units && slotPtr < maxFit; u++, slotPtr++) {
+        if (alongX) tBinCubes3D.push({ x:t.x+slotPtr, y:yPos, color:col });
+        else tBinCubes3D.push({ x:t.x, y:yPos+slotPtr, color:col });
+      }
+    });
+  });
+
+  var combined = allCubes.map(function(c){ return { rtype:'cube', x:c.x, y:c.y, z:c.z, colorInfo:c.colorInfo, drawTop:c.drawTop, depth: c.x+c.y-c.z+0.9 }; });
+  tBinCubes3D.forEach(function(tc) {
+    combined.push({ rtype:'tbin', x:tc.x, y:tc.y, color:tc.color, depth: tc.x+tc.y-0+0.9 });
+  });
+  allFrameLines.forEach(function(fl) {
+    if (fl.type === 'post') {
+      combined.push({ rtype:'post', x:fl.x, y:fl.y, z0:fl.z0, z1:fl.z1, depth: fl.x + fl.y - fl.z0 - 0.5 });
+    } else {
+      combined.push({ rtype:'zigzag', x:fl.x, ya:fl.ya, yb:fl.yb, za:fl.za, zb:fl.zb, depth: fl.x + (fl.ya+fl.yb)/2 - (fl.za+fl.zb)/2 - 0.5 });
+    }
+  });
+  combined.sort(function(a,b){ return a.depth - b.depth; });
+
+  combined.forEach(function(item) {
+    if (item.rtype === 'tbin') {
+      var tResult = mekp3dCubePolygons(item.x, item.y, 0, mekp3dColorInfo(item.color), { top:true, faceX:true, faceY:true });
+      tResult.faces.forEach(function(f) {
+        svgParts.push('<polygon points="'+f.pts+'" fill="'+f.fill+'" fill-opacity="'+f.op+'" stroke="#000" stroke-opacity="1" stroke-width="0.5"/>');
+      });
+      tResult.cartonPolys.forEach(function(cp){ svgParts.push('<polygon points="'+cp.pts+'" fill="'+cp.fill+'"/>'); });
+      tResult.cartonLines.forEach(function(cl){ svgParts.push('<line x1="'+cl.p1.x.toFixed(1)+'" y1="'+cl.p1.y.toFixed(1)+'" x2="'+cl.p2.x.toFixed(1)+'" y2="'+cl.p2.y.toFixed(1)+'" stroke="#000" stroke-width="0.5"/>'); });
+      return;
+    }
+    if (item.rtype === 'post') {
+      var pb = mekp3dIsoProject(item.x, item.y, item.z0), pt2 = mekp3dIsoProject(item.x, item.y, item.z1);
+      svgParts.push('<line x1="'+pb.x.toFixed(1)+'" y1="'+pb.y.toFixed(1)+'" x2="'+pt2.x.toFixed(1)+'" y2="'+pt2.y.toFixed(1)+'" stroke="'+MEKP3D_RACK_COLOR+'" stroke-width="'+MEKP3D_RACK_WIDTH+'"/>');
+      return;
+    }
+    if (item.rtype === 'zigzag') {
+      var za = mekp3dIsoProject(item.x, item.ya, item.za), zb = mekp3dIsoProject(item.x, item.yb, item.zb);
+      svgParts.push('<line x1="'+za.x.toFixed(1)+'" y1="'+za.y.toFixed(1)+'" x2="'+zb.x.toFixed(1)+'" y2="'+zb.y.toFixed(1)+'" stroke="'+MEKP3D_RACK_COLOR+'" stroke-width="1.6"/>');
+      return;
+    }
+    var result = mekp3dCubePolygons(item.x, item.y, item.z, item.colorInfo, { top:item.drawTop, faceX:true, faceY:true });
+    result.faces.forEach(function(f) {
+      svgParts.push('<polygon points="'+f.pts+'" fill="'+f.fill+'" fill-opacity="'+f.op+'" stroke="'+f.stroke+'" stroke-opacity="'+f.strokeOp+'" stroke-width="'+f.strokeW+'"/>');
+    });
+    result.cartonPolys.forEach(function(cp){ svgParts.push('<polygon points="'+cp.pts+'" fill="'+cp.fill+'"/>'); });
+    result.cartonLines.forEach(function(cl){ svgParts.push('<line x1="'+cl.p1.x.toFixed(1)+'" y1="'+cl.p1.y.toFixed(1)+'" x2="'+cl.p2.x.toFixed(1)+'" y2="'+cl.p2.y.toFixed(1)+'" stroke="#000" stroke-width="0.5"/>'); });
+    result.edges.forEach(function(e){ svgParts.push('<line x1="'+e.p1.x.toFixed(1)+'" y1="'+e.p1.y.toFixed(1)+'" x2="'+e.p2.x.toFixed(1)+'" y2="'+e.p2.y.toFixed(1)+'" stroke="'+MEKP3D_RACK_COLOR+'" stroke-width="'+e.w+'"/>');});
+  });
+
+  LAYOUT_ORDER.forEach(function(letter) {
+    var m = rackMeta[letter];
+    var pos = mekp3dIsoProject(0, m.yStart, globalMaxZ);
+    svgParts.push('<text x="'+(pos.x-14).toFixed(1)+'" y="'+(pos.y-4).toFixed(1)+'" font-size="16" font-weight="900" fill="#111827" font-family="Georgia, serif">'+letter+'</text>');
+  });
+  allLabels.forEach(function(l) {
+    svgParts.push('<text x="'+l.x.toFixed(1)+'" y="'+l.y.toFixed(1)+'" font-size="7" font-weight="700" fill="#475569" text-anchor="middle" font-family="monospace">'+l.text+'</text>');
+  });
+
+  svgParts.push('</svg>');
+  wrap.innerHTML = '<div style="padding:6px 4px 10px;font-size:10px;color:#a0aec0;">Semua rak — tampilan overview (pilih 1 rak di atas buat lihat detail per-posisi)</div>'
+    + '<div style="background:#fff;border-radius:12px;padding:12px;width:100%;box-sizing:border-box;overflow-x:auto;">' + svgParts.join('') + '</div>';
+}
+
+// ── Tampilan khusus Bin T saja (area non-racking) — diadaptasi dari
+// petaRender3DTOnly() BinLoc. ──
+function _mekAktual3dRenderTOnly() {
+  var LAYOUT_ORDER = ['A','B','C','D','E','F','G','H','I'];
+  var AISLE_GAP = 5, BACK_GAP = 1.2;
+  var GAP_AFTER = { 'A':'aisle', 'B':'back', 'C':'aisle', 'D':'back', 'E':'aisle', 'F':'back', 'G':'aisle', 'H':'aisle' };
+
+  var wrap = document.getElementById('mekRv3dAktualWrap');
+  if (!wrap) return;
+
+  function maxDepthOfRack(letter) {
+    var segs = _mekRvGroups.filter(function(g){ return g.bin === letter; });
+    if (!segs.length) return 0;
+    return Math.max.apply(null, segs.map(function(s){ return s.depth; }));
+  }
+  var cursor = 0;
+  LAYOUT_ORDER.forEach(function(letter, idx) {
+    var depth = maxDepthOfRack(letter);
+    if (idx > 0) {
+      var gapType = GAP_AFTER[LAYOUT_ORDER[idx-1]] || 'aisle';
+      cursor += (gapType === 'aisle') ? AISLE_GAP : BACK_GAP;
+    }
+    cursor += depth;
+  });
+  var globalMaxY = cursor;
+
+  var binMap = _mekAktual3dBuildBinMap();
+
+  var bPts = MEKP3D_BORDER_POINTS.map(function(p) {
+    var yProp = (p.y - MEKP3D_T_ROW_MIN) / (MEKP3D_T_ROW_MAX - MEKP3D_T_ROW_MIN);
+    return mekp3dIsoProject(p.x, yProp * globalMaxY, 0);
+  });
+  var minX=1e9,minY=1e9,maxX=-1e9,maxY=-1e9;
+  bPts.forEach(function(p){ if(p.x<minX)minX=p.x; if(p.x>maxX)maxX=p.x; if(p.y<minY)minY=p.y; if(p.y>maxY)maxY=p.y; });
+  var pad = 60;
+  var w = maxX-minX+pad*2, h = maxY-minY+pad*2;
+  var svgParts = ['<svg viewBox="'+(minX-pad)+' '+(minY-pad)+' '+w+' '+h+'" style="display:block;width:100%;height:auto;">'];
+
+  var floorPts = bPts.map(function(p){ return p.x.toFixed(1)+','+p.y.toFixed(1); }).join(' ');
+  svgParts.push('<polygon points="'+floorPts+'" fill="#dde3ea" stroke="#94a3b8" stroke-width="1.5"/>');
+  var borderD = 'M' + bPts.map(function(p){ return p.x.toFixed(1)+','+p.y.toFixed(1); }).join(' L') + ' Z';
+  svgParts.push('<path d="'+borderD+'" fill="none" stroke="#0f766e" stroke-width="3.5" stroke-linejoin="round"/>');
+
+  var tCombined = [];
+  MEKP3D_T_BIN_DATA.forEach(function(t) {
+    var yProp = (t.rowMid - MEKP3D_T_ROW_MIN) / (MEKP3D_T_ROW_MAX - MEKP3D_T_ROW_MIN);
+    var yPos = yProp * globalMaxY;
+    var areaPts = [
+      mekp3dIsoProject(t.x, yPos, 0), mekp3dIsoProject(t.x+t.w, yPos, 0),
+      mekp3dIsoProject(t.x+t.w, yPos+t.thick, 0), mekp3dIsoProject(t.x, yPos+t.thick, 0)
+    ].map(function(p){ return p.x.toFixed(1)+','+p.y.toFixed(1); }).join(' ');
+    svgParts.push('<polygon points="'+areaPts+'" fill="#6b7280"/>');
+    var tCode = 'T' + t.num;
+    var tInfo = binMap[tCode];
+    if (!tInfo || !tInfo.items || !tInfo.items.length) return;
+    var alongX = t.w >= t.thick;
+    var maxFit = Math.max(1, Math.floor(alongX ? t.w : t.thick));
+    var slotPtr = 0;
+    tInfo.items.forEach(function(subItem) {
+      var units = subItem.units, col = subItem.color;
+      for (var u = 0; u < units && slotPtr < maxFit; u++, slotPtr++) {
+        if (alongX) tCombined.push({ x:t.x+slotPtr, y:yPos, color:col });
+        else tCombined.push({ x:t.x, y:yPos+slotPtr, color:col });
+      }
+    });
+  });
+  tCombined.sort(function(a,b){ return (a.x+a.y) - (b.x+b.y); });
+  tCombined.forEach(function(item) {
+    var r = mekp3dCubePolygons(item.x, item.y, 0, mekp3dColorInfo(item.color), { top:true, faceX:true, faceY:true });
+    r.faces.forEach(function(f) {
+      svgParts.push('<polygon points="'+f.pts+'" fill="'+f.fill+'" fill-opacity="'+f.op+'" stroke="#000" stroke-opacity="1" stroke-width="0.5"/>');
+    });
+    r.cartonPolys.forEach(function(cp){ svgParts.push('<polygon points="'+cp.pts+'" fill="'+cp.fill+'"/>'); });
+    r.cartonLines.forEach(function(cl){ svgParts.push('<line x1="'+cl.p1.x.toFixed(1)+'" y1="'+cl.p1.y.toFixed(1)+'" x2="'+cl.p2.x.toFixed(1)+'" y2="'+cl.p2.y.toFixed(1)+'" stroke="#000" stroke-width="0.5"/>'); });
+  });
+
+  MEKP3D_T_BIN_DATA.forEach(function(t) {
+    var yProp = (t.rowMid - MEKP3D_T_ROW_MIN) / (MEKP3D_T_ROW_MAX - MEKP3D_T_ROW_MIN);
+    var yPos = yProp * globalMaxY;
+    var lp = mekp3dIsoProject(t.x + t.w/2, yPos + 0.45, 0.25);
+    svgParts.push('<text x="'+lp.x.toFixed(1)+'" y="'+lp.y.toFixed(1)+'" font-size="7" font-weight="800" fill="#334155" text-anchor="middle" font-family="monospace">T'+t.num+'</text>');
+  });
+
+  svgParts.push('</svg>');
+  wrap.innerHTML = '<div style="padding:6px 4px 10px;font-size:10px;color:#a0aec0;">Bin Tambahan saja — rak utama disembunyikan</div>'
+    + '<div style="background:#fff;border-radius:12px;padding:12px;width:100%;box-sizing:border-box;overflow-x:auto;">' + svgParts.join('') + '</div>';
+}
+
+// ── Detail 1 rak (dipilih dari chip) — diadaptasi dari petaRender3D() BinLoc.
+// Beda dari versi BinLoc: gak ada mode klik-pilih-posisi (popup), diganti
+// tooltip native browser (<title> di tiap kubus) biar lebih sederhana. ──
+function _mekAktual3dRenderRack(binLetter) {
+  var segments = (_mekRvGroups || []).filter(function(g) { return g.bin === binLetter; });
+  var wrap = document.getElementById('mekRv3dAktualWrap');
+  if (!wrap) return;
+  if (!segments.length) { wrap.innerHTML = '<div style="padding:40px;text-align:center;color:#a0aec0;font-size:12px">Rak tidak ditemukan</div>'; return; }
+  segments.sort(function(a, b) { return a.rowFrom - b.rowFrom; });
+
+  var origin = Math.min.apply(null, segments.map(function(s){ return s.rowFrom; }));
+  var maxRow = Math.max.apply(null, segments.map(function(s){ return s.rowTo; }));
+  var nx = maxRow - origin + 1;
+
+  var P3D_REVERSED_BINS = ['B','D','F','H','I'];
+  var isReversed = P3D_REVERSED_BINS.indexOf(binLetter) !== -1;
+  function rowNumFor(xi) { return isReversed ? (maxRow - xi) : (origin + xi); }
+
+  function segmentFor(rowNum) {
+    for (var i = 0; i < segments.length; i++) {
+      if (rowNum >= segments[i].rowFrom && rowNum <= segments[i].rowTo) return segments[i];
+    }
+    return null;
+  }
+
+  var nyByX = [], nzByX = [];
+  var maxNy = 1, maxNz = 1;
+  for (var xi0 = 0; xi0 < nx; xi0++) {
+    var seg = segmentFor(rowNumFor(xi0));
+    var ny_x = seg ? seg.depth : 0;
+    var nz_x = seg ? seg.level : 0;
+    nyByX[xi0] = ny_x;
+    nzByX[xi0] = nz_x;
+    if (ny_x > maxNy) maxNy = ny_x;
+    if (nz_x > maxNz) maxNz = nz_x;
+  }
+  var ny = maxNy;
+  var nz = maxNz;
+
+  var binMap = _mekAktual3dBuildBinMap();
+
+  var filledSet = {};
+  var slotColor = {};
+  var hoverInfo = {}; // xi -> binCode, buat title tooltip
+  for (var xi = 0; xi < nx; xi++) {
+    var rowNum   = rowNumFor(xi);
+    var binCode  = binLetter + rowNum;
+    var ny_local = nyByX[xi], nz_local = nzByX[xi];
+    var info = binMap[binCode];
+    hoverInfo[xi] = binCode;
+
+    var order = [];
+    for (var z = nz_local - 1; z >= 0; z--) {
+      for (var y = ny_local - 1; y >= 0; y--) {
+        order.push([y, z]);
+      }
+    }
+
+    var slotPtr = 0;
+    if (info && info.items && info.items.length) {
+      info.items.forEach(function(subItem) {
+        var units = subItem.units, col = subItem.color;
+        for (var u = 0; u < units && slotPtr < order.length; u++, slotPtr++) {
+          var yz = order[slotPtr][0] + '_' + order[slotPtr][1];
+          filledSet[xi + '_' + yz] = true;
+          slotColor[xi + '_' + yz] = col;
+        }
+      });
+    }
+  }
+
+  function existsAt(x, y, z) {
+    if (x < 0 || x >= nx) return false;
+    return y >= 0 && y < nyByX[x] && z >= 0 && z < nzByX[x];
+  }
+  function isFilledAt(x, y, z) {
+    if (!existsAt(x, y, z)) return false;
+    return !!filledSet[x + '_' + y + '_' + z];
+  }
+
+  var cubes = [];
+  for (var z2 = 0; z2 < nz; z2++) {
+    for (var y2 = 0; y2 < ny; y2++) {
+      for (var x2 = 0; x2 < nx; x2++) {
+        if (!existsAt(x2, y2, z2)) continue;
+        if (!isFilledAt(x2, y2, z2)) continue; // slot kosong — gak digambar (gak ada mode klik-pilih di versi ini)
+        var drawTop = !isFilledAt(x2, y2, z2+1);
+        var cInfo = mekp3dColorInfo(slotColor[x2+'_'+y2+'_'+z2]);
+        cubes.push({ x:x2, y:y2, z:z2, colorInfo: cInfo, drawTop:drawTop, binIdx:x2 });
+      }
+    }
+  }
+  cubes.sort(function(a, b) { return (a.x + a.y - a.z) - (b.x + b.y - b.z); });
+
+  var minX=1e9,minY=1e9,maxX=-1e9,maxY=-1e9;
+  for (var bbx=0; bbx<=nx; bbx++) for (var bby=0; bby<=ny; bby++) for (var bbz=0; bbz<=nz; bbz++) {
+    var p = mekp3dIsoProject(bbx, bby, bbz);
+    if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
+  }
+  var labelSpace = 26;
+  var pad = 90;
+  var w = maxX - minX + pad*2;
+  var h = maxY - minY + pad*2 + labelSpace;
+
+  var svgParts = [];
+  svgParts.push('<svg viewBox="'+(minX-pad)+' '+(minY-pad)+' '+w+' '+h+'" style="display:block;width:100%;height:auto;">');
+
+  var floorPad = 0.15;
+  var floorPts = [
+    mekp3dIsoProject(-floorPad, -floorPad, 0), mekp3dIsoProject(nx+floorPad, -floorPad, 0),
+    mekp3dIsoProject(nx+floorPad, ny+floorPad, 0), mekp3dIsoProject(-floorPad, ny+floorPad, 0)
+  ].map(function(p){ return p.x.toFixed(1)+','+p.y.toFixed(1); }).join(' ');
+  svgParts.push('<polygon points="'+floorPts+'" fill="#dde3ea" stroke="#94a3b8" stroke-width="1.5"/>');
+
+  function depthAtBoundary(bx) {
+    var a = bx > 0 ? (nyByX[bx-1] || 0) : 0;
+    var b = bx < nx ? (nyByX[bx] || 0) : 0;
+    return Math.max(a, b);
+  }
+  function levelAtBoundary(bx) {
+    var a = bx > 0 ? (nzByX[bx-1] || 0) : 0;
+    var b = bx < nx ? (nzByX[bx] || 0) : 0;
+    return Math.max(a, b);
+  }
+  var renderList = cubes.slice();
+  for (var fx = 0; fx <= nx; fx++) {
+    var fDepth = depthAtBoundary(fx), fLevel = levelAtBoundary(fx);
+    for (var fy = 0; fy <= fDepth; fy++) {
+      for (var fzL = 0; fzL < fLevel; fzL++) {
+        renderList.push({ frameType:'post', fx:fx, fy:fy, fzL:fzL, depth: fx + fy - fzL - 0.5 });
+      }
+    }
+    for (var fy2 = 0; fy2 < fDepth; fy2++) {
+      for (var fzz = 0; fzz < fLevel; fzz++) {
+        renderList.push({ frameType:'zigzag', fx:fx, fy2:fy2, fzz:fzz, depth: fx + fy2 - fzz - 0.5 });
+      }
+    }
+  }
+  renderList.forEach(function(item) {
+    if (item.frameType) return;
+    item.depth = (item.x + item.y - item.z) + 0.9;
+  });
+  renderList.sort(function(a, b) { return a.depth - b.depth; });
+
+  renderList.forEach(function(item) {
+    if (item.frameType === 'post') {
+      var fpBot = mekp3dIsoProject(item.fx, item.fy, item.fzL), fpTop = mekp3dIsoProject(item.fx, item.fy, item.fzL+1);
+      svgParts.push('<line x1="'+fpBot.x.toFixed(1)+'" y1="'+fpBot.y.toFixed(1)+'" x2="'+fpTop.x.toFixed(1)+'" y2="'+fpTop.y.toFixed(1)+'" stroke="'+MEKP3D_RACK_COLOR+'" stroke-width="'+MEKP3D_RACK_WIDTH+'"/>');
+      return;
+    }
+    if (item.frameType === 'zigzag') {
+      var fflip = item.fzz % 2 === 0;
+      var ffrom = fflip ? mekp3dIsoProject(item.fx, item.fy2, item.fzz)   : mekp3dIsoProject(item.fx, item.fy2, item.fzz+1);
+      var fto   = fflip ? mekp3dIsoProject(item.fx, item.fy2+1, item.fzz+1) : mekp3dIsoProject(item.fx, item.fy2+1, item.fzz);
+      svgParts.push('<line x1="'+ffrom.x.toFixed(1)+'" y1="'+ffrom.y.toFixed(1)+'" x2="'+fto.x.toFixed(1)+'" y2="'+fto.y.toFixed(1)+'" stroke="'+MEKP3D_RACK_COLOR+'" stroke-width="'+MEKP3D_RACK_WIDTH+'"/>');
+      return;
+    }
+    var c = item;
+    var binCode = hoverInfo[c.binIdx] || '';
+    var agg = _mekRvBinAgg[binCode];
+    var titleTxt = _mekRvCellTitle(agg, binCode);
+    var result = mekp3dCubePolygons(c.x, c.y, c.z, c.colorInfo, { top:c.drawTop, faceX:true, faceY:true });
+    result.faces.forEach(function(f) {
+      svgParts.push('<polygon points="'+f.pts+'" fill="'+f.fill+'" fill-opacity="'+f.op+'" stroke="'+f.stroke+'" stroke-opacity="'+f.strokeOp+'" stroke-width="'+f.strokeW+'"><title>' + _mekEsc(titleTxt) + '</title></polygon>');
+    });
+    result.cartonPolys.forEach(function(cp) {
+      svgParts.push('<polygon points="'+cp.pts+'" fill="'+cp.fill+'" style="pointer-events:none;"/>');
+    });
+    result.cartonLines.forEach(function(cl) {
+      svgParts.push('<line x1="'+cl.p1.x.toFixed(1)+'" y1="'+cl.p1.y.toFixed(1)+'" x2="'+cl.p2.x.toFixed(1)+'" y2="'+cl.p2.y.toFixed(1)+'" stroke="#000" stroke-width="0.5" style="pointer-events:none;"/>');
+    });
+    result.edges.forEach(function(e) {
+      svgParts.push('<line x1="'+e.p1.x.toFixed(1)+'" y1="'+e.p1.y.toFixed(1)+'" x2="'+e.p2.x.toFixed(1)+'" y2="'+e.p2.y.toFixed(1)+'" stroke="'+MEKP3D_RACK_COLOR+'" stroke-width="'+e.w+'" style="pointer-events:none;"/>');
+    });
+  });
+
+  for (var lx = 0; lx < nx; lx++) {
+    var lp = mekp3dIsoProject(lx + 0.5, ny, 0);
+    svgParts.push('<text x="'+lp.x.toFixed(1)+'" y="'+(lp.y+13).toFixed(1)+'" font-size="9" font-weight="700" fill="#475569" text-anchor="middle" font-family="monospace">'+rowNumFor(lx)+'</text>');
+  }
+
+  var blockLabelPos = mekp3dIsoProject(0, 0, nz);
+  var blX = blockLabelPos.x - 55.0, blY = blockLabelPos.y + 25.96;
+  svgParts.push('<text x="0" y="0" font-size="50" font-weight="900" fill="#111827" font-family="Georgia, serif" transform="translate('+blX.toFixed(1)+' '+blY.toFixed(1)+') rotate(-29) skewX(-31)">'+binLetter+'</text>');
+
+  svgParts.push('</svg>');
+
+  var infoBar = '<div style="padding:6px 4px 10px;font-size:10px;color:#a0aec0;">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">'
+      + '<span>Rak <b style="color:#2d3748">' + binLetter + '</b> · ' + nx + ' posisi · ' + nz + ' level × ' + ny + ' depth</span>'
+      + '<span>'
+        + '<span style="display:inline-block;width:9px;height:9px;background:'+MEKP3D_COLOR_AVAILABLE+';border-radius:2px;margin-right:3px;"></span>Available&nbsp; '
+        + '<span style="display:inline-block;width:9px;height:9px;background:'+MEKP3D_COLOR_WAITING+';border-radius:2px;margin-right:3px;"></span>Reserved&nbsp; '
+        + '<span style="display:inline-block;width:9px;height:9px;background:'+MEKP3D_COLOR_LONGWAIT+';border-radius:2px;margin-right:3px;"></span>Reserved &gt;24h'
+      + '</span>'
+    + '</div>'
+  + '</div>';
+
+  wrap.innerHTML = infoBar
+    + '<div style="background:#fff;border-radius:12px;padding:12px;width:100%;box-sizing:border-box;">'
+      + svgParts.join('')
+    + '</div>';
+}
+
 function _mekRenderReservedView(data) {
   var s = data.summary || {};
   document.getElementById('mekRvKpiTotal').textContent     = (s.totalStock||0).toLocaleString('id-ID');
@@ -717,6 +1551,7 @@ function _mekRenderReservedView(data) {
   // (dicocokkan via SKU yang sama, karena cell BinLoc gak nyimpen waitHours langsung)
   var longWaitSkus = {};
   rows.forEach(function(r){ if (r.tier === 'gt24') longWaitSkus[r.sku] = true; });
+  _mekRvLongWaitSkus = longWaitSkus; // dipakai juga sama render 3D Aktual
 
   // Agregasi per lokasi BinLoc — dipakai bareng oleh 2D Simple, 2D Aktual & 3D
   var agg = {};
