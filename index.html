@@ -2423,7 +2423,7 @@
     }
 
     /* Pane switch fade */
-    #mekSummaryPane, #mekInputPane, #mekPlanningPane {
+    #mekSummaryPane, #mekInputPane, #mekPlanningPane, #mekStockPane {
       transition: opacity .18s ease;
     }
 
@@ -4724,6 +4724,9 @@
         <button id="mekTabPlanning" class="mek-tab-btn" onclick="mekSwitchTab('planning')">
           <i class="fas fa-table"></i> PLANNING
         </button>
+        <button id="mekTabStock" class="mek-tab-btn" onclick="mekSwitchTab('stock');mekLoadStockReadiness();">
+          <i class="fas fa-boxes-stacked"></i> KESIAPAN STOCK
+        </button>
     </div>
 
     <!-- ════ TAB SUMMARY ════ -->
@@ -5185,6 +5188,47 @@
         </div>
       </div>
     </div><!-- /mekPlanningPane -->
+
+    <!-- ════ TAB KESIAPAN STOCK ════ -->
+    <div id="mekStockPane" style="display:none;height:calc(100vh - 112px);overflow:hidden;flex-direction:column;">
+
+      <!-- Toolbar -->
+      <div style="padding:10px 16px;background:#fff;border-bottom:2px solid #e2e8f0;display:flex;align-items:center;gap:10px;flex-wrap:wrap;flex-shrink:0;">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <i class="fas fa-boxes-stacked" style="color:#2c5282;font-size:13px;"></i>
+          <span style="font-size:13px;font-weight:800;color:#1a3a5c;letter-spacing:.3px;">KESIAPAN STOCK</span>
+        </div>
+        <div style="font-size:11px;color:#718096;">Kebutuhan dari planning 2 minggu terakhir (minggu ini + minggu lalu) yang belum close vs stok BinLoc saat ini</div>
+        <button onclick="mekLoadStockReadiness()" style="margin-left:auto;padding:6px 16px;border-radius:8px;border:none;background:#1a3a5c;color:#fff;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px;transition:background .15s;"
+          onmouseover="this.style.background='#2d4a6a'" onmouseout="this.style.background='#1a3a5c'">
+          <i class="fas fa-sync-alt"></i> Refresh
+        </button>
+      </div>
+
+      <div style="overflow:auto;flex:1;-webkit-overflow-scrolling:touch;padding:14px 16px;">
+
+        <!-- Kartu ringkasan -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:16px;max-width:600px;">
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;">
+            <div style="font-size:11px;color:#718096;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;">SKU Kurang</div>
+            <div id="mekStockCardKurang" style="font-size:24px;font-weight:800;color:#c53030;">—</div>
+          </div>
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;">
+            <div style="font-size:11px;color:#718096;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;">SKU Cukup</div>
+            <div id="mekStockCardCukup" style="font-size:24px;font-weight:800;color:#276749;">—</div>
+          </div>
+        </div>
+
+        <div id="mekStockList"></div>
+        <div id="mekStockEmpty" style="display:none;text-align:center;padding:40px;color:#a0aec0;">
+          <i class="fas fa-inbox" style="font-size:32px;display:block;margin-bottom:8px;opacity:.4;"></i>
+          Tidak ada planning yang belum close
+        </div>
+        <div id="mekStockLoading" style="display:none;text-align:center;padding:50px;color:#a0aec0;">
+          <i class="fas fa-spinner fa-spin" style="font-size:24px;"></i>
+        </div>
+      </div>
+    </div><!-- /mekStockPane -->
 
 
 
