@@ -2287,6 +2287,8 @@
     #monitoringEksporPage .mek-tab-btn{padding:10px 22px;font-size:12px;font-weight:700;border:none;background:none;cursor:pointer;color:#718096;border-bottom:3px solid transparent;margin-bottom:-2px;text-transform:uppercase;letter-spacing:.5px;display:flex;align-items:center;gap:6px;transition:color .2s,border-color .2s;}
     #monitoringEksporPage .mek-tab-btn.active{color:#1a3a5c;border-bottom-color:#1a3a5c;}
     #monitoringEksporPage .mek-tab-btn:hover{color:#1a3a5c;}
+    #monitoringEksporPage .mek-rv3d-vc-btn{background:#2d3748;color:#e2e8f0;border:1px solid #4a5568;border-radius:5px;font-size:9px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;letter-spacing:.3px;transition:background .15s;}
+    #monitoringEksporPage .mek-rv3d-vc-btn:hover{background:#4a5568;}
     #monitoringEksporPage .mek-card-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:14px;}
     #monitoringEksporPage .mek-card{background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:14px 16px;display:flex;align-items:center;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,.05);}
     #monitoringEksporPage .mek-card-ico{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;}
@@ -5344,11 +5346,36 @@
 
           <div id="mekRv2dSimpleWrap" style="display:none;overflow:auto;padding:8px 2px;"></div>
           <div id="mekRv2dAktualWrap" style="display:none;overflow:auto;padding:8px 2px;"></div>
-          <div id="mekRv3dWrap" style="position:relative;width:100%;height:360px;background:#f8fafc;border-radius:8px;overflow:hidden;">
+          <div id="mekRv3dWrap" style="position:relative;width:100%;height:640px;background:#f8fafc;border-radius:8px;overflow:hidden;">
             <canvas id="mekRv3dCanvas" style="width:100%;height:100%;display:block;"></canvas>
             <div id="mekRv3dTooltip" style="display:none;position:absolute;pointer-events:none;background:#1a202c;color:#fff;font-size:11px;padding:6px 10px;border-radius:6px;max-width:220px;z-index:10;"></div>
             <div id="mekRv3dLoading" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#a0aec0;font-size:12px;">
               <i class="fas fa-spinner fa-spin" style="margin-right:6px;"></i> Memuat peta...
+            </div>
+
+            <!-- Viewcube: kontrol preset kamera -->
+            <div id="mekRv3dViewcube" style="display:none;position:absolute;top:10px;right:10px;z-index:11;background:rgba(26,32,44,.88);border:1px solid #2d3748;border-radius:10px;padding:8px;box-shadow:0 4px 14px rgba(0,0,0,.25);grid-template-columns:repeat(3,28px);grid-template-rows:repeat(4,26px);gap:3px;">
+              <div></div>
+              <button onclick="window.mekRv3dPresetView && window.mekRv3dPresetView('top')" class="mek-rv3d-vc-btn" title="Top">TOP</button>
+              <div></div>
+              <button onclick="window.mekRv3dPresetView && window.mekRv3dPresetView('left')" class="mek-rv3d-vc-btn" title="Left">L</button>
+              <button onclick="window.mekRv3dRotateIso && window.mekRv3dRotateIso()" class="mek-rv3d-vc-btn" style="background:#1a3a5c;" title="Rotate ISO">ISO</button>
+              <button onclick="window.mekRv3dPresetView && window.mekRv3dPresetView('right')" class="mek-rv3d-vc-btn" title="Right">R</button>
+              <div></div>
+              <button onclick="window.mekRv3dPresetView && window.mekRv3dPresetView('front')" class="mek-rv3d-vc-btn" title="Front">FRONT</button>
+              <div></div>
+              <button onclick="window.mekRv3dPresetView && window.mekRv3dPresetView('back')" class="mek-rv3d-vc-btn" title="Back">BACK</button>
+              <div></div>
+              <button onclick="window.mekRv3dResetView && window.mekRv3dResetView()" class="mek-rv3d-vc-btn" style="background:#742a2a;" title="Reset">RST</button>
+            </div>
+
+            <!-- Popup detail rak / bin -->
+            <div id="mekRv3dPopup" style="display:none;position:absolute;bottom:10px;left:10px;max-width:280px;max-height:70%;overflow:auto;z-index:12;background:rgba(26,32,44,.95);color:#fff;border:1px solid #2d3748;border-radius:10px;box-shadow:0 4px 14px rgba(0,0,0,.3);">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-bottom:1px solid #2d3748;">
+                <div id="mekRv3dPopupTitle" style="font-size:12px;font-weight:800;"></div>
+                <button id="mekRv3dPopupCloseBtn" onclick="document.getElementById('mekRv3dPopup').style.display='none';" style="background:none;border:none;color:#a0aec0;font-size:14px;cursor:pointer;line-height:1;padding:2px 4px;">&times;</button>
+              </div>
+              <div id="mekRv3dPopupBody" style="padding:8px 10px;font-size:11px;line-height:1.6;"></div>
             </div>
           </div>
           <div id="mekRvAktual3dChips" style="display:none;flex-wrap:wrap;gap:6px;margin:2px 0 8px;"></div>
