@@ -571,11 +571,21 @@ function _mekCloseStockDetail() {
 // cuma disusun ulang per lokasi BinLoc lewat action getMekReservedMap)
 // ════════════════════════════════════════════════════════════
 var _mekReservedData = null;
+var _mekRvShowAll = false; // toggle "Tampilkan semua stock (lokal + ekspor)"
+
+function mekRvToggleShowAll(checked) {
+  _mekRvShowAll = !!checked;
+  mekLoadReservedView();
+}
 
 function mekLoadReservedView() {
   var loadEl = document.getElementById('mekRvLoading');
   if (loadEl) loadEl.style.display = 'block';
-  API.run('getMekReservedMap', {}, function(res) {
+  // Fire struktur rak (getMekBinCap3D) PARALEL bareng data reservasi, bukan
+  // nunggu data reservasi selesai dulu — mode 3D/3D Aktual butuh dua-duanya,
+  // jadi kalau serial (satu abis satu) loading-nya numpuk 2x round-trip GAS.
+  _mekRvLoadGroupsThen(function(){});
+  API.run('getMekReservedMap', { showAll: _mekRvShowAll }, function(res) {
     if (loadEl) loadEl.style.display = 'none';
     if (!res || !res.success) {
       var listEl = document.getElementById('mekRvList');
@@ -655,7 +665,12 @@ function mekRvRenderCurrentMode() {
   else if (typeof window.mekReserved3DRender === 'function') {
     var longWaitBins = {};
     Object.keys(_mekRvBinAgg).forEach(function(k){ if (_mekRvBinAgg[k].hasLongWait) longWaitBins[k] = true; });
-    window.mekReserved3DRender(_mekReservedData.cells || [], longWaitBins);
+    // Butuh struktur rak (getMekBinCap3D) buat nyusun posisi kubus yang bener
+    // — sama cache-nya (_mekRvGroups) dipakai bareng sama mode "3D Aktual",
+    // jadi kalau udah ke-load duluan gak nge-fetch dua kali.
+    _mekRvLoadGroupsThen(function(){
+      window.mekReserved3DRender(_mekReservedData.cells || [], longWaitBins, _mekRvGroups || []);
+    });
   }
 }
 
@@ -875,15 +890,25 @@ var MEKP3D_T_ROW_MIN = 4, MEKP3D_T_ROW_MAX = 27;
 
 // ── State & loader struktur rak (getMekBinCap3D — udah ada di backend) ──
 var _mekRvGroups = null;
+var _mekRvGroupsPending = null; // array callback lagi nunggu, null = gak ada request in-flight
 var _mekRvSelectedRack = 'ALL';
 var _mekRvLongWaitSkus = {};
 
 function _mekRvLoadGroupsThen(cb) {
-  if (_mekRvGroups) { cb(); return; }
+  // Udah pernah sukses dapet groups beneran (bukan gagal/kosong) — langsung pakai cache.
+  if (_mekRvGroups && _mekRvGroups.length) { cb(); return; }
+  // Ada request lagi jalan (dipicu dari tempat lain) — numpang antri, jangan fetch dobel.
+  if (_mekRvGroupsPending) { _mekRvGroupsPending.push(cb); return; }
+  _mekRvGroupsPending = [cb];
+  function flush() {
+    var cbs = _mekRvGroupsPending || [];
+    _mekRvGroupsPending = null;
+    cbs.forEach(function(fn){ fn(); });
+  }
   API.run('getMekBinCap3D', {}, function(res){
     _mekRvGroups = (res && res.success && res.groups) ? res.groups : [];
-    cb();
-  }, function(){ _mekRvGroups = []; cb(); });
+    flush();
+  }, function(){ _mekRvGroups = []; flush(); });
 }
 
 function mekRvSelectAktual3dRack(bin) {
@@ -1546,6 +1571,7 @@ function _mekRenderReservedView(data) {
   document.getElementById('mekRvKpiLongest').textContent   = s.longestWaitingLabel || '-';
 
   var rows = (data.rows || []).map(function(r){ r.tier = _mekReservedWaitTier(r.waitHours); return r; });
+  _mekRvRowsRaw = rows; // simpan mentah — dipakai _mekRvApplyRowFilter buat filter list
 
   // Lokasi yang punya reservasi >24 jam — dipakai buat warna merah di peta
   // (dicocokkan via SKU yang sama, karena cell BinLoc gak nyimpen waitHours langsung)
@@ -1569,12 +1595,47 @@ function _mekRenderReservedView(data) {
   // Render peta sesuai mode yang lagi aktif
   mekRvRenderCurrentMode();
 
-  // List rows
+  // List rows (kena filter kalau ada filter aktif)
+  _mekRvApplyRowFilter();
+}
+
+// ── Filter list "Reserved Stock Monitoring" — sama pola kaya Kesiapan Stock.
+// Cuma mem-filter tabel di bawah; peta 3D/2D tetap nampilin semua lokasi. ──
+var _mekRvRowsRaw = [];
+
+function _mekRvApplyRowFilter() {
+  var raw = _mekRvRowsRaw || [];
+  var skuF    = ((document.getElementById('mekRvFilterSku')    ||{}).value||'').toLowerCase().trim();
+  var noSoF   = ((document.getElementById('mekRvFilterNoSo')   ||{}).value||'').toLowerCase().trim();
+  var tujuanF = ((document.getElementById('mekRvFilterTujuan') ||{}).value||'').toLowerCase().trim();
+  var plantF  = ((document.getElementById('mekRvFilterPlant')  ||{}).value||'').toLowerCase().trim();
+  var agingF  = ((document.getElementById('mekRvFilterAging')  ||{}).value||'').trim();
+
+  var rows = raw.filter(function(r){
+    if (skuF && (r.sku||'').toLowerCase().indexOf(skuF) < 0 && (r.nama||'').toLowerCase().indexOf(skuF) < 0) return false;
+    if (noSoF && (r.noSo||'').toLowerCase().indexOf(noSoF) < 0) return false;
+    if (tujuanF && (r.tujuan||'').toLowerCase().indexOf(tujuanF) < 0) return false;
+    if (plantF === '__no_plant__') {
+      if ((r.plant||'').trim()) return false;
+    } else if (plantF && (r.plant||'').toLowerCase().indexOf(plantF) < 0) {
+      return false;
+    }
+    if (agingF && r.tier !== agingF) return false;
+    return true;
+  });
+  _mekRvRenderRowsList(rows, !!(skuF || noSoF || tujuanF || plantF || agingF));
+}
+
+function _mekRvRenderRowsList(rows, filterActive) {
   var listEl  = document.getElementById('mekRvList');
   var emptyEl = document.getElementById('mekRvEmpty');
+  if (!listEl || !emptyEl) return;
   if (!rows.length) {
     listEl.innerHTML = '';
     emptyEl.style.display = 'block';
+    emptyEl.innerHTML = filterActive
+      ? '<i class="fas fa-filter" style="font-size:32px;display:block;margin-bottom:8px;opacity:.4;"></i>Tidak ada yang cocok dengan filter'
+      : '<i class="fas fa-check-circle" style="font-size:32px;display:block;margin-bottom:8px;opacity:.4;"></i>Tidak ada stock yang di-reserve saat ini';
     return;
   }
   emptyEl.style.display = 'none';
@@ -1582,7 +1643,7 @@ function _mekRenderReservedView(data) {
     var isLong = r.tier === 'gt24';
     var badgeBg = isLong ? '#fed7d7' : '#feebc8';
     var badgeFg = isLong ? '#c53030' : '#c05621';
-    var badgeTx = isLong ? 'Long Wait' : 'Waiting';
+    var badgeTx = isLong ? 'Delay' : 'Waiting';
     return '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-bottom:8px;">'
       + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px;">'
         + '<div style="min-width:0;"><div style="font-weight:800;font-size:13px;color:#2d3748;">' + _mekEsc(r.sku||'-') + '</div>'
