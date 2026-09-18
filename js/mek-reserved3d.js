@@ -111,7 +111,8 @@ var _sceneCenter = { x: 20, y: 6, z: 15 };
 var _sceneSpan = { x: 20, z: 15 };
 var _binRawRef = {};   // binCode -> [{sku,nama,karton,reservedKarton,availableKarton,prodate,tipe}]
 var _binAggRef = {};   // binCode -> {totalKarton,totalReserved,totalAvailable}
-var _binCapRef = {};   // binCode -> capacity (ny*nz), cuma keisi buat rak A-I yang ada barangnya
+var _binCapRef = {};   // binCode -> capacity slot (ny*nz), cuma keisi buat rak A-I yang ada barangnya
+var _planningBySku = {}; // sku -> [{noSo,tanggal,tujuan,tier}] — planning yang masih outstanding buat sku itu (dari rows getMekReservedMap)
 var _viewAnim = null;
 var _raycaster, _pointer, _eventsBound = false;
 
@@ -209,35 +210,72 @@ function _zoomToRack(letter) {
   };
 }
 
+function _fmtTglShort(ymd) {
+  if (!ymd) return '';
+  var p = String(ymd).split('-');
+  return p.length === 3 ? (p[2] + '/' + p[1] + '/' + p[0]) : ymd;
+}
+
+// Daftar planning (SO + tanggal) yang masih outstanding buat 1 SKU — bisa lebih
+// dari 1 (beberapa SO nunggu bareng), jadi dibikin rapi: maks 3 baris, sisanya
+// diringkes "+N lainnya" biar popup gak berantakan kepanjangan.
+function _formatPlanningList(sku) {
+  var list = _planningBySku[sku] || [];
+  if (!list.length) return '';
+  var sorted = list.slice().sort(function(a,b){ return (b.tanggal||'').localeCompare(a.tanggal||''); });
+  var shown = sorted.slice(0, 3);
+  var rowsHtml = shown.map(function(p) {
+    var isLong = p.tier === 'gt24';
+    return '<div style="display:flex;justify-content:space-between;gap:8px;font-size:10px;color:#cbd5e0;">' +
+      '<span>SO ' + _esc(p.noSo || '-') + '</span>' +
+      '<span' + (isLong ? ' style="color:#fc8181;font-weight:700;"' : '') + '>' + _esc(_fmtTglShort(p.tanggal)) + '</span>' +
+    '</div>';
+  }).join('');
+  var more = sorted.length > 3 ? '<div style="font-size:9px;color:#718096;margin-top:1px;">+' + (sorted.length-3) + ' SO lainnya</div>' : '';
+  return '<div style="margin-top:4px;padding-top:4px;border-top:1px dashed rgba(255,255,255,.15);">' +
+    '<div style="font-size:9px;color:#718096;text-transform:uppercase;margin-bottom:2px;">Planning outstanding</div>' +
+    rowsHtml + more +
+  '</div>';
+}
+
 // ── Popup detail 1 bin spesifik ──
 function _showBinPopup(binCode) {
   var raw = _binRawRef[binCode] || [];
   var cap = _binCapRef[binCode] || 0;
-  var used = raw.reduce(function(s, r){ return s + (r.karton||0); }, 0);
+  var usedUnits = raw.reduce(function(s, r){ return s + (r.palletNum||0) + (r.pecahanCount||0); }, 0);
   if (!_popupEl) return;
   var itemsHtml = '<div style="opacity:.6;font-size:12px;">Kosong</div>';
   if (raw.length) {
     itemsHtml = raw.map(function(r) {
       var bits = [];
-      if (r.reservedKarton > 0)  bits.push('<span style="color:#c05621;">Reserved ' + r.reservedKarton.toLocaleString('id-ID') + '</span>');
-      if (r.availableKarton > 0) bits.push('<span style="color:#276749;">Available ' + r.availableKarton.toLocaleString('id-ID') + '</span>');
+      if (r.reservedKarton > 0)  bits.push('<span style="color:#f6ad55;">Reserved ' + r.reservedKarton.toLocaleString('id-ID') + '</span>');
+      if (r.availableKarton > 0) bits.push('<span style="color:#68d391;">Available ' + r.availableKarton.toLocaleString('id-ID') + '</span>');
       var pltBits = [];
       if (r.palletNum)    pltBits.push(r.palletNum + ' pallet');
       if (r.pecahanCount) pltBits.push(r.pecahanCount + ' pecahan');
-      return '<div style="padding:8px 0;border-bottom:1px solid #e2e8f0;">' +
-        '<div style="font-weight:800;font-size:12.5px;color:#2d3748;">' + _esc(r.nama || r.sku || '-') + '</div>' +
-        '<div style="font-size:11px;color:#718096;margin-top:2px;">' + _esc(r.sku || '') + ' · ' + (r.karton||0).toLocaleString('id-ID') + ' krt' +
-        (r.prodate ? ' · ' + _esc(r.prodate) : '') + '</div>' +
-        (pltBits.length ? '<div style="font-size:10px;color:#4a5568;margin-top:2px;">🔲 ' + pltBits.join(' + ') + '</div>' : '') +
+      return '<div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,.12);">' +
+        '<div style="font-weight:800;font-size:12.5px;color:#f7fafc;">' + _esc(r.nama || r.sku || '-') + '</div>' +
+        '<div style="font-size:11px;color:#cbd5e0;margin-top:2px;">' + _esc(r.sku || '') + ' · ' + (r.karton||0).toLocaleString('id-ID') + ' krt' +
+        (r.prodate ? ' · prod. ' + _esc(r.prodate) : '') + '</div>' +
+        (pltBits.length ? '<div style="font-size:10px;color:#a0aec0;margin-top:2px;">🔲 ' + pltBits.join(' + ') + '</div>' : '') +
         (bits.length ? '<div style="font-size:10px;margin-top:3px;">' + bits.join(' · ') + '</div>' : '') +
+        (r.reservedKarton > 0 ? _formatPlanningList(r.sku) : '') +
       '</div>';
     }).join('');
   }
   _popupTitleEl.textContent = '📍 ' + binCode;
   _popupBodyEl.innerHTML =
-    (cap ? '<div style="font-size:11px;color:#718096;margin-bottom:8px;">Kapasitas: ' + used + '/' + cap + ' krt</div>' : '') +
-    '<div style="max-height:200px;overflow-y:auto;">' + itemsHtml + '</div>';
+    (cap ? '<div style="font-size:11px;color:#a0aec0;margin-bottom:8px;">Kapasitas: ' + usedUnits + '/' + cap + ' slot</div>' : '') +
+    '<div style="max-height:260px;overflow-y:auto;">' + itemsHtml + '</div>';
+  _revealPopup();
+}
+
+function _revealPopup() {
+  if (!_popupEl) return;
+  _popupEl.classList.remove('show');
   _popupEl.style.display = 'block';
+  void _popupEl.offsetWidth;
+  _popupEl.classList.add('show');
 }
 
 // ── Popup detail 1 blok rak (agregat semua bin A1..A28 dst) ──
@@ -269,12 +307,16 @@ function _showRackPopup(letter) {
       '<div><span style="color:#a0aec0;">Total stock</span><br><b>' + used.toLocaleString('id-ID') + ' krt</b></div>' +
       '<div><span style="color:#a0aec0;">Jumlah item SKU</span><br><b>' + itemCount + '</b></div>' +
       '<div><span style="color:#a0aec0;">Total pallet</span><br><b>🔲 ' + pallet.toLocaleString('id-ID') + ' plt' + (pecahan ? ' + ' + pecahan.toLocaleString('id-ID') + ' pcs' : '') + '</b></div>' +
-      '<div><span style="color:#c05621;">Reserved</span><br><b>' + reserved.toLocaleString('id-ID') + ' krt</b></div>' +
-      '<div><span style="color:#276749;">Available</span><br><b>' + available.toLocaleString('id-ID') + ' krt</b></div>' +
+      '<div><span style="color:#f6ad55;">Reserved</span><br><b>' + reserved.toLocaleString('id-ID') + ' krt</b></div>' +
+      '<div><span style="color:#68d391;">Available</span><br><b>' + available.toLocaleString('id-ID') + ' krt</b></div>' +
     '</div>';
-  _popupEl.style.display = 'block';
+  _revealPopup();
 }
-function _closePopup() { if (_popupEl) _popupEl.style.display = 'none'; }
+function _closePopup() {
+  if (!_popupEl) return;
+  _popupEl.classList.remove('show');
+  setTimeout(function(){ if (!_popupEl.classList.contains('show')) _popupEl.style.display = 'none'; }, 160);
+}
 
 function _selectRack(letter) {
   if (_selectedLetter === letter) return;
@@ -1040,13 +1082,16 @@ function _buildScene(cells, longWaitBins, groups) {
   return true;
 }
 
-// cells:        [{binLoc, sku, nama, karton, reservedKarton, availableKarton,
-//                 palletNum, pecahanCount, prodate, tipe, ...}] dari getMekReservedMap
-// longWaitBins: {binLoc: true} — lokasi yang punya reservasi nunggu >24 jam
-// groups:       [{bin, rowFrom, rowTo, level, depth}] dari getMekBinCap3D
-window.mekReserved3DRender = function(cells, longWaitBins, groups) {
+// cells:         [{binLoc, sku, nama, karton, reservedKarton, availableKarton,
+//                  palletNum, pecahanCount, prodate, tipe, ...}] dari getMekReservedMap
+// longWaitBins:  {binLoc: true} — lokasi yang punya reservasi nunggu >24 jam
+// groups:        [{bin, rowFrom, rowTo, level, depth}] dari getMekBinCap3D
+// planningBySku: {sku: [{noSo,tanggal,tujuan,tier}]} — planning outstanding per SKU,
+//                dipakai popup bin buat nunjukin SO/tanggal (bisa lebih dari 1 per SKU)
+window.mekReserved3DRender = function(cells, longWaitBins, groups, planningBySku) {
   _initScene();
   if (!_scene) return;
+  _planningBySku = planningBySku || {};
   var loadingEl = document.getElementById('mekRv3dLoading');
 
   if (!groups || !groups.length) {
