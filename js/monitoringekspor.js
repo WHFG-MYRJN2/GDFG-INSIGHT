@@ -605,6 +605,103 @@ function _mekReservedFmtHours(h) {
   return d > 0 ? (d + 'd ' + r + 'h') : (Math.round(h) + 'h');
 }
 
+// ── Peta 2D Simple & 2D Aktual — diadaptasi dari app BinLoc (koordinat rak
+// fisik asli, PETA2D_CELLS/PETA2D_TBINS/PETA2D_LABELS untuk Aktual,
+// PETA_MAP_ROWS untuk Simple), warna di-swap ke status reservasi ──
+var _mekRvBinAgg = {};
+var _mekRvMode = '3d';
+
+var MEKRV_MAP_ROWS = [
+  {rows:[{l:'A',max:28}]}, null,
+  {rows:[{l:'B',max:25},{l:'C',max:25}]}, null,
+  {rows:[{l:'D',max:25},{l:'E',max:25}]}, null,
+  {rows:[{l:'F',max:25},{l:'G',max:32}]}, null,
+  {rows:[{l:'H',max:35}]}, null,
+  {rows:[{l:'I',max:43}]}
+];
+
+var MEKRV2D_LABELS = [{r:4,c:4,label:"A"},{r:8,c:4,label:"B"},{r:9,c:4,label:"C"},{r:13,c:4,label:"D"},{r:14,c:4,label:"E"},{r:18,c:4,label:"F"},{r:19,c:4,label:"G"},{r:23,c:4,label:"H"},{r:27,c:4,label:"I"}];
+
+var MEKRV2D_CELLS = [{r:4,c:6,bin:"A1"},{r:4,c:7,bin:"A2"},{r:4,c:8,bin:"A3"},{r:4,c:9,bin:"A4"},{r:4,c:10,bin:"A5"},{r:4,c:11,bin:"A6"},{r:4,c:12,bin:"A7"},{r:4,c:13,bin:"A8"},{r:4,c:14,bin:"A9"},{r:4,c:15,bin:"A10"},{r:4,c:16,bin:"A11"},{r:4,c:17,bin:"A12"},{r:4,c:18,bin:"A13"},{r:4,c:19,bin:"A14"},{r:4,c:20,bin:"A15"},{r:4,c:21,bin:"A16"},{r:4,c:22,bin:"A17"},{r:4,c:23,bin:"A18"},{r:4,c:24,bin:"A19"},{r:4,c:25,bin:"A20"},{r:4,c:26,bin:"A21"},{r:4,c:27,bin:"A22"},{r:4,c:28,bin:"A23"},{r:4,c:29,bin:"A24"},{r:4,c:30,bin:"A25"},{r:4,c:31,bin:"A26"},{r:4,c:32,bin:"A27"},{r:4,c:33,bin:"A28"},{r:8,c:6,bin:"B1"},{r:8,c:7,bin:"B2"},{r:8,c:8,bin:"B3"},{r:8,c:9,bin:"B4"},{r:8,c:10,bin:"B5"},{r:8,c:11,bin:"B6"},{r:8,c:12,bin:"B7"},{r:8,c:13,bin:"B8"},{r:8,c:14,bin:"B9"},{r:8,c:15,bin:"B10"},{r:8,c:16,bin:"B11"},{r:8,c:17,bin:"B12"},{r:8,c:18,bin:"B13"},{r:8,c:19,bin:"B14"},{r:8,c:20,bin:"B15"},{r:8,c:21,bin:"B16"},{r:8,c:22,bin:"B17"},{r:8,c:23,bin:"B18"},{r:8,c:24,bin:"B19"},{r:8,c:25,bin:"B20"},{r:8,c:26,bin:"B21"},{r:8,c:27,bin:"B22"},{r:8,c:28,bin:"B23"},{r:8,c:29,bin:"B24"},{r:8,c:30,bin:"B25"},{r:9,c:6,bin:"C1"},{r:9,c:7,bin:"C2"},{r:9,c:8,bin:"C3"},{r:9,c:9,bin:"C4"},{r:9,c:10,bin:"C5"},{r:9,c:11,bin:"C6"},{r:9,c:12,bin:"C7"},{r:9,c:13,bin:"C8"},{r:9,c:14,bin:"C9"},{r:9,c:15,bin:"C10"},{r:9,c:16,bin:"C11"},{r:9,c:17,bin:"C12"},{r:9,c:18,bin:"C13"},{r:9,c:19,bin:"C14"},{r:9,c:20,bin:"C15"},{r:9,c:21,bin:"C16"},{r:9,c:22,bin:"C17"},{r:9,c:23,bin:"C18"},{r:9,c:24,bin:"C19"},{r:9,c:25,bin:"C20"},{r:9,c:26,bin:"C21"},{r:9,c:27,bin:"C22"},{r:9,c:28,bin:"C23"},{r:9,c:29,bin:"C24"},{r:9,c:30,bin:"C25"},{r:13,c:6,bin:"D1"},{r:13,c:7,bin:"D2"},{r:13,c:8,bin:"D3"},{r:13,c:9,bin:"D4"},{r:13,c:10,bin:"D5"},{r:13,c:11,bin:"D6"},{r:13,c:12,bin:"D7"},{r:13,c:13,bin:"D8"},{r:13,c:14,bin:"D9"},{r:13,c:15,bin:"D10"},{r:13,c:16,bin:"D11"},{r:13,c:17,bin:"D12"},{r:13,c:18,bin:"D13"},{r:13,c:19,bin:"D14"},{r:13,c:20,bin:"D15"},{r:13,c:21,bin:"D16"},{r:13,c:22,bin:"D17"},{r:13,c:23,bin:"D18"},{r:13,c:24,bin:"D19"},{r:13,c:25,bin:"D20"},{r:13,c:26,bin:"D21"},{r:13,c:27,bin:"D22"},{r:13,c:28,bin:"D23"},{r:13,c:29,bin:"D24"},{r:13,c:30,bin:"D25"},{r:14,c:6,bin:"E1"},{r:14,c:7,bin:"E2"},{r:14,c:8,bin:"E3"},{r:14,c:9,bin:"E4"},{r:14,c:10,bin:"E5"},{r:14,c:11,bin:"E6"},{r:14,c:12,bin:"E7"},{r:14,c:13,bin:"E8"},{r:14,c:14,bin:"E9"},{r:14,c:15,bin:"E10"},{r:14,c:16,bin:"E11"},{r:14,c:17,bin:"E12"},{r:14,c:18,bin:"E13"},{r:14,c:19,bin:"E14"},{r:14,c:20,bin:"E15"},{r:14,c:21,bin:"E16"},{r:14,c:22,bin:"E17"},{r:14,c:23,bin:"E18"},{r:14,c:24,bin:"E19"},{r:14,c:25,bin:"E20"},{r:14,c:26,bin:"E21"},{r:14,c:27,bin:"E22"},{r:14,c:28,bin:"E23"},{r:14,c:29,bin:"E24"},{r:14,c:30,bin:"E25"},{r:18,c:6,bin:"F1"},{r:18,c:7,bin:"F2"},{r:18,c:8,bin:"F3"},{r:18,c:9,bin:"F4"},{r:18,c:10,bin:"F5"},{r:18,c:11,bin:"F6"},{r:18,c:12,bin:"F7"},{r:18,c:13,bin:"F8"},{r:18,c:14,bin:"F9"},{r:18,c:15,bin:"F10"},{r:18,c:16,bin:"F11"},{r:18,c:17,bin:"F12"},{r:18,c:18,bin:"F13"},{r:18,c:19,bin:"F14"},{r:18,c:20,bin:"F15"},{r:18,c:21,bin:"F16"},{r:18,c:22,bin:"F17"},{r:18,c:23,bin:"F18"},{r:18,c:24,bin:"F19"},{r:18,c:25,bin:"F20"},{r:18,c:26,bin:"F21"},{r:18,c:27,bin:"F22"},{r:18,c:28,bin:"F23"},{r:18,c:29,bin:"F24"},{r:18,c:30,bin:"F25"},{r:19,c:6,bin:"G1"},{r:19,c:7,bin:"G2"},{r:19,c:8,bin:"G3"},{r:19,c:9,bin:"G4"},{r:19,c:10,bin:"G5"},{r:19,c:11,bin:"G6"},{r:19,c:12,bin:"G7"},{r:19,c:13,bin:"G8"},{r:19,c:14,bin:"G9"},{r:19,c:15,bin:"G10"},{r:19,c:16,bin:"G11"},{r:19,c:17,bin:"G12"},{r:19,c:18,bin:"G13"},{r:19,c:19,bin:"G14"},{r:19,c:20,bin:"G15"},{r:19,c:21,bin:"G16"},{r:19,c:22,bin:"G17"},{r:19,c:23,bin:"G18"},{r:19,c:24,bin:"G19"},{r:19,c:25,bin:"G20"},{r:19,c:26,bin:"G21"},{r:19,c:27,bin:"G22"},{r:19,c:28,bin:"G23"},{r:19,c:29,bin:"G24"},{r:19,c:30,bin:"G25"},{r:19,c:34,bin:"G26"},{r:19,c:35,bin:"G27"},{r:19,c:36,bin:"G28"},{r:19,c:37,bin:"G29"},{r:19,c:38,bin:"G30"},{r:19,c:39,bin:"G31"},{r:19,c:40,bin:"G32"},{r:23,c:6,bin:"H1"},{r:23,c:7,bin:"H2"},{r:23,c:8,bin:"H3"},{r:23,c:9,bin:"H4"},{r:23,c:10,bin:"H5"},{r:23,c:11,bin:"H6"},{r:23,c:12,bin:"H7"},{r:23,c:13,bin:"H8"},{r:23,c:14,bin:"H9"},{r:23,c:15,bin:"H10"},{r:23,c:16,bin:"H11"},{r:23,c:17,bin:"H12"},{r:23,c:18,bin:"H13"},{r:23,c:19,bin:"H14"},{r:23,c:20,bin:"H15"},{r:23,c:21,bin:"H16"},{r:23,c:22,bin:"H17"},{r:23,c:23,bin:"H18"},{r:23,c:24,bin:"H19"},{r:23,c:25,bin:"H20"},{r:23,c:26,bin:"H21"},{r:23,c:27,bin:"H22"},{r:23,c:28,bin:"H23"},{r:23,c:29,bin:"H24"},{r:23,c:30,bin:"H25"},{r:23,c:31,bin:"H26"},{r:23,c:32,bin:"H27"},{r:23,c:33,bin:"H28"},{r:23,c:34,bin:"H29"},{r:23,c:35,bin:"H30"},{r:23,c:36,bin:"H31"},{r:23,c:37,bin:"H32"},{r:23,c:38,bin:"H33"},{r:23,c:39,bin:"H34"},{r:23,c:40,bin:"H35"},{r:27,c:6,bin:"I1"},{r:27,c:7,bin:"I2"},{r:27,c:8,bin:"I3"},{r:27,c:9,bin:"I4"},{r:27,c:10,bin:"I5"},{r:27,c:11,bin:"I6"},{r:27,c:12,bin:"I7"},{r:27,c:13,bin:"I8"},{r:27,c:14,bin:"I9"},{r:27,c:15,bin:"I10"},{r:27,c:16,bin:"I11"},{r:27,c:17,bin:"I12"},{r:27,c:18,bin:"I13"},{r:27,c:19,bin:"I14"},{r:27,c:20,bin:"I15"},{r:27,c:21,bin:"I16"},{r:27,c:22,bin:"I17"},{r:27,c:23,bin:"I18"},{r:27,c:24,bin:"I19"},{r:27,c:25,bin:"I20"},{r:27,c:26,bin:"I21"},{r:27,c:27,bin:"I22"},{r:27,c:28,bin:"I23"},{r:27,c:29,bin:"I24"},{r:27,c:30,bin:"I25"},{r:27,c:31,bin:"I26"},{r:27,c:32,bin:"I27"},{r:27,c:33,bin:"I28"},{r:27,c:34,bin:"I29"},{r:27,c:35,bin:"I30"},{r:27,c:36,bin:"I31"},{r:27,c:37,bin:"I32"},{r:27,c:38,bin:"I33"},{r:27,c:39,bin:"I34"},{r:27,c:40,bin:"I35"},{r:27,c:41,bin:"I36"},{r:27,c:42,bin:"I37"},{r:27,c:43,bin:"I38"},{r:27,c:44,bin:"I39"},{r:27,c:45,bin:"I40"},{r:27,c:46,bin:"I41"},{r:27,c:47,bin:"I42"},{r:27,c:48,bin:"I43"}];
+
+var MEKRV2D_TBINS = [{num:1,r1:5,r2:5,c1:6,c2:30},{num:9,r1:5,r2:6,c1:33,c2:33},{num:2,r1:7,r2:7,c1:6,c2:30},{num:10,r1:7,r2:8,c1:33,c2:33},{num:19,r1:8,r2:9,c1:31,c2:31},{num:11,r1:9,r2:10,c1:33,c2:33},{num:3,r1:10,r2:10,c1:6,c2:30},{num:12,r1:11,r2:12,c1:33,c2:33},{num:4,r1:12,r2:12,c1:6,c2:30},{num:20,r1:13,r2:14,c1:5,c2:5},{num:18,r1:13,r2:14,c1:31,c2:31},{num:13,r1:13,r2:14,c1:33,c2:33},{num:5,r1:15,r2:15,c1:6,c2:30},{num:14,r1:15,r2:16,c1:33,c2:33},{num:6,r1:17,r2:17,c1:6,c2:30},{num:15,r1:17,r2:18,c1:33,c2:33},{num:21,r1:18,r2:19,c1:5,c2:5},{num:17,r1:18,r2:19,c1:31,c2:31},{num:16,r1:19,r2:19,c1:33,c2:33},{num:7,r1:20,r2:20,c1:6,c2:30},{num:8,r1:22,r2:22,c1:6,c2:30},{num:22,r1:23,r2:23,c1:5,c2:5},{num:23,r1:24,r2:24,c1:6,c2:8},{num:24,r1:24,r2:24,c1:10,c2:12},{num:25,r1:24,r2:24,c1:14,c2:16},{num:26,r1:24,r2:24,c1:18,c2:20},{num:27,r1:24,r2:24,c1:22,c2:24},{num:28,r1:24,r2:24,c1:26,c2:28},{num:29,r1:24,r2:24,c1:30,c2:32},{num:30,r1:24,r2:24,c1:34,c2:36},{num:31,r1:24,r2:24,c1:38,c2:40},{num:32,r1:24,r2:24,c1:42,c2:42},{num:33,r1:24,r2:24,c1:44,c2:44},{num:34,r1:24,r2:24,c1:45,c2:45},{num:35,r1:24,r2:24,c1:46,c2:46},{num:36,r1:24,r2:24,c1:47,c2:47}];
+
+function _mekRvColorClass(agg) {
+  if (!agg || agg.totalKarton <= 0) return 'mekrv-empty';
+  if (agg.totalReserved <= 0) return 'mekrv-avail';
+  return agg.hasLongWait ? 'mekrv-longwait' : 'mekrv-reserved';
+}
+
+function mekRvSetMode(mode) {
+  _mekRvMode = mode;
+  ['simple','aktual','3d'].forEach(function(m){
+    var btn = document.getElementById('mekRvMode' + m.charAt(0).toUpperCase() + m.slice(1) + 'Btn');
+    if (btn) { btn.classList.toggle('active', m === mode); btn.style.color = m===mode?'#1a3a5c':'#718096'; }
+  });
+  document.getElementById('mekRv2dSimpleWrap').style.display = mode === 'simple' ? 'block' : 'none';
+  document.getElementById('mekRv2dAktualWrap').style.display = mode === 'aktual' ? 'block' : 'none';
+  document.getElementById('mekRv3dWrap').style.display       = mode === '3d'     ? 'block' : 'none';
+  mekRvRenderCurrentMode();
+}
+
+function mekRvRenderCurrentMode() {
+  if (!_mekReservedData) return;
+  if (_mekRvMode === 'simple')      _mekRvRenderSimple();
+  else if (_mekRvMode === 'aktual') _mekRvRenderAktual();
+  else if (typeof window.mekReserved3DRender === 'function') {
+    var longWaitBins = {};
+    Object.keys(_mekRvBinAgg).forEach(function(k){ if (_mekRvBinAgg[k].hasLongWait) longWaitBins[k] = true; });
+    window.mekReserved3DRender(_mekReservedData.cells || [], longWaitBins);
+  }
+}
+
+function _mekRvCellTitle(agg, bin) {
+  if (!agg) return bin + ': kosong';
+  var t = bin + ': ' + agg.totalKarton.toLocaleString('id-ID') + ' krt';
+  if (agg.totalReserved > 0) t += ' (reserved ' + agg.totalReserved.toLocaleString('id-ID') + ')';
+  return t;
+}
+
+function _mekRvRenderSimple() {
+  var wrap = document.getElementById('mekRv2dSimpleWrap');
+  if (!wrap) return;
+  var html = '';
+  MEKRV_MAP_ROWS.forEach(function(rowDef){
+    if (!rowDef) { html += '<div class="mekrv-gap"></div>'; return; }
+    rowDef.rows.forEach(function(r){
+      html += '<div class="mekrv-row"><div class="mekrv-rowlabel">' + r.l + '</div>';
+      for (var n = 1; n <= r.max; n++) {
+        var bin = r.l + n;
+        var agg = _mekRvBinAgg[bin];
+        html += '<div class="mekrv-cell-simple ' + _mekRvColorClass(agg) + '" title="' + _mekEsc(_mekRvCellTitle(agg, bin)) + '">' + n + '</div>';
+      }
+      html += '</div>';
+    });
+  });
+  wrap.innerHTML = html;
+}
+
+function _mekRvRenderAktual() {
+  var wrap = document.getElementById('mekRv2dAktualWrap');
+  if (!wrap) return;
+  var html = '<div class="mekrv2d-grid">';
+  MEKRV2D_LABELS.forEach(function(l){
+    html += '<div class="mekrv2d-label" style="grid-row:' + l.r + ';grid-column:' + l.c + ';">' + l.label + '</div>';
+  });
+  MEKRV2D_CELLS.forEach(function(cell){
+    var agg = _mekRvBinAgg[cell.bin];
+    var num = cell.bin.replace(/^[A-Z]+/, '');
+    html += '<div class="mekrv2d-cell ' + _mekRvColorClass(agg) + '" style="grid-row:' + cell.r + ';grid-column:' + cell.c + ';" title="' + _mekEsc(_mekRvCellTitle(agg, cell.bin)) + '">' + num + '</div>';
+  });
+  MEKRV2D_TBINS.forEach(function(tb){
+    var bin = 'T' + tb.num;
+    var agg = _mekRvBinAgg[bin];
+    html += '<div class="mekrv2d-cell ' + _mekRvColorClass(agg) + '" style="grid-row:' + tb.r1 + ' / span ' + (tb.r2-tb.r1+1) + ';grid-column:' + tb.c1 + ' / span ' + (tb.c2-tb.c1+1) + ';font-size:8px;" title="' + _mekEsc(_mekRvCellTitle(agg, bin)) + '">' + bin + '</div>';
+  });
+  html += '</div>';
+  wrap.innerHTML = html;
+}
+
 function _mekRenderReservedView(data) {
   var s = data.summary || {};
   document.getElementById('mekRvKpiTotal').textContent     = (s.totalStock||0).toLocaleString('id-ID');
@@ -616,19 +713,26 @@ function _mekRenderReservedView(data) {
 
   var rows = (data.rows || []).map(function(r){ r.tier = _mekReservedWaitTier(r.waitHours); return r; });
 
-  // Lokasi yang punya reservasi >24 jam — dipakai buat warna merah di peta 3D
+  // Lokasi yang punya reservasi >24 jam — dipakai buat warna merah di peta
   // (dicocokkan via SKU yang sama, karena cell BinLoc gak nyimpen waitHours langsung)
   var longWaitSkus = {};
   rows.forEach(function(r){ if (r.tier === 'gt24') longWaitSkus[r.sku] = true; });
-  var longWaitBins = {};
-  (data.cells || []).forEach(function(c){
-    if (longWaitSkus[c.sku] && c.reservedKarton > 0) longWaitBins[c.binLoc] = true;
-  });
 
-  // Render Peta 3D
-  if (typeof window.mekReserved3DRender === 'function') {
-    window.mekReserved3DRender(data.cells || [], longWaitBins);
-  }
+  // Agregasi per lokasi BinLoc — dipakai bareng oleh 2D Simple, 2D Aktual & 3D
+  var agg = {};
+  (data.cells || []).forEach(function(c){
+    var key = c.binLoc || '?';
+    if (!agg[key]) agg[key] = { binLoc: key, totalKarton: 0, totalReserved: 0, totalAvailable: 0, hasLongWait: false, items: [] };
+    agg[key].totalKarton    += c.karton || 0;
+    agg[key].totalReserved  += c.reservedKarton || 0;
+    agg[key].totalAvailable += c.availableKarton || 0;
+    agg[key].items.push({ sku: c.sku, nama: c.nama, karton: c.karton });
+    if (longWaitSkus[c.sku] && c.reservedKarton > 0) agg[key].hasLongWait = true;
+  });
+  _mekRvBinAgg = agg;
+
+  // Render peta sesuai mode yang lagi aktif
+  mekRvRenderCurrentMode();
 
   // List rows
   var listEl  = document.getElementById('mekRvList');
