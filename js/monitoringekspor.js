@@ -676,11 +676,18 @@ function mekRvRenderCurrentMode() {
   else if (typeof window.mekReserved3DRender === 'function') {
     var longWaitBins = {};
     Object.keys(_mekRvBinAgg).forEach(function(k){ if (_mekRvBinAgg[k].hasLongWait) longWaitBins[k] = true; });
+    // Planning outstanding per SKU (bisa lebih dari 1 SO/tanggal per SKU) — dipakai
+    // popup bin di 3D Rotate buat nunjukin SO/tanggal-nya, bukan cuma prodate stock.
+    var planningBySku = {};
+    (_mekRvRowsRaw || []).forEach(function(r){
+      if (!planningBySku[r.sku]) planningBySku[r.sku] = [];
+      planningBySku[r.sku].push({ noSo: r.noSo, tanggal: r.tanggal, tujuan: r.tujuan, tier: r.tier });
+    });
     // Butuh struktur rak (getMekBinCap3D) buat nyusun posisi kubus yang bener
     // — sama cache-nya (_mekRvGroups) dipakai bareng sama mode "3D Aktual",
     // jadi kalau udah ke-load duluan gak nge-fetch dua kali.
     _mekRvLoadGroupsThen(function(){
-      window.mekReserved3DRender(_mekReservedData.cells || [], longWaitBins, _mekRvGroups || []);
+      window.mekReserved3DRender(_mekReservedData.cells || [], longWaitBins, _mekRvGroups || [], planningBySku);
     });
   }
 }
@@ -690,6 +697,27 @@ function _mekRvCellTitle(agg, bin) {
   var t = bin + ': ' + agg.totalKarton.toLocaleString('id-ID') + ' krt';
   if (agg.totalReserved > 0) t += ' (reserved ' + agg.totalReserved.toLocaleString('id-ID') + ')';
   return t;
+}
+
+// Daftar planning (SO + tanggal) yang masih outstanding buat 1 SKU — bisa lebih
+// dari 1 SO nunggu bareng, jadi diringkes rapi: maks 3 baris + "+N lainnya".
+function _mekRvFormatPlanningList(sku) {
+  var list = (_mekRvRowsRaw || []).filter(function(r){ return r.sku === sku; });
+  if (!list.length) return '';
+  var sorted = list.slice().sort(function(a,b){ return (b.tanggal||'').localeCompare(a.tanggal||''); });
+  var shown = sorted.slice(0, 3);
+  var rowsHtml = shown.map(function(p) {
+    var isLong = p.tier === 'gt24';
+    return '<div style="display:flex;justify-content:space-between;gap:8px;font-size:10px;color:#4a5568;">'
+      + '<span>SO ' + _mekEsc(p.noSo || '-') + '</span>'
+      + '<span' + (isLong ? ' style="color:#c53030;font-weight:700;"' : '') + '>' + _mekEsc(_mekFmtTglDisplay(p.tanggal)) + '</span>'
+    + '</div>';
+  }).join('');
+  var more = sorted.length > 3 ? '<div style="font-size:9px;color:#a0aec0;margin-top:1px;">+' + (sorted.length-3) + ' SO lainnya</div>' : '';
+  return '<div style="margin-top:4px;padding-top:4px;border-top:1px dashed #e2e8f0;">'
+    + '<div style="font-size:9px;color:#a0aec0;text-transform:uppercase;margin-bottom:2px;">Planning outstanding</div>'
+    + rowsHtml + more
+  + '</div>';
 }
 
 // ── Popup detail sel/bin — dipakai bareng oleh 2D Simple, 2D Aktual & 3D
@@ -716,17 +744,23 @@ function mekRvShowCellPopup(binCode) {
       return '<div style="padding:8px 0;border-bottom:1px solid #e2e8f0;">'
         + '<div style="font-weight:800;font-size:12.5px;color:#2d3748;">' + _mekEsc(r.nama || r.sku || '-') + '</div>'
         + '<div style="font-size:11px;color:#718096;margin-top:2px;">' + _mekEsc(r.sku || '') + ' · ' + (r.karton||0).toLocaleString('id-ID') + ' krt'
-        + (r.prodate ? ' · ' + _mekEsc(r.prodate) : '') + '</div>'
+        + (r.prodate ? ' · prod. ' + _mekEsc(r.prodate) : '') + '</div>'
         + (pltBits.length ? '<div style="font-size:10px;color:#4a5568;margin-top:2px;">🔲 ' + pltBits.join(' + ') + '</div>' : '')
         + (bits.length ? '<div style="font-size:10px;margin-top:3px;">' + bits.join(' · ') + '</div>' : '')
+        + (r.reservedKarton > 0 ? _mekRvFormatPlanningList(r.sku) : '')
       + '</div>';
     }).join('');
   }
+  overlay.classList.remove('show');
   overlay.style.display = 'flex';
+  void overlay.offsetWidth;
+  overlay.classList.add('show');
 }
 function mekRvCloseCellPopup() {
   var overlay = document.getElementById('mekRvCellPopupOverlay');
-  if (overlay) overlay.style.display = 'none';
+  if (!overlay) return;
+  overlay.classList.remove('show');
+  setTimeout(function(){ overlay.style.display = 'none'; }, 180);
 }
 
 function _mekRvRenderSimple() {
@@ -1675,10 +1709,58 @@ function _mekRvApplyRowFilter() {
   _mekRvRenderRowsList(rows, !!(skuF || noSoF || tujuanF || plantF || agingF));
 }
 
+// Recalculate KPI "Reserved" / "Container Waiting" / "Longest Waiting" dari rows
+// yang sedang ditampilkan (kena filter kalau filter aktif). "Total Stock" /
+// "Available" / "Reserved %" tetap dari summary server (level stock keseluruhan,
+// gak spesifik per SO — jadi gak ikut filter SKU/No.SO/Tujuan/Plant/Aging).
+function _mekRvUpdateFilteredKpis(rows) {
+  var totalQty = 0;
+  rows.forEach(function(r){ totalQty += (r.qtyReserved||0); });
+  var containerWaiting = rows.filter(function(r){ return r.waitHours != null; }).length;
+  var longestHours = rows.reduce(function(m,r){ return (r.waitHours!=null && r.waitHours>m) ? r.waitHours : m; }, 0);
+  var longestLabel = '-';
+  if (longestHours > 0) {
+    var dLong = Math.floor(longestHours/24), hLong = Math.round(longestHours%24);
+    longestLabel = dLong > 0 ? (dLong+'d '+hLong+'h') : (Math.round(longestHours)+'h');
+  }
+  var elR = document.getElementById('mekRvKpiReserved');
+  var elC = document.getElementById('mekRvKpiContainer');
+  var elL = document.getElementById('mekRvKpiLongest');
+  if (elR) elR.textContent = totalQty.toLocaleString('id-ID');
+  if (elC) elC.textContent = containerWaiting;
+  if (elL) elL.textContent = longestLabel;
+}
+
+// Strip "Status Container" (Proses/Loading/Keluar) di bawah tabel — ganti versi
+// lama yang time-based (aging bucket) dengan status shipment asli dari ANTRIAN.
+function _mekRvRenderStatusBreakdown(rows) {
+  var b = { proses: 0, loading: 0, keluar: 0 };
+  rows.forEach(function(r){
+    var st = r.containerStatus === 'loading' ? 'loading' : (r.containerStatus === 'keluar' ? 'keluar' : 'proses');
+    b[st]++;
+  });
+  var elP  = document.getElementById('mekRvStatusProses');
+  var elLo = document.getElementById('mekRvStatusLoading');
+  var elK  = document.getElementById('mekRvStatusKeluar');
+  if (elP)  elP.textContent  = b.proses;
+  if (elLo) elLo.textContent = b.loading;
+  if (elK)  elK.textContent  = b.keluar;
+}
+
+var _MEK_RV_STATUS_STYLE = {
+  proses:  { bg:'#edf2f7', fg:'#4a5568' },
+  loading: { bg:'#feebc8', fg:'#c05621' },
+  keluar:  { bg:'#c6f6d5', fg:'#276749' }
+};
+
 function _mekRvRenderRowsList(rows, filterActive) {
   var listEl  = document.getElementById('mekRvList');
   var emptyEl = document.getElementById('mekRvEmpty');
   if (!listEl || !emptyEl) return;
+
+  _mekRvUpdateFilteredKpis(rows);
+  _mekRvRenderStatusBreakdown(rows);
+
   if (!rows.length) {
     listEl.innerHTML = '';
     emptyEl.style.display = 'block';
@@ -1688,26 +1770,40 @@ function _mekRvRenderRowsList(rows, filterActive) {
     return;
   }
   emptyEl.style.display = 'none';
-  listEl.innerHTML = rows.map(function(r){
+
+  var rowsHtml = rows.map(function(r){
     var isLong = r.tier === 'gt24';
-    var badgeBg = isLong ? '#fed7d7' : '#feebc8';
-    var badgeFg = isLong ? '#c53030' : '#c05621';
-    var badgeTx = isLong ? 'Delay' : 'Waiting';
-    return '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-bottom:8px;">'
-      + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px;">'
-        + '<div style="min-width:0;"><div style="font-weight:800;font-size:13px;color:#2d3748;">' + _mekEsc(r.sku||'-') + '</div>'
-        + '<div style="font-size:11px;color:#718096;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + _mekEsc(r.nama||'-') + '</div></div>'
-        + '<span style="flex-shrink:0;padding:3px 10px;border-radius:12px;font-size:10px;font-weight:700;background:' + badgeBg + ';color:' + badgeFg + ';">' + badgeTx + '</span>'
-      + '</div>'
-      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px;color:#718096;">'
-        + '<div>Tgl Planning: <b style="color:#2d3748;">' + (r.tanggal ? _mekEsc(_mekFmtTglDisplay(r.tanggal)) : '-') + '</b></div>'
-        + '<div>No. SO: <b style="color:#2d3748;">' + _mekEsc(r.noSo||'-') + '</b></div>'
-        + '<div>Qty Reserved: <b style="color:#2d3748;">' + (r.qtyReserved||0).toLocaleString('id-ID') + '</b></div>'
-        + '<div>Waiting: <b style="color:' + (isLong?'#c53030':'#c05621') + ';">' + _mekReservedFmtHours(r.waitHours) + '</b></div>'
-        + '<div style="grid-column:1 / -1;">Tujuan: <b style="color:#2d3748;">' + _mekEsc(r.tujuan||'-') + '</b></div>'
-      + '</div>'
-    + '</div>';
+    var stSt = _MEK_RV_STATUS_STYLE[r.containerStatus] || _MEK_RV_STATUS_STYLE.proses;
+    return '<tr>'
+      + '<td style="padding:8px 10px;border-bottom:1px solid #edf2f7;">'
+        + '<div style="font-weight:800;font-size:12px;color:#2d3748;">' + _mekEsc(r.sku||'-') + '</div>'
+        + '<div style="font-size:10px;color:#a0aec0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px;">' + _mekEsc(r.nama||'-') + '</div>'
+      + '</td>'
+      + '<td style="padding:8px 10px;border-bottom:1px solid #edf2f7;font-size:11px;color:#2d3748;white-space:nowrap;">' + _mekEsc(r.noSo||'-') + '</td>'
+      + '<td style="padding:8px 10px;border-bottom:1px solid #edf2f7;font-size:11px;color:#2d3748;white-space:nowrap;">' + (r.tanggal ? _mekEsc(_mekFmtTglDisplay(r.tanggal)) : '-') + '</td>'
+      + '<td style="padding:8px 10px;border-bottom:1px solid #edf2f7;font-size:11px;color:#2d3748;text-align:right;white-space:nowrap;">' + (r.qtyReserved||0).toLocaleString('id-ID') + '</td>'
+      + '<td style="padding:8px 10px;border-bottom:1px solid #edf2f7;text-align:center;white-space:nowrap;">'
+        + '<span style="padding:3px 9px;border-radius:12px;font-size:10px;font-weight:700;background:' + stSt.bg + ';color:' + stSt.fg + ';">' + _mekEsc(r.containerStatusLabel||'Proses') + '</span>'
+      + '</td>'
+      + '<td style="padding:8px 10px;border-bottom:1px solid #edf2f7;font-size:11px;font-weight:700;white-space:nowrap;color:' + (isLong?'#c53030':'#c05621') + ';">' + _mekReservedFmtHours(r.waitHours) + (isLong ? ' <span style="font-size:9px;font-weight:800;">(Delay)</span>' : '') + '</td>'
+      + '<td style="padding:8px 10px;border-bottom:1px solid #edf2f7;font-size:11px;color:#2d3748;white-space:nowrap;">' + _mekEsc(r.tujuan||'-') + '</td>'
+    + '</tr>';
   }).join('');
+
+  listEl.innerHTML = '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid #e2e8f0;border-radius:10px;">'
+    + '<table style="width:100%;min-width:640px;border-collapse:collapse;background:#fff;">'
+      + '<thead><tr>'
+        + '<th style="text-align:left;padding:8px 10px;font-size:10px;color:#718096;text-transform:uppercase;background:#f8fafc;border-bottom:2px solid #e2e8f0;">SKU</th>'
+        + '<th style="text-align:left;padding:8px 10px;font-size:10px;color:#718096;text-transform:uppercase;background:#f8fafc;border-bottom:2px solid #e2e8f0;">No. SO (DO)</th>'
+        + '<th style="text-align:left;padding:8px 10px;font-size:10px;color:#718096;text-transform:uppercase;background:#f8fafc;border-bottom:2px solid #e2e8f0;">Tgl Planning</th>'
+        + '<th style="text-align:right;padding:8px 10px;font-size:10px;color:#718096;text-transform:uppercase;background:#f8fafc;border-bottom:2px solid #e2e8f0;">Qty Reserved</th>'
+        + '<th style="text-align:center;padding:8px 10px;font-size:10px;color:#718096;text-transform:uppercase;background:#f8fafc;border-bottom:2px solid #e2e8f0;">Container Status</th>'
+        + '<th style="text-align:left;padding:8px 10px;font-size:10px;color:#718096;text-transform:uppercase;background:#f8fafc;border-bottom:2px solid #e2e8f0;">Waiting Time</th>'
+        + '<th style="text-align:left;padding:8px 10px;font-size:10px;color:#718096;text-transform:uppercase;background:#f8fafc;border-bottom:2px solid #e2e8f0;">Location</th>'
+      + '</tr></thead>'
+      + '<tbody>' + rowsHtml + '</tbody>'
+    + '</table>'
+  + '</div>';
 }
 
 // ════════════════════════════════════════════════════════════
