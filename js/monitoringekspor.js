@@ -364,7 +364,11 @@ function _mekRenderStockReadiness() {
       var detailF = (d.detail||[]).filter(function(x){
         if (noSoF   && (x.noSo||'').toLowerCase().indexOf(noSoF) < 0)     return false;
         if (tujuanF && (x.tujuan||'').toLowerCase().indexOf(tujuanF) < 0) return false;
-        if (plantF  && (x.plant||'').toLowerCase().indexOf(plantF) < 0)  return false;
+        if (plantF === '__no_plant__') {
+          if ((x.plant||'').trim()) return false;
+        } else if (plantF && (x.plant||'').toLowerCase().indexOf(plantF) < 0) {
+          return false;
+        }
         return true;
       });
       if (!detailF.length) return null;
