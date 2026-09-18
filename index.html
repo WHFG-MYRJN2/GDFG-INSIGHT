@@ -5338,6 +5338,7 @@
               <button id="mekRvModeSimpleBtn" onclick="mekRvSetMode('simple')" class="mek-tab-btn" style="padding:5px 10px;font-size:11px;">2D Simple</button>
               <button id="mekRvModeAktualBtn" onclick="mekRvSetMode('aktual')" class="mek-tab-btn" style="padding:5px 10px;font-size:11px;">2D Aktual</button>
               <button id="mekRvMode3dBtn" onclick="mekRvSetMode('3d')" class="mek-tab-btn active" style="padding:5px 10px;font-size:11px;">3D</button>
+              <button id="mekRvModeAktual3dBtn" onclick="mekRvSetMode('aktual3d')" class="mek-tab-btn" style="padding:5px 10px;font-size:11px;">3D Aktual</button>
             </div>
           </div>
 
@@ -5350,7 +5351,9 @@
               <i class="fas fa-spinner fa-spin" style="margin-right:6px;"></i> Memuat peta...
             </div>
           </div>
-          <div style="text-align:right;font-size:10px;color:#a0aec0;margin-top:4px;">Tap sel = detail · (mode 3D: drag = rotate, scroll = zoom)</div>
+          <div id="mekRvAktual3dChips" style="display:none;flex-wrap:wrap;gap:6px;margin:2px 0 8px;"></div>
+          <div id="mekRv3dAktualWrap" style="display:none;overflow:auto;padding:8px 2px;"></div>
+          <div style="text-align:right;font-size:10px;color:#a0aec0;margin-top:4px;">Tap sel = detail · (mode 3D: drag = rotate, scroll = zoom · mode 3D Aktual: pilih rak buat lihat detail per-posisi)</div>
         </div>
 
         <div style="font-size:12px;font-weight:800;color:#718096;text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px;">Reserved Stock Monitoring</div>
