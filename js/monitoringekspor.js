@@ -571,7 +571,7 @@ function _mekCloseStockDetail() {
 // cuma disusun ulang per lokasi BinLoc lewat action getMekReservedMap)
 // ════════════════════════════════════════════════════════════
 var _mekReservedData = null;
-var _mekRvShowAll = false; // toggle "Tampilkan semua stock (lokal + ekspor)"
+var _mekRvShowAll = true; // toggle "Tampilkan semua stock (lokal + ekspor)" — default ON
 
 function mekRvToggleShowAll(checked) {
   _mekRvShowAll = !!checked;
@@ -579,14 +579,25 @@ function mekRvToggleShowAll(checked) {
 }
 
 function mekLoadReservedView() {
-  var loadEl = document.getElementById('mekRvLoading');
-  if (loadEl) loadEl.style.display = 'block';
+  var loadEl    = document.getElementById('mekRvLoading');
+  var toggleEl  = document.getElementById('mekRvShowAllToggle');
+  var spinnerEl = document.getElementById('mekRvShowAllSpinner');
+  if (loadEl)    loadEl.style.display = 'block';
+  if (toggleEl)  toggleEl.disabled = true;
+  if (spinnerEl) spinnerEl.style.display = 'inline-block';
+
+  function done() {
+    if (loadEl)    loadEl.style.display = 'none';
+    if (toggleEl)  toggleEl.disabled = false;
+    if (spinnerEl) spinnerEl.style.display = 'none';
+  }
+
   // Fire struktur rak (getMekBinCap3D) PARALEL bareng data reservasi, bukan
   // nunggu data reservasi selesai dulu — mode 3D/3D Aktual butuh dua-duanya,
   // jadi kalau serial (satu abis satu) loading-nya numpuk 2x round-trip GAS.
   _mekRvLoadGroupsThen(function(){});
   API.run('getMekReservedMap', { showAll: _mekRvShowAll }, function(res) {
-    if (loadEl) loadEl.style.display = 'none';
+    done();
     if (!res || !res.success) {
       var listEl = document.getElementById('mekRvList');
       if (listEl) listEl.innerHTML = '<div style="text-align:center;padding:30px;color:#c53030;font-size:12px;">Gagal memuat data: ' + _mekEsc((res && res.message) || 'unknown') + '</div>';
@@ -595,7 +606,7 @@ function mekLoadReservedView() {
     _mekReservedData = res;
     _mekRenderReservedView(res);
   }, function(err) {
-    if (loadEl) loadEl.style.display = 'none';
+    done();
     var listEl = document.getElementById('mekRvList');
     if (listEl) listEl.innerHTML = '<div style="text-align:center;padding:30px;color:#c53030;font-size:12px;">Gagal memuat data (koneksi)</div>';
   });
@@ -681,6 +692,43 @@ function _mekRvCellTitle(agg, bin) {
   return t;
 }
 
+// ── Popup detail sel/bin — dipakai bareng oleh 2D Simple, 2D Aktual & 3D
+// Aktual lewat tap/klik (title browser doang gak kepencet di HP/tablet).
+// Mode 3D/Rotate udah punya popup sendiri (mek-reserved3d.js). ──
+function mekRvShowCellPopup(binCode) {
+  var overlay  = document.getElementById('mekRvCellPopupOverlay');
+  var titleEl  = document.getElementById('mekRvCellPopupTitle');
+  var bodyEl   = document.getElementById('mekRvCellPopupBody');
+  if (!overlay || !titleEl || !bodyEl) return;
+  var raw = ((_mekReservedData && _mekReservedData.cells) || []).filter(function(c){ return c.binLoc === binCode; });
+
+  titleEl.textContent = '📍 ' + binCode;
+  if (!raw.length) {
+    bodyEl.innerHTML = '<div style="opacity:.6;font-size:12px;padding:20px 0;text-align:center;">Kosong</div>';
+  } else {
+    bodyEl.innerHTML = raw.map(function(r) {
+      var bits = [];
+      if (r.reservedKarton > 0)  bits.push('<span style="color:#c05621;">Reserved ' + r.reservedKarton.toLocaleString('id-ID') + '</span>');
+      if (r.availableKarton > 0) bits.push('<span style="color:#276749;">Available ' + r.availableKarton.toLocaleString('id-ID') + '</span>');
+      var pltBits = [];
+      if (r.palletNum)    pltBits.push(r.palletNum + ' pallet');
+      if (r.pecahanCount) pltBits.push(r.pecahanCount + ' pecahan');
+      return '<div style="padding:8px 0;border-bottom:1px solid #e2e8f0;">'
+        + '<div style="font-weight:800;font-size:12.5px;color:#2d3748;">' + _mekEsc(r.nama || r.sku || '-') + '</div>'
+        + '<div style="font-size:11px;color:#718096;margin-top:2px;">' + _mekEsc(r.sku || '') + ' · ' + (r.karton||0).toLocaleString('id-ID') + ' krt'
+        + (r.prodate ? ' · ' + _mekEsc(r.prodate) : '') + '</div>'
+        + (pltBits.length ? '<div style="font-size:10px;color:#4a5568;margin-top:2px;">🔲 ' + pltBits.join(' + ') + '</div>' : '')
+        + (bits.length ? '<div style="font-size:10px;margin-top:3px;">' + bits.join(' · ') + '</div>' : '')
+      + '</div>';
+    }).join('');
+  }
+  overlay.style.display = 'flex';
+}
+function mekRvCloseCellPopup() {
+  var overlay = document.getElementById('mekRvCellPopupOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
 function _mekRvRenderSimple() {
   var wrap = document.getElementById('mekRv2dSimpleWrap');
   if (!wrap) return;
@@ -692,7 +740,7 @@ function _mekRvRenderSimple() {
       for (var n = 1; n <= r.max; n++) {
         var bin = r.l + n;
         var agg = _mekRvBinAgg[bin];
-        html += '<div class="mekrv-cell-simple ' + _mekRvColorClass(agg) + '" title="' + _mekEsc(_mekRvCellTitle(agg, bin)) + '">' + n + '</div>';
+        html += '<div class="mekrv-cell-simple ' + _mekRvColorClass(agg) + '" onclick="mekRvShowCellPopup(\'' + bin + '\')" title="' + _mekEsc(_mekRvCellTitle(agg, bin)) + '">' + n + '</div>';
       }
       html += '</div>';
     });
@@ -710,12 +758,12 @@ function _mekRvRenderAktual() {
   MEKRV2D_CELLS.forEach(function(cell){
     var agg = _mekRvBinAgg[cell.bin];
     var num = cell.bin.replace(/^[A-Z]+/, '');
-    html += '<div class="mekrv2d-cell ' + _mekRvColorClass(agg) + '" style="grid-row:' + cell.r + ';grid-column:' + cell.c + ';" title="' + _mekEsc(_mekRvCellTitle(agg, cell.bin)) + '">' + num + '</div>';
+    html += '<div class="mekrv2d-cell ' + _mekRvColorClass(agg) + '" style="grid-row:' + cell.r + ';grid-column:' + cell.c + ';" onclick="mekRvShowCellPopup(\'' + cell.bin + '\')" title="' + _mekEsc(_mekRvCellTitle(agg, cell.bin)) + '">' + num + '</div>';
   });
   MEKRV2D_TBINS.forEach(function(tb){
     var bin = 'T' + tb.num;
     var agg = _mekRvBinAgg[bin];
-    html += '<div class="mekrv2d-cell ' + _mekRvColorClass(agg) + '" style="grid-row:' + tb.r1 + ' / span ' + (tb.r2-tb.r1+1) + ';grid-column:' + tb.c1 + ' / span ' + (tb.c2-tb.c1+1) + ';font-size:8px;" title="' + _mekEsc(_mekRvCellTitle(agg, bin)) + '">' + bin + '</div>';
+    html += '<div class="mekrv2d-cell ' + _mekRvColorClass(agg) + '" style="grid-row:' + tb.r1 + ' / span ' + (tb.r2-tb.r1+1) + ';grid-column:' + tb.c1 + ' / span ' + (tb.c2-tb.c1+1) + ';font-size:8px;" onclick="mekRvShowCellPopup(\'' + bin + '\')" title="' + _mekEsc(_mekRvCellTitle(agg, bin)) + '">' + bin + '</div>';
   });
   html += '</div>';
   wrap.innerHTML = html;
@@ -1518,9 +1566,10 @@ function _mekAktual3dRenderRack(binLetter) {
     var binCode = hoverInfo[c.binIdx] || '';
     var agg = _mekRvBinAgg[binCode];
     var titleTxt = _mekRvCellTitle(agg, binCode);
+    var clickAttr = binCode ? ' style="cursor:pointer;" onclick="mekRvShowCellPopup(\''+binCode+'\')"' : '';
     var result = mekp3dCubePolygons(c.x, c.y, c.z, c.colorInfo, { top:c.drawTop, faceX:true, faceY:true });
     result.faces.forEach(function(f) {
-      svgParts.push('<polygon points="'+f.pts+'" fill="'+f.fill+'" fill-opacity="'+f.op+'" stroke="'+f.stroke+'" stroke-opacity="'+f.strokeOp+'" stroke-width="'+f.strokeW+'"><title>' + _mekEsc(titleTxt) + '</title></polygon>');
+      svgParts.push('<polygon points="'+f.pts+'" fill="'+f.fill+'" fill-opacity="'+f.op+'" stroke="'+f.stroke+'" stroke-opacity="'+f.strokeOp+'" stroke-width="'+f.strokeW+'"'+clickAttr+'><title>' + _mekEsc(titleTxt) + '</title></polygon>');
     });
     result.cartonPolys.forEach(function(cp) {
       svgParts.push('<polygon points="'+cp.pts+'" fill="'+cp.fill+'" style="pointer-events:none;"/>');
@@ -1651,10 +1700,11 @@ function _mekRvRenderRowsList(rows, filterActive) {
         + '<span style="flex-shrink:0;padding:3px 10px;border-radius:12px;font-size:10px;font-weight:700;background:' + badgeBg + ';color:' + badgeFg + ';">' + badgeTx + '</span>'
       + '</div>'
       + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px;color:#718096;">'
-        + '<div>Qty Reserved: <b style="color:#2d3748;">' + (r.qtyReserved||0).toLocaleString('id-ID') + '</b></div>'
+        + '<div>Tgl Planning: <b style="color:#2d3748;">' + (r.tanggal ? _mekEsc(_mekFmtTglDisplay(r.tanggal)) : '-') + '</b></div>'
         + '<div>No. SO: <b style="color:#2d3748;">' + _mekEsc(r.noSo||'-') + '</b></div>'
+        + '<div>Qty Reserved: <b style="color:#2d3748;">' + (r.qtyReserved||0).toLocaleString('id-ID') + '</b></div>'
         + '<div>Waiting: <b style="color:' + (isLong?'#c53030':'#c05621') + ';">' + _mekReservedFmtHours(r.waitHours) + '</b></div>'
-        + '<div>Tujuan: <b style="color:#2d3748;">' + _mekEsc(r.tujuan||'-') + '</b></div>'
+        + '<div style="grid-column:1 / -1;">Tujuan: <b style="color:#2d3748;">' + _mekEsc(r.tujuan||'-') + '</b></div>'
       + '</div>'
     + '</div>';
   }).join('');
