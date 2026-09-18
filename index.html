@@ -2289,6 +2289,16 @@
     #monitoringEksporPage .mek-tab-btn:hover{color:#1a3a5c;}
     #monitoringEksporPage .mek-rv3d-vc-btn{background:#2d3748;color:#e2e8f0;border:1px solid #4a5568;border-radius:5px;font-size:9px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;letter-spacing:.3px;transition:background .15s;}
     #monitoringEksporPage .mek-rv3d-vc-btn:hover{background:#4a5568;}
+    /* Reserved View: peta & list side-by-side pas landscape (layar lebar),
+       ke bawah (stack) pas potrait/layar sempit — biar simple. */
+    #monitoringEksporPage .mekrv-split{display:flex;flex-direction:column;gap:14px;align-items:flex-start;}
+    #monitoringEksporPage .mekrv-split-map{flex:1 1 auto;min-width:0;width:100%;}
+    #monitoringEksporPage .mekrv-split-list{flex:1 1 auto;min-width:0;width:100%;}
+    @media (orientation:landscape) and (min-width:760px){
+      #monitoringEksporPage .mekrv-split{flex-direction:row;}
+      #monitoringEksporPage .mekrv-split-map{flex:1 1 60%;}
+      #monitoringEksporPage .mekrv-split-list{flex:1 1 40%;max-width:420px;max-height:700px;overflow-y:auto;}
+    }
     #monitoringEksporPage .mek-card-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:14px;}
     #monitoringEksporPage .mek-card{background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:14px 16px;display:flex;align-items:center;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,.05);}
     #monitoringEksporPage .mek-card-ico{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;}
@@ -5297,6 +5307,40 @@
         </div>
       </div>
 
+      <!-- Filter bar (sama kaya tab Kesiapan Stock) — filter list "Reserved Stock
+           Monitoring" di bawah; peta 3D/2D tetap nampilin semua lokasi. -->
+      <div id="mekRvFilterBar" class="real-filter-bar" style="flex-shrink:0;">
+        <label>SKU / Nama</label>
+        <input type="text" id="mekRvFilterSku" placeholder="kode atau nama..." oninput="_mekRvApplyRowFilter()"
+          style="width:160px;border:1px solid #e2e8f0;border-radius:8px;padding:6px 8px;font-size:13px;">
+        <label>No. SO</label>
+        <input type="text" id="mekRvFilterNoSo" placeholder="no. SO..." oninput="_mekRvApplyRowFilter()"
+          style="width:110px;border:1px solid #e2e8f0;border-radius:8px;padding:6px 8px;font-size:13px;">
+        <label>Tujuan</label>
+        <input type="text" id="mekRvFilterTujuan" placeholder="tujuan..." oninput="_mekRvApplyRowFilter()"
+          style="width:120px;border:1px solid #e2e8f0;border-radius:8px;padding:6px 8px;font-size:13px;">
+        <label>Plant</label>
+        <select id="mekRvFilterPlant" onchange="_mekRvApplyRowFilter()"
+          style="border:1px solid #e2e8f0;border-radius:8px;padding:6px 8px;font-size:13px;background:#fff;">
+          <option value="">All</option>
+          <option value="JAYANTI 2" selected>JAYANTI 2</option>
+          <option value="__NO_PLANT__">TANPA TAG PLANT</option>
+        </select>
+        <label>Aging</label>
+        <select id="mekRvFilterAging" onchange="_mekRvApplyRowFilter()"
+          style="border:1px solid #e2e8f0;border-radius:8px;padding:6px 8px;font-size:13px;background:#fff;">
+          <option value="">All</option>
+          <option value="lt4">&lt; 4 jam</option>
+          <option value="h4_12">4 – 12 jam</option>
+          <option value="h12_24">12 – 24 jam</option>
+          <option value="gt24">&gt; 24 jam (Delay)</option>
+        </select>
+        <button onclick="document.getElementById('mekRvFilterSku').value='';document.getElementById('mekRvFilterNoSo').value='';document.getElementById('mekRvFilterTujuan').value='';document.getElementById('mekRvFilterPlant').value='';document.getElementById('mekRvFilterAging').value='';_mekRvApplyRowFilter();"
+          style="padding:6px 12px;border-radius:8px;border:1px solid #e2e8f0;background:#fff;font-size:12px;font-weight:600;cursor:pointer;color:#718096;">
+          <i class="fas fa-times"></i> Reset
+        </button>
+      </div>
+
       <div style="overflow:auto;flex:1;-webkit-overflow-scrolling:touch;padding:14px 16px;">
 
         <!-- KPI cards -->
@@ -5327,14 +5371,21 @@
           </div>
         </div>
 
+        <!-- Peta + List — side by side pas landscape, ke bawah pas potrait -->
+        <div class="mekrv-split">
+        <div class="mekrv-split-map">
         <!-- Peta -->
         <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:12px;margin-bottom:14px;">
           <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
             <div style="display:flex;gap:12px;flex-wrap:wrap;font-size:11px;font-weight:700;color:#718096;">
               <span><span style="display:inline-block;width:11px;height:11px;border-radius:3px;background:#10b981;margin-right:4px;"></span>Available</span>
               <span><span style="display:inline-block;width:11px;height:11px;border-radius:3px;background:#f59e0b;margin-right:4px;"></span>Reserved</span>
-              <span><span style="display:inline-block;width:11px;height:11px;border-radius:3px;background:#ef4444;margin-right:4px;"></span>Reserved &gt;24h</span>
+              <span><span style="display:inline-block;width:11px;height:11px;border-radius:3px;background:#ef4444;margin-right:4px;"></span>Reserved &gt;24h (Delay)</span>
               <span><span style="display:inline-block;width:11px;height:11px;border-radius:3px;background:#cbd5e0;margin-right:4px;"></span>Kosong</span>
+              <label style="display:flex;align-items:center;gap:5px;cursor:pointer;margin-left:4px;user-select:none;">
+                <input type="checkbox" id="mekRvShowAllToggle" onchange="mekRvToggleShowAll(this.checked)" style="width:14px;height:14px;cursor:pointer;">
+                Tampilkan semua stock (lokal + ekspor)
+              </label>
             </div>
             <div style="display:flex;gap:4px;">
               <button id="mekRvModeSimpleBtn" onclick="mekRvSetMode('simple')" class="mek-tab-btn" style="padding:5px 10px;font-size:11px;">2D Simple</button>
@@ -5382,7 +5433,9 @@
           <div id="mekRv3dAktualWrap" style="display:none;overflow:auto;padding:8px 2px;"></div>
           <div style="text-align:right;font-size:10px;color:#a0aec0;margin-top:4px;">Tap sel = detail · (mode 3D: drag = rotate, scroll = zoom · mode 3D Aktual: pilih rak buat lihat detail per-posisi)</div>
         </div>
+        </div><!-- /mekrv-split-map -->
 
+        <div class="mekrv-split-list">
         <div style="font-size:12px;font-weight:800;color:#718096;text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px;">Reserved Stock Monitoring</div>
         <div id="mekRvList"></div>
         <div id="mekRvEmpty" style="display:none;text-align:center;padding:40px;color:#a0aec0;">
@@ -5392,6 +5445,8 @@
         <div id="mekRvLoading" style="display:none;text-align:center;padding:50px;color:#a0aec0;">
           <i class="fas fa-spinner fa-spin" style="font-size:24px;"></i>
         </div>
+        </div><!-- /mekrv-split-list -->
+        </div><!-- /mekrv-split -->
       </div>
     </div><!-- /mekReservedPane -->
 
