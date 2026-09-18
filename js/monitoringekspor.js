@@ -1783,6 +1783,15 @@ function _mekRvRenderRowsList(rows, filterActive) {
     var waitCell = r.closed
       ? '<span style="color:#a0aec0;font-weight:400;">selesai</span>'
       : (_mekReservedFmtHours(r.waitHours) + (isLong ? ' <span style="font-size:9px;font-weight:800;">(Delay)</span>' : ''));
+    // SO dengan >1 container: Container Status di atas cuma nunjukin status container
+    // yang PALING MENTOK di antara yang masih outstanding (kalau ada campuran, misal
+    // 1 udah loading 1 masih daftar, badge-nya ambil yg paling maju). Baris kecil ini
+    // kasih rincian "berapa dari berapa container udah keluar", biar kaya di Summary.
+    var contDetail = '';
+    if (r.jumlahCont > 1) {
+      var sudahKeluarCont = Math.max(0, r.jumlahCont - (r.sisaCont||0));
+      contDetail = '<div style="font-size:9px;color:#a0aec0;margin-top:2px;">' + sudahKeluarCont + '/' + r.jumlahCont + ' container keluar</div>';
+    }
     return '<tr' + (r.closed ? ' style="opacity:.7;"' : '') + '>'
       + '<td style="padding:8px 10px;border-bottom:1px solid #edf2f7;">'
         + '<div style="font-weight:800;font-size:12px;color:#2d3748;">' + _mekEsc(r.sku||'-') + '</div>'
@@ -1793,6 +1802,7 @@ function _mekRvRenderRowsList(rows, filterActive) {
       + '<td style="padding:8px 10px;border-bottom:1px solid #edf2f7;font-size:11px;color:#2d3748;text-align:right;white-space:nowrap;">' + qtyCell + '</td>'
       + '<td style="padding:8px 10px;border-bottom:1px solid #edf2f7;text-align:center;white-space:nowrap;">'
         + '<span style="padding:3px 9px;border-radius:12px;font-size:10px;font-weight:700;background:' + stSt.bg + ';color:' + stSt.fg + ';">' + _mekEsc(r.containerStatusLabel||'Belum') + '</span>'
+        + contDetail
       + '</td>'
       + '<td style="padding:8px 10px;border-bottom:1px solid #edf2f7;font-size:11px;font-weight:700;white-space:nowrap;color:' + (r.closed?'#a0aec0':(isLong?'#c53030':'#c05621')) + ';">' + waitCell + '</td>'
       + '<td style="padding:8px 10px;border-bottom:1px solid #edf2f7;font-size:11px;color:#2d3748;white-space:nowrap;">' + _mekEsc(r.tujuan||'-') + '</td>'
