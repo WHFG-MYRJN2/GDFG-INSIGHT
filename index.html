@@ -2441,6 +2441,13 @@
       from { opacity:0; transform: translateY(16px) scale(.97); }
       to   { opacity:1; transform: translateY(0)    scale(1);   }
     }
+    /* Popup detail sel Reserved View (2D Simple/Aktual/3D Aktual) — fade+scale sama kayak mekCardDetailOverlay */
+    #mekRvCellPopupOverlay { animation: none; }
+    #mekRvCellPopupOverlay.show { animation: mekFadeIn .2s ease forwards; }
+    #mekRvCellPopupOverlay.show > div { animation: mekSlideUp .22s ease forwards; }
+    /* Popup detail rak/bin di kanvas 3D Rotate — fade+slide kecil, nempel di pojok kanvas */
+    #mekRv3dPopup { animation: none; }
+    #mekRv3dPopup.show { animation: mekSlideUp .18s ease forwards; }
 
     /* Pane switch fade */
     #mekSummaryPane, #mekInputPane, #mekPlanningPane, #mekStockPane, #mekReservedPane {
@@ -5370,6 +5377,7 @@
             <div id="mekRvKpiLongest" style="font-size:16px;font-weight:800;color:#c53030;">—</div>
           </div>
         </div>
+        <div style="font-size:10px;color:#a0aec0;margin:-8px 0 12px;">* Reserved, Container Waiting &amp; Longest Waiting mengikuti filter di bawah — Total Stock, Available &amp; Reserved % selalu total keseluruhan.</div>
 
         <!-- Peta + List — side by side pas landscape, ke bawah pas potrait -->
         <div class="mekrv-split">
@@ -5445,6 +5453,25 @@
         </div>
         <div id="mekRvLoading" style="display:none;text-align:center;padding:50px;color:#a0aec0;">
           <i class="fas fa-spinner fa-spin" style="font-size:24px;"></i>
+        </div>
+
+        <!-- Ringkasan status container (Proses/Loading/Keluar) — ngikutin filter yang aktif -->
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:12px 14px;margin-top:12px;">
+          <div style="font-size:11px;font-weight:800;color:#718096;text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px;">Status Container Reserved</div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
+            <div style="background:#f7fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px 8px;text-align:center;">
+              <div id="mekRvStatusProses" style="font-size:20px;font-weight:800;color:#4a5568;">—</div>
+              <div style="font-size:10px;color:#718096;text-transform:uppercase;margin-top:2px;">Proses</div>
+            </div>
+            <div style="background:#fffaf0;border:1px solid #feebc8;border-radius:10px;padding:10px 8px;text-align:center;">
+              <div id="mekRvStatusLoading" style="font-size:20px;font-weight:800;color:#c05621;">—</div>
+              <div style="font-size:10px;color:#c05621;text-transform:uppercase;margin-top:2px;">Loading</div>
+            </div>
+            <div style="background:#f0fff4;border:1px solid #c6f6d5;border-radius:10px;padding:10px 8px;text-align:center;">
+              <div id="mekRvStatusKeluar" style="font-size:20px;font-weight:800;color:#276749;">—</div>
+              <div style="font-size:10px;color:#276749;text-transform:uppercase;margin-top:2px;">Keluar</div>
+            </div>
+          </div>
         </div>
         </div><!-- /mekrv-split-list -->
         </div><!-- /mekrv-split -->
