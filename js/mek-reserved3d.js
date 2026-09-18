@@ -574,7 +574,7 @@ function _buildScene(cells, longWaitBins, groups) {
   (cells || []).forEach(function(c) {
     var bin = c.binLoc; if (!bin) return;
     if (!_binRawRef[bin]) _binRawRef[bin] = [];
-    _binRawRef[bin].push({ sku:c.sku, nama:c.nama, karton:c.karton||0, reservedKarton:c.reservedKarton||0, availableKarton:c.availableKarton||0, prodate:c.prodate, tipe:c.tipe });
+    _binRawRef[bin].push({ sku:c.sku, nama:c.nama, karton:c.karton||0, reservedKarton:c.reservedKarton||0, availableKarton:c.availableKarton||0, prodate:c.prodate, tipe:c.tipe, palletNum:c.palletNum||0, pecahanCount:c.pecahanCount||0 });
     if (!_binAggRef[bin]) _binAggRef[bin] = { totalKarton:0, totalReserved:0, totalAvailable:0 };
     _binAggRef[bin].totalKarton    += c.karton || 0;
     _binAggRef[bin].totalReserved  += c.reservedKarton || 0;
@@ -1052,7 +1052,7 @@ window.mekReserved3DRender = function(cells, longWaitBins, groups) {
   if (!groups || !groups.length) {
     if (loadingEl) {
       loadingEl.style.display = 'flex';
-      loadingEl.innerHTML = '<span style="font-size:11px;color:#a0aec0;"><i class="fas fa-spinner fa-spin" style="margin-right:6px;"></i>Memuat struktur rak...</span>';
+      loadingEl.innerHTML = '<span style="font-size:11px;color:#a0aec0;">Gagal memuat struktur rak (BIN_CAP kosong/gangguan koneksi) — coba tekan <b>Refresh</b>.</span>';
     }
     return;
   }
