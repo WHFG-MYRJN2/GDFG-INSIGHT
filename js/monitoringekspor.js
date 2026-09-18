@@ -457,8 +457,17 @@ function _mekShowStockDetail(idx) {
 function _mekStockDetailRenderButuh(d) {
   var pane = document.getElementById('mekStockDetailPaneButuh');
   if (!pane) return;
-  var rows = (d.detail||[]).map(function(x){
-    return '<tr>'
+  // Yang belum close ditaruh di atas, yang sudah closed di bawah
+  var sorted = (d.detail||[]).slice().sort(function(a,b){
+    if (!!a.closed !== !!b.closed) return a.closed ? 1 : -1;
+    return 0;
+  });
+  var rows = sorted.map(function(x){
+    var dim = x.closed ? 'opacity:.55;' : '';
+    var badge = x.closed
+      ? '<span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#e2e8f0;color:#4a5568;">CLOSED</span>'
+      : '<span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fed7d7;color:#c53030;">BELUM</span>';
+    return '<tr style="' + dim + '">'
       + '<td style="padding:6px 8px;font-size:11px;">' + x.week + '</td>'
       + '<td style="padding:6px 8px;font-size:11px;">' + _mekEsc(_mekFmtTglDisplay(x.tanggal)) + '</td>'
       + '<td style="padding:6px 8px;font-size:11px;">' + _mekEsc(x.noSo||'-') + '</td>'
@@ -467,11 +476,12 @@ function _mekStockDetailRenderButuh(d) {
       + '<td style="padding:6px 8px;font-size:11px;">' + _mekEsc(x.source||'-') + '</td>'
       + '<td style="padding:6px 8px;font-size:11px;text-align:center;">' + x.sisaCont + '/' + x.jumlahCont + '</td>'
       + '<td style="padding:6px 8px;font-size:11px;text-align:right;font-weight:700;">' + x.sisaQty.toLocaleString('id-ID') + '</td>'
+      + '<td style="padding:6px 8px;font-size:11px;text-align:center;">' + badge + '</td>'
       + '</tr>';
   }).join('');
 
   pane.innerHTML =
-    '<div style="font-size:11px;color:#718096;margin-bottom:10px;">Rincian planning yang belum close (container-nya belum keluar) yang menyumbang kebutuhan SKU ini:</div>' +
+    '<div style="font-size:11px;color:#718096;margin-bottom:10px;">Rincian planning yang menyumbang kebutuhan SKU ini — termasuk yang sudah closed (ditandai abu-abu, tidak ikut dihitung ke Butuh):</div>' +
     '<table style="width:100%;border-collapse:collapse;">' +
       '<thead><tr style="border-bottom:2px solid #e2e8f0;">' +
         '<th style="padding:6px 8px;font-size:10px;text-align:left;color:#718096;">WEEK</th>' +
@@ -482,8 +492,9 @@ function _mekStockDetailRenderButuh(d) {
         '<th style="padding:6px 8px;font-size:10px;text-align:left;color:#718096;">SOURCE</th>' +
         '<th style="padding:6px 8px;font-size:10px;text-align:center;color:#718096;">SISA CONT</th>' +
         '<th style="padding:6px 8px;font-size:10px;text-align:right;color:#718096;">QTY KRT</th>' +
+        '<th style="padding:6px 8px;font-size:10px;text-align:center;color:#718096;">STATUS</th>' +
       '</tr></thead>' +
-      '<tbody>' + (rows || '<tr><td colspan="8" style="padding:14px;text-align:center;color:#a0aec0;font-size:11px;">Tidak ada rincian</td></tr>') + '</tbody>' +
+      '<tbody>' + (rows || '<tr><td colspan="9" style="padding:14px;text-align:center;color:#a0aec0;font-size:11px;">Tidak ada rincian</td></tr>') + '</tbody>' +
     '</table>';
 }
 
