@@ -3,7 +3,7 @@
 // Ganti CACHE_VERSION setiap kali ada update file
 // ============================================================
 
-const CACHE_VERSION  = 'v1.3.0';
+const CACHE_VERSION  = 'v1.3.2';
 const CACHE_NAME     = 'monitoring-gdfg-' + CACHE_VERSION;
 
 // File yang di-cache saat install
@@ -22,6 +22,7 @@ const PRECACHE_URLS = [
   './js/binloc.js',
   './js/monitoringekspor.js',
   './js/kpi.js',
+  './js/mek-reserved3d.js',
 ];
 
 // ── INSTALL: cache semua file ──────────────────────────────
@@ -71,7 +72,9 @@ self.addEventListener('fetch', function(event) {
     url.hostname.includes('cdnjs.cloudflare.com') ||
     url.hostname.includes('fonts.googleapis.com') ||
     url.hostname.includes('fonts.gstatic.com') ||
-    url.hostname.includes('fontawesome.com')
+    url.hostname.includes('fontawesome.com') ||
+    url.hostname.includes('unpkg.com') ||
+    url.hostname.includes('jsdelivr.net')
   ) {
     return; // biarkan browser handle langsung
   }
