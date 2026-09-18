@@ -21,6 +21,14 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
   <style>
     *{ box-sizing:border-box; }
     html{ height:100%; min-height:100%; background:#f7fafc; }
@@ -2423,7 +2431,7 @@
     }
 
     /* Pane switch fade */
-    #mekSummaryPane, #mekInputPane, #mekPlanningPane, #mekStockPane {
+    #mekSummaryPane, #mekInputPane, #mekPlanningPane, #mekStockPane, #mekReservedPane {
       transition: opacity .18s ease;
     }
 
@@ -4727,6 +4735,9 @@
         <button id="mekTabStock" class="mek-tab-btn" onclick="mekSwitchTab('stock');mekLoadStockReadiness();">
           <i class="fas fa-boxes-stacked"></i> KESIAPAN STOCK
         </button>
+        <button id="mekTabReserved" class="mek-tab-btn" onclick="mekSwitchTab('reserved');mekLoadReservedView();">
+          <i class="fas fa-cube"></i> RESERVED VIEW
+        </button>
     </div>
 
     <!-- ════ TAB SUMMARY ════ -->
@@ -5258,6 +5269,81 @@
       </div>
     </div><!-- /mekStockPane -->
 
+    <div id="mekReservedPane" style="display:none;height:calc(100vh - 112px);overflow:hidden;flex-direction:column;">
+      <div style="padding:14px 16px 0;flex-shrink:0;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+          <div>
+            <div style="font-size:15px;font-weight:800;color:#2d3748;"><i class="fas fa-cube"></i> RESERVED VIEW</div>
+            <div style="font-size:12px;color:#718096;">Stock yang sudah teralokasi ke planning ekspor yang belum terkirim — data sama seperti Kesiapan Stock</div>
+          </div>
+          <button onclick="mekLoadReservedView()" style="padding:7px 14px;border-radius:8px;border:1px solid #2c5282;background:#2c5282;color:#fff;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">
+            <i class="fas fa-sync"></i> Refresh
+          </button>
+        </div>
+      </div>
+
+      <div style="overflow:auto;flex:1;-webkit-overflow-scrolling:touch;padding:14px 16px;">
+
+        <!-- KPI cards -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:14px;">
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;">
+            <div style="font-size:10px;color:#718096;text-transform:uppercase;">Total Stock</div>
+            <div id="mekRvKpiTotal" style="font-size:20px;font-weight:800;color:#2d3748;">—</div>
+          </div>
+          <div style="background:#f0fff4;border:1px solid #c6f6d5;border-radius:10px;padding:10px 12px;">
+            <div style="font-size:10px;color:#276749;text-transform:uppercase;">Available</div>
+            <div id="mekRvKpiAvailable" style="font-size:20px;font-weight:800;color:#276749;">—</div>
+          </div>
+          <div style="background:#fffaf0;border:1px solid #feebc8;border-radius:10px;padding:10px 12px;">
+            <div style="font-size:10px;color:#c05621;text-transform:uppercase;">Reserved</div>
+            <div id="mekRvKpiReserved" style="font-size:20px;font-weight:800;color:#c05621;">—</div>
+          </div>
+          <div style="background:#ebf8ff;border:1px solid #bee3f8;border-radius:10px;padding:10px 12px;">
+            <div style="font-size:10px;color:#2c5282;text-transform:uppercase;">Reserved %</div>
+            <div id="mekRvKpiPct" style="font-size:20px;font-weight:800;color:#2c5282;">—</div>
+          </div>
+          <div style="background:#faf5ff;border:1px solid #e9d8fd;border-radius:10px;padding:10px 12px;">
+            <div style="font-size:10px;color:#6b46c1;text-transform:uppercase;">Container Waiting</div>
+            <div id="mekRvKpiContainer" style="font-size:20px;font-weight:800;color:#6b46c1;">—</div>
+          </div>
+          <div style="background:#fff5f5;border:1px solid #fed7d7;border-radius:10px;padding:10px 12px;">
+            <div style="font-size:10px;color:#c53030;text-transform:uppercase;">Longest Waiting</div>
+            <div id="mekRvKpiLongest" style="font-size:16px;font-weight:800;color:#c53030;">—</div>
+          </div>
+        </div>
+
+        <!-- Peta 3D -->
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:12px;margin-bottom:14px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
+            <div style="display:flex;gap:12px;flex-wrap:wrap;font-size:11px;font-weight:700;color:#718096;">
+              <span><span style="display:inline-block;width:11px;height:11px;border-radius:3px;background:#10b981;margin-right:4px;"></span>Available</span>
+              <span><span style="display:inline-block;width:11px;height:11px;border-radius:3px;background:#f59e0b;margin-right:4px;"></span>Reserved</span>
+              <span><span style="display:inline-block;width:11px;height:11px;border-radius:3px;background:#ef4444;margin-right:4px;"></span>Reserved &gt;24h</span>
+              <span><span style="display:inline-block;width:11px;height:11px;border-radius:3px;background:#cbd5e0;margin-right:4px;"></span>Kosong</span>
+            </div>
+            <div style="font-size:10px;color:#a0aec0;">Drag = rotate · Scroll = zoom</div>
+          </div>
+          <div style="position:relative;width:100%;height:360px;background:#f8fafc;border-radius:8px;overflow:hidden;">
+            <canvas id="mekRv3dCanvas" style="width:100%;height:100%;display:block;"></canvas>
+            <div id="mekRv3dTooltip" style="display:none;position:absolute;pointer-events:none;background:#1a202c;color:#fff;font-size:11px;padding:6px 10px;border-radius:6px;max-width:220px;z-index:10;"></div>
+            <div id="mekRv3dLoading" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#a0aec0;font-size:12px;">
+              <i class="fas fa-spinner fa-spin" style="margin-right:6px;"></i> Memuat peta...
+            </div>
+          </div>
+        </div>
+
+        <div style="font-size:12px;font-weight:800;color:#718096;text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px;">Reserved Stock Monitoring</div>
+        <div id="mekRvList"></div>
+        <div id="mekRvEmpty" style="display:none;text-align:center;padding:40px;color:#a0aec0;">
+          <i class="fas fa-check-circle" style="font-size:32px;display:block;margin-bottom:8px;opacity:.4;"></i>
+          Tidak ada stock yang di-reserve saat ini
+        </div>
+        <div id="mekRvLoading" style="display:none;text-align:center;padding:50px;color:#a0aec0;">
+          <i class="fas fa-spinner fa-spin" style="font-size:24px;"></i>
+        </div>
+      </div>
+    </div><!-- /mekReservedPane -->
+
 
 
 
@@ -5472,6 +5558,7 @@
   <script src="js/binloc.js"></script>
   <script src="js/monitoringekspor.js"></script>
   <script src="js/kpi.js"></script>
+  <script type="module" src="js/mek-reserved3d.js"></script>
 
   <!-- Service Worker Registration -->
   <script>
