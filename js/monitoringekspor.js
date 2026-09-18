@@ -282,8 +282,8 @@ function mekResetFilter() {
 
 // ── Tab switching ─────────────────────────────────────────────
 function mekSwitchTab(tab) {
-  var panes = { summary: 'mekSummaryPane', input: 'mekInputPane', planning: 'mekPlanningPane', stock: 'mekStockPane' };
-  var tabs  = { summary: 'mekTabSummary',  input: 'mekTabInput',  planning: 'mekTabPlanning',  stock: 'mekTabStock'  };
+  var panes = { summary: 'mekSummaryPane', input: 'mekInputPane', planning: 'mekPlanningPane', stock: 'mekStockPane', reserved: 'mekReservedPane' };
+  var tabs  = { summary: 'mekTabSummary',  input: 'mekTabInput',  planning: 'mekTabPlanning',  stock: 'mekTabStock',  reserved: 'mekTabReserved'  };
   var ac = '#1a3a5c';
 
   Object.keys(panes).forEach(function(t) {
@@ -423,7 +423,7 @@ function _mekRenderStockReadiness() {
       + '<span style="flex-shrink:0;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;background:' + badgeBg + ';color:' + badgeFg + ';">' + badgeTx + '</span>'
       + '</div>'
       + '<div style="padding:10px 14px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;text-align:center;">'
-      + '<div><div style="font-size:10px;color:#a0aec0;">Butuh</div><div style="font-size:14px;font-weight:700;color:#2d3748;">' + d.butuh.toLocaleString('id-ID') + '</div></div>'
+      + '<div><div style="font-size:10px;color:#a0aec0;">Kebutuhan</div><div style="font-size:14px;font-weight:700;color:#2d3748;">' + d.butuh.toLocaleString('id-ID') + '</div></div>'
       + '<div><div style="font-size:10px;color:#a0aec0;">Tersedia</div><div style="font-size:14px;font-weight:700;color:#2d3748;">' + d.tersedia.toLocaleString('id-ID') + '</div></div>'
       + '<div><div style="font-size:10px;color:#a0aec0;">Selisih</div><div style="font-size:14px;font-weight:700;color:' + (d.cukup?'#276749':'#c53030') + ';">' + (d.selisih>=0?'+':'') + d.selisih.toLocaleString('id-ID') + '</div></div>'
       + '</div>'
@@ -447,7 +447,7 @@ function _mekShowStockDetail(idx) {
           '<button onclick="_mekCloseStockDetail()" style="background:none;border:none;color:#fff;font-size:18px;cursor:pointer;line-height:1;">&times;</button>' +
         '</div>' +
         '<div style="display:flex;background:#f7fafc;border-bottom:1px solid #e2e8f0;flex-shrink:0;">' +
-          '<button id="mekStockDetailTabButuh" onclick="_mekStockDetailSwitch(\'butuh\')" style="flex:1;padding:9px;border:none;background:none;font-size:12px;font-weight:700;cursor:pointer;color:#2b6cb0;border-bottom:3px solid #2b6cb0;transition:color .15s,border-color .15s;">Butuh (Planning)</button>' +
+          '<button id="mekStockDetailTabButuh" onclick="_mekStockDetailSwitch(\'butuh\')" style="flex:1;padding:9px;border:none;background:none;font-size:12px;font-weight:700;cursor:pointer;color:#2b6cb0;border-bottom:3px solid #2b6cb0;transition:color .15s,border-color .15s;">Kebutuhan (Planning)</button>' +
           '<button id="mekStockDetailTabTersedia" onclick="_mekStockDetailSwitch(\'tersedia\')" style="flex:1;padding:9px;border:none;background:none;font-size:12px;font-weight:700;cursor:pointer;color:#718096;border-bottom:3px solid transparent;transition:color .15s,border-color .15s;">Tersedia (BinLoc)</button>' +
         '</div>' +
         '<div style="position:relative;overflow:auto;flex:1;">' +
@@ -492,7 +492,7 @@ function _mekStockDetailRenderButuh(d) {
   }).join('');
 
   pane.innerHTML =
-    '<div style="font-size:11px;color:#718096;margin-bottom:10px;">Rincian planning yang menyumbang kebutuhan SKU ini — termasuk yang sudah closed (ditandai abu-abu, tidak ikut dihitung ke Butuh):</div>' +
+    '<div style="font-size:11px;color:#718096;margin-bottom:10px;">Rincian planning yang menyumbang kebutuhan SKU ini — termasuk yang sudah closed (ditandai abu-abu, tidak ikut dihitung ke Kebutuhan):</div>' +
     '<table style="width:100%;border-collapse:collapse;">' +
       '<thead><tr style="border-bottom:2px solid #e2e8f0;">' +
         '<th style="padding:6px 8px;font-size:10px;text-align:left;color:#718096;">WEEK</th>' +
@@ -564,6 +564,100 @@ function _mekStockDetailSwitch(view) {
 function _mekCloseStockDetail() {
   var el = document.getElementById('mekStockDetailOverlay');
   if (el) el.remove();
+}
+
+// ════════════════════════════════════════════════════════════
+// TAB RESERVED VIEW — Peta 3D (data sama seperti Kesiapan Stock,
+// cuma disusun ulang per lokasi BinLoc lewat action getMekReservedMap)
+// ════════════════════════════════════════════════════════════
+var _mekReservedData = null;
+
+function mekLoadReservedView() {
+  var loadEl = document.getElementById('mekRvLoading');
+  if (loadEl) loadEl.style.display = 'block';
+  API.run('getMekReservedMap', {}, function(res) {
+    if (loadEl) loadEl.style.display = 'none';
+    if (!res || !res.success) {
+      var listEl = document.getElementById('mekRvList');
+      if (listEl) listEl.innerHTML = '<div style="text-align:center;padding:30px;color:#c53030;font-size:12px;">Gagal memuat data: ' + _mekEsc((res && res.message) || 'unknown') + '</div>';
+      return;
+    }
+    _mekReservedData = res;
+    _mekRenderReservedView(res);
+  }, function(err) {
+    if (loadEl) loadEl.style.display = 'none';
+    var listEl = document.getElementById('mekRvList');
+    if (listEl) listEl.innerHTML = '<div style="text-align:center;padding:30px;color:#c53030;font-size:12px;">Gagal memuat data (koneksi)</div>';
+  });
+}
+
+function _mekReservedWaitTier(h) {
+  if (h == null) return 'unknown';
+  if (h > 24) return 'gt24';
+  if (h >= 12) return 'h12_24';
+  if (h >= 4)  return 'h4_12';
+  return 'lt4';
+}
+
+function _mekReservedFmtHours(h) {
+  if (h == null) return '-';
+  var d = Math.floor(h / 24), r = Math.round(h % 24);
+  return d > 0 ? (d + 'd ' + r + 'h') : (Math.round(h) + 'h');
+}
+
+function _mekRenderReservedView(data) {
+  var s = data.summary || {};
+  document.getElementById('mekRvKpiTotal').textContent     = (s.totalStock||0).toLocaleString('id-ID');
+  document.getElementById('mekRvKpiAvailable').textContent = (s.available||0).toLocaleString('id-ID');
+  document.getElementById('mekRvKpiReserved').textContent  = (s.reserved||0).toLocaleString('id-ID');
+  document.getElementById('mekRvKpiPct').textContent       = (s.reservedPct!=null ? s.reservedPct.toFixed(1) : '0.0') + '%';
+  document.getElementById('mekRvKpiContainer').textContent = (s.containerWaiting||0);
+  document.getElementById('mekRvKpiLongest').textContent   = s.longestWaitingLabel || '-';
+
+  var rows = (data.rows || []).map(function(r){ r.tier = _mekReservedWaitTier(r.waitHours); return r; });
+
+  // Lokasi yang punya reservasi >24 jam — dipakai buat warna merah di peta 3D
+  // (dicocokkan via SKU yang sama, karena cell BinLoc gak nyimpen waitHours langsung)
+  var longWaitSkus = {};
+  rows.forEach(function(r){ if (r.tier === 'gt24') longWaitSkus[r.sku] = true; });
+  var longWaitBins = {};
+  (data.cells || []).forEach(function(c){
+    if (longWaitSkus[c.sku] && c.reservedKarton > 0) longWaitBins[c.binLoc] = true;
+  });
+
+  // Render Peta 3D
+  if (typeof window.mekReserved3DRender === 'function') {
+    window.mekReserved3DRender(data.cells || [], longWaitBins);
+  }
+
+  // List rows
+  var listEl  = document.getElementById('mekRvList');
+  var emptyEl = document.getElementById('mekRvEmpty');
+  if (!rows.length) {
+    listEl.innerHTML = '';
+    emptyEl.style.display = 'block';
+    return;
+  }
+  emptyEl.style.display = 'none';
+  listEl.innerHTML = rows.map(function(r){
+    var isLong = r.tier === 'gt24';
+    var badgeBg = isLong ? '#fed7d7' : '#feebc8';
+    var badgeFg = isLong ? '#c53030' : '#c05621';
+    var badgeTx = isLong ? 'Long Wait' : 'Waiting';
+    return '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-bottom:8px;">'
+      + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px;">'
+        + '<div style="min-width:0;"><div style="font-weight:800;font-size:13px;color:#2d3748;">' + _mekEsc(r.sku||'-') + '</div>'
+        + '<div style="font-size:11px;color:#718096;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + _mekEsc(r.nama||'-') + '</div></div>'
+        + '<span style="flex-shrink:0;padding:3px 10px;border-radius:12px;font-size:10px;font-weight:700;background:' + badgeBg + ';color:' + badgeFg + ';">' + badgeTx + '</span>'
+      + '</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px;color:#718096;">'
+        + '<div>Qty Reserved: <b style="color:#2d3748;">' + (r.qtyReserved||0).toLocaleString('id-ID') + '</b></div>'
+        + '<div>No. SO: <b style="color:#2d3748;">' + _mekEsc(r.noSo||'-') + '</b></div>'
+        + '<div>Waiting: <b style="color:' + (isLong?'#c53030':'#c05621') + ';">' + _mekReservedFmtHours(r.waitHours) + '</b></div>'
+        + '<div>Tujuan: <b style="color:#2d3748;">' + _mekEsc(r.tujuan||'-') + '</b></div>'
+      + '</div>'
+    + '</div>';
+  }).join('');
 }
 
 // ════════════════════════════════════════════════════════════
