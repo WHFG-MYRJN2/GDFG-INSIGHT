@@ -5205,6 +5205,26 @@
         </button>
       </div>
 
+      <!-- Filter bar (kaya di Summary/Capaian) -->
+      <div id="mekStockFilterBar" class="real-filter-bar" style="flex-shrink:0;">
+        <label>SKU / Nama</label>
+        <input type="text" id="mekStockFilterSku" placeholder="kode atau nama..." oninput="_mekRenderStockReadiness()"
+          style="width:160px;border:1px solid #e2e8f0;border-radius:8px;padding:6px 8px;font-size:13px;">
+        <label>No. SO</label>
+        <input type="text" id="mekStockFilterNoSo" placeholder="no. SO..." oninput="_mekRenderStockReadiness()"
+          style="width:110px;border:1px solid #e2e8f0;border-radius:8px;padding:6px 8px;font-size:13px;">
+        <label>Tujuan</label>
+        <input type="text" id="mekStockFilterTujuan" placeholder="tujuan..." oninput="_mekRenderStockReadiness()"
+          style="width:120px;border:1px solid #e2e8f0;border-radius:8px;padding:6px 8px;font-size:13px;">
+        <label>Plant</label>
+        <input type="text" id="mekStockFilterPlant" placeholder="plant..." oninput="_mekRenderStockReadiness()"
+          style="width:120px;border:1px solid #e2e8f0;border-radius:8px;padding:6px 8px;font-size:13px;">
+        <button onclick="document.getElementById('mekStockFilterSku').value='';document.getElementById('mekStockFilterNoSo').value='';document.getElementById('mekStockFilterTujuan').value='';document.getElementById('mekStockFilterPlant').value='';_mekRenderStockReadiness();"
+          style="padding:6px 12px;border-radius:8px;border:1px solid #e2e8f0;background:#fff;font-size:12px;font-weight:600;cursor:pointer;color:#718096;">
+          <i class="fas fa-times"></i> Reset
+        </button>
+      </div>
+
       <div style="overflow:auto;flex:1;-webkit-overflow-scrolling:touch;padding:14px 16px;">
 
         <!-- Kartu ringkasan -->
