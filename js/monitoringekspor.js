@@ -312,7 +312,8 @@ function mekSwitchTab(tab) {
 // TAB KESIAPAN STOCK — cross-check planning ekspor yang belum
 // close (week ini + sisa week sebelumnya) vs stok BinLoc saat ini
 // ════════════════════════════════════════════════════════════
-var _mekStockData = [];
+var _mekStockData = [];  // hasil mentah dari backend (belum difilter)
+var _mekStockView = [];  // hasil setelah filter SKU/Tujuan diterapkan — yang dipakai popup detail
 
 function mekLoadStockReadiness() {
   var list  = document.getElementById('mekStockList');
@@ -340,7 +341,45 @@ function mekLoadStockReadiness() {
 function _mekRenderStockReadiness() {
   var list  = document.getElementById('mekStockList');
   var empty = document.getElementById('mekStockEmpty');
-  var data  = _mekStockData || [];
+  var raw   = _mekStockData || [];
+
+  var skuF    = ((document.getElementById('mekStockFilterSku')    ||{}).value||'').toLowerCase().trim();
+  var noSoF   = ((document.getElementById('mekStockFilterNoSo')   ||{}).value||'').toLowerCase().trim();
+  var tujuanF = ((document.getElementById('mekStockFilterTujuan') ||{}).value||'').toLowerCase().trim();
+  var plantF  = ((document.getElementById('mekStockFilterPlant')  ||{}).value||'').toLowerCase().trim();
+
+  var data = raw;
+
+  // Filter SKU/Nama — cocokkan kode atau nama, tidak mengubah angka
+  if (skuF) {
+    data = data.filter(function(d){
+      return (d.sku||'').toLowerCase().indexOf(skuF) >= 0 || (d.nama||'').toLowerCase().indexOf(skuF) >= 0;
+    });
+  }
+
+  // Filter No. SO / Tujuan / Plant — cuma hitung kebutuhan dari baris planning yang cocok,
+  // "Tersedia" tetap total stok fisik (barangnya generik, bisa dikirim ke mana saja)
+  if (noSoF || tujuanF || plantF) {
+    data = data.map(function(d){
+      var detailF = (d.detail||[]).filter(function(x){
+        if (noSoF   && (x.noSo||'').toLowerCase().indexOf(noSoF) < 0)     return false;
+        if (tujuanF && (x.tujuan||'').toLowerCase().indexOf(tujuanF) < 0) return false;
+        if (plantF  && (x.plant||'').toLowerCase().indexOf(plantF) < 0)  return false;
+        return true;
+      });
+      if (!detailF.length) return null;
+      var butuhF = detailF.reduce(function(s,x){ return s + (x.sisaQty||0); }, 0);
+      var selisihF = d.tersedia - butuhF;
+      return { sku: d.sku, nama: d.nama, butuh: butuhF, tersedia: d.tersedia,
+               selisih: selisihF, cukup: selisihF >= 0, detail: detailF, binDetail: d.binDetail };
+    }).filter(function(d){ return d; });
+    data.sort(function(a,b){
+      if (a.cukup !== b.cukup) return a.cukup ? 1 : -1;
+      return a.selisih - b.selisih;
+    });
+  }
+
+  _mekStockView = data;
 
   var kurang = data.filter(function(d){ return !d.cukup; });
   var cukup  = data.filter(function(d){ return d.cukup; });
@@ -350,6 +389,9 @@ function _mekRenderStockReadiness() {
   if (!data.length) {
     list.innerHTML = '';
     empty.style.display = 'block';
+    empty.innerHTML = (skuF || noSoF || tujuanF || plantF)
+      ? '<i class="fas fa-filter" style="font-size:32px;display:block;margin-bottom:8px;opacity:.4;"></i>Tidak ada SKU yang cocok dengan filter'
+      : '<i class="fas fa-inbox" style="font-size:32px;display:block;margin-bottom:8px;opacity:.4;"></i>Tidak ada planning yang belum close';
     return;
   }
   empty.style.display = 'none';
@@ -377,40 +419,25 @@ function _mekRenderStockReadiness() {
 }
 
 function _mekShowStockDetail(idx) {
-  var d = (_mekStockData||[])[idx];
+  var d = (_mekStockView||[])[idx];
   if (!d) return;
-  var rows = (d.detail||[]).map(function(x){
-    return '<tr>'
-      + '<td style="padding:6px 8px;font-size:11px;">' + x.week + '</td>'
-      + '<td style="padding:6px 8px;font-size:11px;">' + _mekEsc(_mekFmtTglDisplay(x.tanggal)) + '</td>'
-      + '<td style="padding:6px 8px;font-size:11px;">' + _mekEsc(x.tujuan||'-') + '</td>'
-      + '<td style="padding:6px 8px;font-size:11px;">' + _mekEsc(x.source||'-') + '</td>'
-      + '<td style="padding:6px 8px;font-size:11px;text-align:center;">' + x.sisaCont + '/' + x.jumlahCont + '</td>'
-      + '<td style="padding:6px 8px;font-size:11px;text-align:right;font-weight:700;">' + x.sisaQty.toLocaleString('id-ID') + '</td>'
-      + '</tr>';
-  }).join('');
+  window._mekStockDetailCur = d;
 
   var html =
     '<div id="mekStockDetailOverlay" onclick="if(event.target===this) _mekCloseStockDetail()" ' +
-    'style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;">' +
-      '<div style="background:#fff;border-radius:12px;max-width:560px;width:100%;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3);overflow:hidden;">' +
+    'style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;animation:mekFadeIn .18s ease forwards;">' +
+      '<div style="background:#fff;border-radius:12px;max-width:560px;width:100%;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3);overflow:hidden;animation:mekSlideUp .22s ease forwards;">' +
         '<div style="background:#2c5282;color:#fff;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">' +
           '<div style="font-weight:700;font-size:14px;">' + _mekEsc(d.sku) + ' — ' + _mekEsc(d.nama||'-') + '</div>' +
           '<button onclick="_mekCloseStockDetail()" style="background:none;border:none;color:#fff;font-size:18px;cursor:pointer;line-height:1;">&times;</button>' +
         '</div>' +
-        '<div style="padding:12px 18px;overflow:auto;flex:1;">' +
-          '<div style="font-size:11px;color:#718096;margin-bottom:10px;">Rincian planning yang belum close (container-nya belum keluar) yang menyumbang kebutuhan SKU ini:</div>' +
-          '<table style="width:100%;border-collapse:collapse;">' +
-            '<thead><tr style="border-bottom:2px solid #e2e8f0;">' +
-              '<th style="padding:6px 8px;font-size:10px;text-align:left;color:#718096;">WEEK</th>' +
-              '<th style="padding:6px 8px;font-size:10px;text-align:left;color:#718096;">TANGGAL</th>' +
-              '<th style="padding:6px 8px;font-size:10px;text-align:left;color:#718096;">TUJUAN</th>' +
-              '<th style="padding:6px 8px;font-size:10px;text-align:left;color:#718096;">SOURCE</th>' +
-              '<th style="padding:6px 8px;font-size:10px;text-align:center;color:#718096;">SISA CONT</th>' +
-              '<th style="padding:6px 8px;font-size:10px;text-align:right;color:#718096;">QTY KRT</th>' +
-            '</tr></thead>' +
-            '<tbody>' + (rows || '<tr><td colspan="6" style="padding:14px;text-align:center;color:#a0aec0;font-size:11px;">Tidak ada rincian</td></tr>') + '</tbody>' +
-          '</table>' +
+        '<div style="display:flex;background:#f7fafc;border-bottom:1px solid #e2e8f0;flex-shrink:0;">' +
+          '<button id="mekStockDetailTabButuh" onclick="_mekStockDetailSwitch(\'butuh\')" style="flex:1;padding:9px;border:none;background:none;font-size:12px;font-weight:700;cursor:pointer;color:#2b6cb0;border-bottom:3px solid #2b6cb0;transition:color .15s,border-color .15s;">Butuh (Planning)</button>' +
+          '<button id="mekStockDetailTabTersedia" onclick="_mekStockDetailSwitch(\'tersedia\')" style="flex:1;padding:9px;border:none;background:none;font-size:12px;font-weight:700;cursor:pointer;color:#718096;border-bottom:3px solid transparent;transition:color .15s,border-color .15s;">Tersedia (BinLoc)</button>' +
+        '</div>' +
+        '<div style="position:relative;overflow:auto;flex:1;">' +
+          '<div id="mekStockDetailPaneButuh" style="padding:12px 18px;transition:opacity .18s ease;"></div>' +
+          '<div id="mekStockDetailPaneTersedia" style="padding:12px 18px;display:none;transition:opacity .18s ease;"></div>' +
         '</div>' +
       '</div>' +
     '</div>';
@@ -418,6 +445,94 @@ function _mekShowStockDetail(idx) {
   var existing = document.getElementById('mekStockDetailOverlay');
   if (existing) existing.remove();
   document.body.insertAdjacentHTML('beforeend', html);
+
+  _mekStockDetailRenderButuh(d);
+  _mekStockDetailRenderTersedia(d);
+}
+
+function _mekStockDetailRenderButuh(d) {
+  var pane = document.getElementById('mekStockDetailPaneButuh');
+  if (!pane) return;
+  var rows = (d.detail||[]).map(function(x){
+    return '<tr>'
+      + '<td style="padding:6px 8px;font-size:11px;">' + x.week + '</td>'
+      + '<td style="padding:6px 8px;font-size:11px;">' + _mekEsc(_mekFmtTglDisplay(x.tanggal)) + '</td>'
+      + '<td style="padding:6px 8px;font-size:11px;">' + _mekEsc(x.noSo||'-') + '</td>'
+      + '<td style="padding:6px 8px;font-size:11px;">' + _mekEsc(x.tujuan||'-') + '</td>'
+      + '<td style="padding:6px 8px;font-size:11px;">' + _mekEsc(x.plant||'-') + '</td>'
+      + '<td style="padding:6px 8px;font-size:11px;">' + _mekEsc(x.source||'-') + '</td>'
+      + '<td style="padding:6px 8px;font-size:11px;text-align:center;">' + x.sisaCont + '/' + x.jumlahCont + '</td>'
+      + '<td style="padding:6px 8px;font-size:11px;text-align:right;font-weight:700;">' + x.sisaQty.toLocaleString('id-ID') + '</td>'
+      + '</tr>';
+  }).join('');
+
+  pane.innerHTML =
+    '<div style="font-size:11px;color:#718096;margin-bottom:10px;">Rincian planning yang belum close (container-nya belum keluar) yang menyumbang kebutuhan SKU ini:</div>' +
+    '<table style="width:100%;border-collapse:collapse;">' +
+      '<thead><tr style="border-bottom:2px solid #e2e8f0;">' +
+        '<th style="padding:6px 8px;font-size:10px;text-align:left;color:#718096;">WEEK</th>' +
+        '<th style="padding:6px 8px;font-size:10px;text-align:left;color:#718096;">TANGGAL</th>' +
+        '<th style="padding:6px 8px;font-size:10px;text-align:left;color:#718096;">NO. SO</th>' +
+        '<th style="padding:6px 8px;font-size:10px;text-align:left;color:#718096;">TUJUAN</th>' +
+        '<th style="padding:6px 8px;font-size:10px;text-align:left;color:#718096;">PLANT</th>' +
+        '<th style="padding:6px 8px;font-size:10px;text-align:left;color:#718096;">SOURCE</th>' +
+        '<th style="padding:6px 8px;font-size:10px;text-align:center;color:#718096;">SISA CONT</th>' +
+        '<th style="padding:6px 8px;font-size:10px;text-align:right;color:#718096;">QTY KRT</th>' +
+      '</tr></thead>' +
+      '<tbody>' + (rows || '<tr><td colspan="8" style="padding:14px;text-align:center;color:#a0aec0;font-size:11px;">Tidak ada rincian</td></tr>') + '</tbody>' +
+    '</table>';
+}
+
+function _mekStockDetailRenderTersedia(d) {
+  var pane = document.getElementById('mekStockDetailPaneTersedia');
+  if (!pane) return;
+  var bins = d.binDetail || [];
+  var rows = bins.map(function(b){
+    return '<tr>'
+      + '<td style="padding:6px 8px;font-size:11px;font-weight:700;">' + _mekEsc(b.binLoc||'-') + '</td>'
+      + '<td style="padding:6px 8px;font-size:11px;">' + _mekEsc(b.tipe||'-') + '</td>'
+      + '<td style="padding:6px 8px;font-size:11px;">' + _mekEsc(b.prodate||'-') + '</td>'
+      + '<td style="padding:6px 8px;font-size:11px;">' + _mekEsc(b.quotation||'-') + '</td>'
+      + '<td style="padding:6px 8px;font-size:11px;text-align:right;font-weight:700;color:#276749;">' + b.karton.toLocaleString('id-ID') + '</td>'
+      + '</tr>';
+  }).join('');
+
+  pane.innerHTML =
+    '<div style="font-size:11px;color:#718096;margin-bottom:10px;">Posisi stok SKU ini di BinLoc sekarang (diurut dari prodate paling lama):</div>' +
+    '<table style="width:100%;border-collapse:collapse;">' +
+      '<thead><tr style="border-bottom:2px solid #e2e8f0;">' +
+        '<th style="padding:6px 8px;font-size:10px;text-align:left;color:#718096;">BIN LOKASI</th>' +
+        '<th style="padding:6px 8px;font-size:10px;text-align:left;color:#718096;">TIPE</th>' +
+        '<th style="padding:6px 8px;font-size:10px;text-align:left;color:#718096;">PRODATE</th>' +
+        '<th style="padding:6px 8px;font-size:10px;text-align:left;color:#718096;">QUOTATION</th>' +
+        '<th style="padding:6px 8px;font-size:10px;text-align:right;color:#718096;">KARTON</th>' +
+      '</tr></thead>' +
+      '<tbody>' + (rows || '<tr><td colspan="5" style="padding:14px;text-align:center;color:#a0aec0;font-size:11px;">Tidak ada stok di BinLoc</td></tr>') + '</tbody>' +
+      (bins.length ? '<tfoot><tr style="border-top:2px solid #e2e8f0;"><td colspan="4" style="padding:6px 8px;font-size:11px;font-weight:700;text-align:right;">Total</td><td style="padding:6px 8px;font-size:12px;font-weight:800;text-align:right;color:#276749;">' + d.tersedia.toLocaleString('id-ID') + '</td></tr></tfoot>' : '') +
+    '</table>';
+}
+
+function _mekStockDetailSwitch(view) {
+  var pB = document.getElementById('mekStockDetailPaneButuh');
+  var pT = document.getElementById('mekStockDetailPaneTersedia');
+  var tB = document.getElementById('mekStockDetailTabButuh');
+  var tT = document.getElementById('mekStockDetailTabTersedia');
+  if (!pB || !pT) return;
+
+  var showT = view === 'tersedia';
+  // Fade-out lalu fade-in supaya transisinya halus, bukan langsung tukar
+  [pB, pT].forEach(function(p){ p.style.opacity = '0'; });
+  setTimeout(function(){
+    pB.style.display = showT ? 'none' : 'block';
+    pT.style.display = showT ? 'block' : 'none';
+    requestAnimationFrame(function(){
+      pB.style.opacity = '1';
+      pT.style.opacity = '1';
+    });
+  }, 120);
+
+  if (tB) { tB.style.color = showT ? '#718096' : '#2b6cb0'; tB.style.borderBottomColor = showT ? 'transparent' : '#2b6cb0'; }
+  if (tT) { tT.style.color = showT ? '#2b6cb0' : '#718096'; tT.style.borderBottomColor = showT ? '#2b6cb0' : 'transparent'; }
 }
 
 function _mekCloseStockDetail() {
