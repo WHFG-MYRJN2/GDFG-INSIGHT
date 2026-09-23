@@ -3108,8 +3108,47 @@ function mekInputSwitchSub(sub) {
 
 function _mekRdBindTable(plant) {
   _STOKInit({
-    tblId: 'mekRdTbl'+plant, tbodyId: 'mekRdTbody'+plant, cols: MEK_RD_COLS, autoCols: {}, selClass: 'mek-rd-sel-'+plant
+    tblId: 'mekRdTbl'+plant, tbodyId: 'mekRdTbody'+plant, cols: MEK_RD_COLS, autoCols: {}, selClass: 'stok-sel',
+    appendRowFn: function(){ _mekRdAppendRow(plant, {}); },
+    onAfterPaste: function(tr){ _mekRdUpdateDetailBtnState(tr); }
   });
+}
+
+// Nomor urut baris (kolom "#") — dipanggil ulang tiap kali ada baris yang
+// DIHAPUS (posisi baris lain jadi geser). Nambah baris baru gak perlu renumber
+// penuh karena nomornya langsung diisi benar pas baris itu dibikin (selalu
+// nambah di akhir tabel).
+function _mekRdRenumber(plant) {
+  var tbody = document.getElementById('mekRdTbody'+plant);
+  if (!tbody) return;
+  Array.from(tbody.rows).forEach(function(tr, i){
+    var no = tr.querySelector('.row-no');
+    if (no) no.textContent = i + 1;
+  });
+}
+
+function _mekRdDeleteRow(btn, plant) {
+  var tr = btn.closest('tr');
+  if (tr) tr.remove();
+  _mekRdRenumber(plant);
+}
+
+// Tombol "Detail reservasi" (ikon list) di tiap baris SKU cuma aktif kalau
+// RESERVED OUT baris itu > 0 — detail per SKU isinya rincian reservasi yang
+// nyusun angka Reserved Out, jadi gak ada gunanya dibuka kalau Reserved Out
+// nya masih 0/kosong. Status tombol ini di-refresh tiap kali kolom Reserved
+// Out diketik/di-paste.
+function _mekRdUpdateDetailBtnState(tr) {
+  if (!tr) return;
+  var btn = tr.querySelector('.mek-rd-detail-btn');
+  var outTd = tr.querySelector('[data-col="reservedOut"]');
+  if (!btn || !outTd) return;
+  var v = parseFloat((outTd.textContent||'').replace(/[^0-9.\-]/g,''));
+  var active = !isNaN(v) && v > 0;
+  btn.disabled = !active;
+  btn.style.opacity = active ? '1' : '.35';
+  btn.style.cursor = active ? 'pointer' : 'not-allowed';
+  btn.title = active ? 'Detail reservasi' : 'Isi Reserved Out (>0) dulu untuk input detail';
 }
 
 function _mekRdAppendRow(plant, vals) {
@@ -3119,6 +3158,7 @@ function _mekRdAppendRow(plant, vals) {
   var tr = document.createElement('tr');
   var tdNo = document.createElement('td');
   tdNo.className = 'row-no stok-rn';
+  tdNo.textContent = tbody.rows.length + 1;
   tr.appendChild(tdNo);
   MEK_RD_COLS.forEach(function(col){
     var td = document.createElement('td');
@@ -3127,18 +3167,34 @@ function _mekRdAppendRow(plant, vals) {
     td.spellcheck = false;
     td.style.cssText = 'padding:6px 8px;font-size:12px;' + (col!=='sku'&&col!=='nama' ? 'text-align:right;' : '');
     if (v[col] !== undefined && v[col] !== null && v[col] !== '') td.textContent = v[col];
+    if (col === 'reservedOut') {
+      td.addEventListener('input', function(){ _mekRdUpdateDetailBtnState(tr); });
+      td.addEventListener('blur',  function(){ _mekRdUpdateDetailBtnState(tr); });
+    }
     tr.appendChild(td);
   });
   var tdAct = document.createElement('td');
   tdAct.style.cssText = 'text-align:center;white-space:nowrap;';
-  tdAct.innerHTML = '<button onclick="_mekRdOpenDetailFromRow(this,\''+plant+'\')" title="Detail reservasi" style="background:none;border:none;color:#2b6cb0;cursor:pointer;font-size:12px;padding:2px 5px;"><i class="fas fa-list"></i></button>'
-    + '<button onclick="this.closest(\'tr\').remove();" title="Hapus baris" style="background:none;border:none;color:#fc8181;cursor:pointer;font-size:12px;padding:2px 5px;"><i class="fas fa-times"></i></button>';
+  tdAct.innerHTML = '<button class="mek-rd-detail-btn" onclick="_mekRdOpenDetailFromRow(this,\''+plant+'\')" title="Detail reservasi" style="background:none;border:none;color:#2b6cb0;cursor:pointer;font-size:12px;padding:2px 5px;"><i class="fas fa-list"></i></button>'
+    + '<button onclick="_mekRdDeleteRow(this,\''+plant+'\')" title="Hapus baris" style="background:none;border:none;color:#fc8181;cursor:pointer;font-size:12px;padding:2px 5px;"><i class="fas fa-times"></i></button>';
   tr.appendChild(tdAct);
   tbody.appendChild(tr);
+  _mekRdUpdateDetailBtnState(tr);
 }
 
 function _mekRdAddRow(plant) {
   for (var i=0;i<5;i++) _mekRdAppendRow(plant, {});
+}
+
+// Kosongkan tabel plant ini (minta konfirmasi dulu) — tetap sisakan beberapa
+// baris kosong biar langsung bisa ketik lagi. Ini cuma bersihin tampilan; data
+// tersimpan gak ikut kehapus sampai tombol Simpan dipencet.
+function mekClearReservedDirect(plant) {
+  if (!confirm('Kosongkan tabel Plant ' + plant + '? Data yang sudah tersimpan di sheet tidak akan terhapus sampai kamu klik Simpan lagi.')) return;
+  var tbody = document.getElementById('mekRdTbody'+plant);
+  if (tbody) tbody.innerHTML = '';
+  for (var i=0;i<5;i++) _mekRdAppendRow(plant, {});
+  showToast('Tabel Plant ' + plant + ' dikosongkan', '');
 }
 
 function _mekRdOpenDetailFromRow(btn, plant) {
@@ -3146,6 +3202,9 @@ function _mekRdOpenDetailFromRow(btn, plant) {
   var skuTd = tr.querySelector('[data-col="sku"]');
   var sku = skuTd ? skuTd.textContent.trim() : '';
   if (!sku) { showToast('Isi SKU dulu di baris ini', 'warning'); return; }
+  var outTd = tr.querySelector('[data-col="reservedOut"]');
+  var outVal = outTd ? parseFloat((outTd.textContent||'').replace(/[^0-9.\-]/g,'')) : 0;
+  if (isNaN(outVal) || outVal <= 0) { showToast('Isi Reserved Out dulu (harus > 0) untuk input detail reservasi', 'warning'); return; }
   mekRdOpenDetail(plant, sku);
 }
 
@@ -3227,8 +3286,9 @@ function mekRdOpenDetail(plant, sku) {
 
 function _mekRdBindDetailTable() {
   _STOKInit({
-    tblId: 'mekRdDetailTbl', tbodyId: 'mekRdDetailTbody', cols: MEK_RD_DETAIL_COLS, autoCols: {}, selClass: 'mek-rd-detail-sel',
-    onAfterPaste: function(tr){ _mekRdAbsQtyCell(tr); }
+    tblId: 'mekRdDetailTbl', tbodyId: 'mekRdDetailTbody', cols: MEK_RD_DETAIL_COLS, autoCols: {}, selClass: 'stok-sel',
+    onAfterPaste: function(tr){ _mekRdAbsQtyCell(tr); },
+    appendRowFn: function(){ _mekRdDetailAppendRow({}); }
   });
 }
 
@@ -3239,6 +3299,21 @@ function _mekRdAbsQtyCell(tr) {
   if (!isNaN(v)) td.textContent = Math.abs(v);
 }
 
+function _mekRdDetailRenumber() {
+  var tbody = document.getElementById('mekRdDetailTbody');
+  if (!tbody) return;
+  Array.from(tbody.rows).forEach(function(tr, i){
+    var no = tr.querySelector('.row-no');
+    if (no) no.textContent = i + 1;
+  });
+}
+
+function _mekRdDetailDeleteRow(btn) {
+  var tr = btn.closest('tr');
+  if (tr) tr.remove();
+  _mekRdDetailRenumber();
+}
+
 function _mekRdDetailAppendRow(vals) {
   var v = vals || {};
   var tbody = document.getElementById('mekRdDetailTbody');
@@ -3246,6 +3321,7 @@ function _mekRdDetailAppendRow(vals) {
   var tr = document.createElement('tr');
   var tdNo = document.createElement('td');
   tdNo.className = 'row-no stok-rn';
+  tdNo.textContent = tbody.rows.length + 1;
   tr.appendChild(tdNo);
   MEK_RD_DETAIL_COLS.forEach(function(col){
     var td = document.createElement('td');
@@ -3264,13 +3340,23 @@ function _mekRdDetailAppendRow(vals) {
   });
   var tdDel = document.createElement('td');
   tdDel.style.cssText = 'text-align:center;';
-  tdDel.innerHTML = '<button onclick="this.closest(\'tr\').remove();" style="background:none;border:none;color:#fc8181;cursor:pointer;font-size:12px;padding:2px 5px;"><i class="fas fa-times"></i></button>';
+  tdDel.innerHTML = '<button onclick="_mekRdDetailDeleteRow(this)" style="background:none;border:none;color:#fc8181;cursor:pointer;font-size:12px;padding:2px 5px;"><i class="fas fa-times"></i></button>';
   tr.appendChild(tdDel);
   tbody.appendChild(tr);
 }
 
 function _mekRdDetailAddRow() {
   for (var i=0;i<3;i++) _mekRdDetailAppendRow({});
+}
+
+// Kosongkan tabel detail (minta konfirmasi dulu). Sama kayak Clear di tabel
+// header — cuma bersihin tampilan, data tersimpan gak kehapus sampai Simpan.
+function mekClearReservedDirectDetail() {
+  if (!confirm('Kosongkan tabel detail ini? Data yang sudah tersimpan di sheet tidak akan terhapus sampai kamu klik Simpan lagi.')) return;
+  var tbody = document.getElementById('mekRdDetailTbody');
+  if (tbody) tbody.innerHTML = '';
+  for (var i=0;i<3;i++) _mekRdDetailAppendRow({});
+  showToast('Tabel detail dikosongkan', '');
 }
 
 function mekSaveReservedDirectDetail() {
