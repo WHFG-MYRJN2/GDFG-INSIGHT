@@ -5505,6 +5505,23 @@
           style="padding:6px 12px;border-radius:8px;border:1px solid #e2e8f0;background:#fff;font-size:12px;font-weight:600;cursor:pointer;color:#718096;">
           <i class="fas fa-times"></i> Reset
         </button>
+
+        <!-- Download dropdown: PDF (A4 potrait, hal.1 tabel sesuai filter + hal.terakhir
+             peta 3D Aktual) & Excel (tabel doang, sesuai filter aktif) -->
+        <div style="position:relative;display:inline-block;margin-left:auto;" id="mekRvDownloadWrap">
+          <button onclick="mekRvToggleDownloadMenu()"
+            style="padding:6px 12px;border-radius:8px;border:1px solid #1a3a5c;background:#1a3a5c;color:#fff;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;">
+            <i class="fas fa-download"></i> Download <i class="fas fa-chevron-down" style="font-size:9px;"></i>
+          </button>
+          <div id="mekRvDownloadMenu" style="display:none;position:absolute;right:0;top:calc(100% + 4px);background:#fff;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.15);border:1px solid #e2e8f0;overflow:hidden;z-index:99;min-width:190px;">
+            <button onclick="mekRvDownloadPdf();mekRvToggleDownloadMenu()" style="width:100%;text-align:left;padding:9px 14px;border:none;background:none;font-size:12px;font-weight:600;color:#2d3748;cursor:pointer;display:flex;align-items:center;gap:8px;" onmouseover="this.style.background='#f7fafc'" onmouseout="this.style.background='none'">
+              <i class="fas fa-file-pdf" style="color:#e53e3e;width:14px;"></i> Download / Print PDF
+            </button>
+            <button onclick="mekRvDownloadExcel();mekRvToggleDownloadMenu()" style="width:100%;text-align:left;padding:9px 14px;border:none;background:none;font-size:12px;font-weight:600;color:#2d3748;cursor:pointer;display:flex;align-items:center;gap:8px;border-top:1px solid #f0f0f0;" onmouseover="this.style.background='#f7fafc'" onmouseout="this.style.background='none'">
+              <i class="fas fa-file-excel" style="color:#276749;width:14px;"></i> Download Excel
+            </button>
+          </div>
+        </div>
       </div>
 
       <div style="overflow:auto;flex:1;-webkit-overflow-scrolling:touch;padding:14px 16px;">
