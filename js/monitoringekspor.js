@@ -183,6 +183,7 @@ function mekInitPage() {
   mekStartAutoRefresh();
   mekCapSwitchMode('email');
   _mekInitPlanningWa();
+  mekEmailSwitchMode('manual'); // Upload file dihapus — langsung pakai Input Planning Ekspor (manual)
 }
 
 // ════════════════════════════════════════════════════════════
@@ -2226,7 +2227,7 @@ function mekDownloadPdf() {
       '</tr>';
   }).join('');
 
-  var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Monitoring Ekspor</title>' +
+  var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Monitoring Outbound</title>' +
     '<style>body{font-family:Arial,sans-serif;font-size:11px;margin:20px;}' +
     'h2{font-size:14px;margin:0 0 2px;}p{margin:0 0 10px;font-size:10px;color:#666;}' +
     'table{width:100%;border-collapse:collapse;}' +
@@ -2234,7 +2235,7 @@ function mekDownloadPdf() {
     'td{padding:5px 8px;border:1px solid #e2e8f0;vertical-align:middle;}' +
     'tr:nth-child(even)td{background:#f7fafc;}' +
     '@media print{body{margin:10px;}}</style></head><body>' +
-    '<h2><i>Monitoring Ekspor — Data Antrian</i></h2>' +
+    '<h2><i>Monitoring Outbound — Data Antrian</i></h2>' +
     '<p>Periode: ' + periodeTxt + ' &nbsp;|&nbsp; Total: ' + data.length + ' kendaraan &nbsp;|&nbsp; Dicetak: ' + new Date().toLocaleString('id-ID') + '</p>' +
     '<table><thead><tr>' +
     '<th style="width:28px;">#</th><th>No. Pol</th><th>Ekspedisi</th><th>No. DOC</th>' +
@@ -2886,7 +2887,7 @@ function mekHandleEmailFiles(files) {
 // ======================================================
 // MANUAL INPUT TABLE
 // ======================================================
-var _mekEmailInputMode = 'upload';
+var _mekEmailInputMode = 'manual'; // Upload file dihapus dari UI — mode manual selalu aktif
 
 function mekEmailSwitchMode(mode) {
   _mekEmailInputMode = mode;
