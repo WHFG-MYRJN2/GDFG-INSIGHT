@@ -1016,7 +1016,7 @@ function _applyChartZoom() {
       // ── Paste ──────────────────────────────────
       function doPaste(text, startR, startC){
         var trs=allTrs();
-        var rows=text.split(/\r?\n/).filter(function(l,i,a){ return !(i===a.length-1&&l===''); });
+        var rows=text.split(/\r\n|\r|\n/).filter(function(l,i,a){ return !(i===a.length-1&&l===''); });
         rows.forEach(function(rowStr,ri){
           while(allTrs().length<=startR+ri){
             // Append kosong jika kurang baris. cfg.appendRowFn (kalau di-set caller)
@@ -1311,6 +1311,24 @@ function _applyChartZoom() {
         }
       });
 
+      // Kalau clipboard cuma punya 'text/html' (bukan 'text/plain') — kejadian
+      // di beberapa kombinasi browser/sumber copy — bangun teks tab/newline
+      // manual dari markup <table> di HTML itu, biar tetap kebagi per baris/kolom
+      // alih-alih numpuk di 1 cell (yang terjadi kalau browser jalanin paste
+      // bawaan karena kita gak jadi preventDefault).
+      function htmlTableToText(html){
+        try{
+          var doc=new DOMParser().parseFromString(html,'text/html');
+          var table=doc.querySelector('table');
+          if(!table) return '';
+          var rows=Array.from(table.querySelectorAll('tr'));
+          return rows.map(function(r){
+            var cells=Array.from(r.querySelectorAll('td,th'));
+            return cells.map(function(c){ return (c.textContent||'').replace(/\t/g,' ').trim(); }).join('\t');
+          }).join('\n');
+        }catch(ex){ return ''; }
+      }
+
       // Paste
       tbl.addEventListener('paste',function(e){
         var ae=document.activeElement, td=ae&&ae.closest&&ae.closest('td[data-col]');
@@ -1322,8 +1340,20 @@ function _applyChartZoom() {
           }
           if(!td||!td.closest('#'+cfg.tbodyId)) return;
         }
-        var text=(e.clipboardData||window.clipboardData).getData('text'); if(!text) return;
+        // preventDefault DULU, begitu kita yakin ini paste ke cell tabel kita —
+        // kalau nunggu sampai cek "ada text atau nggak" baru preventDefault,
+        // begitu clipboard-nya cuma nulis text/html (text/plain kosong), kita
+        // kelewat gak nyegah paste bawaan browser → browser nyelipin seluruh
+        // markup <table> hasil copy Excel itu ke SATU cell contentEditable,
+        // keliatan kayak "semua masuk 1 cell".
         e.preventDefault();
+        var cd=e.clipboardData||window.clipboardData;
+        var text=cd?(cd.getData('text/plain')||cd.getData('text')):'';
+        if(!text && cd){
+          var html=cd.getData('text/html');
+          if(html) text=htmlTableToText(html);
+        }
+        if(!text){ showToast('Gak ada data yang bisa di-paste dari clipboard',''); return; }
         pushUndo();
         doPaste(text, trIdx(td.closest('tr')), tcIdx(td));
       });
