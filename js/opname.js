@@ -137,7 +137,7 @@ function initOpnamePage(){
       if(!tbody) return;
       var tr=document.createElement('tr');
       var no=document.createElement('td');
-      no.className='row-no op-rnum'; tr.appendChild(no);
+      no.className='row-no op-rnum stok-rn'; tr.appendChild(no);
       // Kolom sama dengan tabel utama (OP_COLS_ORDER)
       OP_COLS_ORDER.forEach(function(k){
         var td=document.createElement('td');
@@ -188,30 +188,7 @@ function initOpnamePage(){
             var row=this.closest('tr'); if(row){ _calcOpGdfgRow(row); _updateOpGdfgTotals(); }
           });
           td.addEventListener('keydown', function(e){ /* handled by _STOKInit */ });
-          td.addEventListener('mousedown', function(e){
-            var _td=this,startX=e.clientX,startY=e.clientY,moved=false;
-            function onMove(ev){
-              if(Math.abs(ev.clientX-startX)>4||Math.abs(ev.clientY-startY)>4){
-                moved=true;
-                if(!_opGDragging){
-                  _opGDragging=true;
-                  var ri=_opGTrIdx(_td.closest('tr')),ci=_opGTcIdx(_td);
-                  if(ci<0)ci=0;
-                  _opGSel={r1:ri,c1:ci,r2:ri,c2:ci};
-                  _opGApplySel();
-                  document.activeElement&&document.activeElement.blur();
-                }
-              }
-            }
-            function onUp(){
-              document.removeEventListener('mousemove',onMove);
-              document.removeEventListener('mouseup',onUp);
-              if(moved){ e.preventDefault(); var t2=document.getElementById('opnameTblGdfg'); if(t2)t2.focus(); }
-              else { _opGClearSel(); }
-            }
-            document.addEventListener('mousemove',onMove);
-            document.addEventListener('mouseup',onUp);
-          });
+          // mousedown (drag select) handled by _STOKInit
         } else { td.contentEditable='false'; }
         tr.appendChild(td);
       });
@@ -328,7 +305,7 @@ function initOpnamePage(){
     }
 
     // GDFG keyboard/selection helpers (mirror dari tabel utama)
-    function _opGOnFocus(td){ _opGClearSel(); }
+    function _opGOnFocus(td){ td.style.outline='none'; }
     function _opGAllTds(){ return Array.from(document.getElementById('opnameTbodyGdfg').querySelectorAll('tr')).map(function(tr){ return OP_COLS_ORDER.map(function(k){ return tr.querySelector('[data-col="'+k+'"]'); }); }); }
     function _opGTrIdx(tr){ return Array.from(document.getElementById('opnameTbodyGdfg').querySelectorAll('tr')).indexOf(tr); }
     function _opGTcIdx(td){ return OP_COLS_ORDER.indexOf(td.dataset.col||''); }
@@ -369,15 +346,7 @@ function initOpnamePage(){
         onAfterPaste:function(tr){ if(typeof _calcOpGdfgRow==='function') _calcOpGdfgRow(tr); if(typeof _updateOpGdfgTotals==='function') _updateOpGdfgTotals(); },
         onDelete:function(tr){ if(typeof _calcOpGdfgRow==='function') _calcOpGdfgRow(tr); }
       });
-      tbl.addEventListener('mouseup',function(){ if(_opGDragging){ _opGDragging=false; _opGApplySel(); } });
-      tbl.addEventListener('mousemove',function(e){
-        if(!_opGDragging) return;
-        var td=e.target.closest('td[data-col]'); if(!td) return;
-        _opGSel.r2=_opGTrIdx(td.closest('tr')); _opGSel.c2=_opGTcIdx(td);
-        _opGApplySel();
-      });
-      // Ctrl+C copy
-      // keydown Ctrl+C and paste handled by _STOKInit
+      // Drag select, klik nomor baris, keydown (Delete/Ctrl+C/Ctrl+A), paste — semua handled by _STOKInit
     }
 
     function _appendOpRow(vals){
@@ -385,7 +354,7 @@ function initOpnamePage(){
       var tbody=document.getElementById('opnameTbody');
       var tr=document.createElement('tr');
       var no=document.createElement('td');
-      no.className='row-no op-rnum'; tr.appendChild(no);
+      no.className='row-no op-rnum stok-rn'; tr.appendChild(no);
       OP_COLS_ORDER.forEach(function(k){
         var td=document.createElement('td');
         td.dataset.col=k;
@@ -1251,7 +1220,7 @@ function initOpnamePage(){
 
       // # row number
       var noTd = document.createElement('td');
-      noTd.className = 'row-no';
+      noTd.className = 'row-no stok-rn';
       tr.appendChild(noTd);
 
       // SKU
@@ -1824,7 +1793,7 @@ function initOpnamePage(){
       var v=vals||{};
       var tbody=document.getElementById('qtTbody');
       var tr=document.createElement('tr');
-      var noTd=document.createElement('td'); noTd.className='row-no'; tr.appendChild(noTd);
+      var noTd=document.createElement('td'); noTd.className='row-no stok-rn'; tr.appendChild(noTd);
 
       // SKU
       var tdSku=_mkQtTd(v.sku||'',true,'op-td'); tdSku.dataset.col='sku';
@@ -1903,25 +1872,7 @@ function initOpnamePage(){
         onAfterPaste:function(tr){ _qtLookupSku(tr); _updateQtStats(); },
         onDelete:function(tr){ _updateQtStats(); }
       });
-      tbody.addEventListener('mousedown',function(e){
-        var td=e.target.closest('td[data-col]'); if(!td) return;
-        var tr=td.closest('tr');
-        var ri=_qtTrIdx(tr), ci=_qtTcIdx(td);
-        if(ri<0||ci<0) return;
-        _qtClearSel();
-        _qtSel={r1:ri,c1:ci,r2:ri,c2:ci}; _qtDragging=true; _qtApplySel();
-      });
-      document.addEventListener('mousemove',function(e){
-        if(!_qtDragging) return;
-        var td=e.target.closest&&e.target.closest('td[data-col]'); if(!td||!td.closest('#qtTbody')) return;
-        var ri=_qtTrIdx(td.closest('tr')), ci=_qtTcIdx(td);
-        if(ri<0||ci<0) return;
-        var moved=ri!==_qtSel.r2||ci!==_qtSel.c2;
-        _qtSel.r2=ri; _qtSel.c2=ci;
-        if(moved){ tbl.focus(); _qtApplySel(); }
-      });
-      document.addEventListener('mouseup',function(){ _qtDragging=false; });
-      // keydown, paste now handled by _STOKInit
+      // Drag select, klik nomor baris, keydown (Delete/Ctrl+C/Ctrl+A), paste — semua handled by _STOKInit
       document.addEventListener('mousedown',function(e){
         var pg=document.getElementById('opnamePage'); if(!pg||pg.style.display==='none') return;
         if(tbl&&!tbl.contains(e.target)) _qtClearSel();
