@@ -883,6 +883,7 @@ function _applyChartZoom() {
       var SEL_CLS   = cfg.selClass || 'stok-sel';
       var sel       = {r1:-1,c1:-1,r2:-1,c2:-1};
       var dragging  = false;
+      var rowDragging = false; // true kalau drag dimulai dari kolom nomor baris (select 1 baris penuh)
       var fillDrag  = false;
       var fillAnchorR = -1, fillAnchorC = -1;
       // Expose updateCols agar caller bisa update cfg.cols saat tipe berubah
@@ -1127,6 +1128,20 @@ function _applyChartZoom() {
 
       // ── Mouse events ───────────────────────────
       tbody.addEventListener('mousedown',function(e){
+        // Klik di kolom nomor baris (class "stok-rn") → select 1 baris penuh,
+        // shift-klik extend ke banyak baris, drag ke bawah extend juga.
+        var rn=e.target.closest&&e.target.closest('.stok-rn');
+        if(rn){
+          var trRn=rn.closest('tr'); var riRn=trIdx(trRn); if(riRn<0) return;
+          e.preventDefault();
+          if(e.shiftKey && sel.r1>=0){
+            sel.r2=riRn; sel.c1=0; sel.c2=cfg.cols.length-1; applySel();
+            return;
+          }
+          clearSel(); sel={r1:riRn,c1:0,r2:riRn,c2:cfg.cols.length-1};
+          dragging=true; rowDragging=true; applySel();
+          return;
+        }
         var td=e.target.closest('td[data-col]'); if(!td) return;
         var ri=trIdx(td.closest('tr')), ci=tcIdx(td); if(ri<0||ci<0) return;
         if(e.shiftKey && sel.r1>=0){
@@ -1155,6 +1170,14 @@ function _applyChartZoom() {
           return;
         }
         // drag select
+        if(rowDragging){
+          var trRn2=e.target.closest&&(e.target.closest('.stok-rn')||e.target.closest('td[data-col]'));
+          trRn2=trRn2&&trRn2.closest('tr');
+          if(!trRn2||!trRn2.closest('#'+cfg.tbodyId)) return;
+          var riRn2=trIdx(trRn2);
+          if(riRn2!==sel.r2){ sel.r2=riRn2; applySel(); tbl.focus(); }
+          return;
+        }
         var td2=e.target.closest&&e.target.closest('td[data-col]');
         if(!td2||!td2.closest('#'+cfg.tbodyId)) return;
         var ri2=trIdx(td2.closest('tr')), ci2=tcIdx(td2); if(ri2<0||ci2<0) return;
@@ -1188,7 +1211,7 @@ function _applyChartZoom() {
           }
         }
         if(dragging){
-          dragging=false; showFillHandle();
+          dragging=false; rowDragging=false; showFillHandle();
           var multiSel=(Math.abs(sel.r2-sel.r1)>0||Math.abs(sel.c2-sel.c1)>0);
           if(multiSel) tbl.focus();
         }
@@ -1309,7 +1332,9 @@ function _applyChartZoom() {
       var s=document.createElement('style'); s.id='_stokStyle';
       s.textContent=
         '.stok-sel{background:#bfdbfe!important;}'+
-        '.stok-fill-preview{background:#dbeafe!important;outline:1px dashed #3b82f6;}';
+        '.stok-fill-preview{background:#dbeafe!important;outline:1px dashed #3b82f6;}'+
+        '.stok-rn{cursor:pointer;user-select:none;}'+
+        '.stok-rn:hover{background:#edf2f7;}';
       document.head.appendChild(s);
     })();
 
