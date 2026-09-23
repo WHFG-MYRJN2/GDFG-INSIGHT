@@ -3110,7 +3110,7 @@ function _mekRdBindTable(plant) {
   _STOKInit({
     tblId: 'mekRdTbl'+plant, tbodyId: 'mekRdTbody'+plant, cols: MEK_RD_COLS, autoCols: {}, selClass: 'stok-sel',
     appendRowFn: function(){ _mekRdAppendRow(plant, {}); },
-    onAfterPaste: function(tr){ _mekRdUpdateDetailBtnState(tr); }
+    onAfterPaste: function(tr){ _mekRdNormalizeSku(tr); _mekRdUpdateDetailBtnState(tr); }
   });
 }
 
@@ -3128,6 +3128,7 @@ function _mekRdRenumber(plant) {
 }
 
 function _mekRdDeleteRow(btn, plant) {
+  if (!confirm('Yakin mau hapus baris ini?')) return;
   var tr = btn.closest('tr');
   if (tr) tr.remove();
   _mekRdRenumber(plant);
@@ -3151,6 +3152,21 @@ function _mekRdUpdateDetailBtnState(tr) {
   btn.title = active ? 'Detail reservasi' : 'Isi Reserved Out (>0) dulu untuk input detail';
 }
 
+// Kode barang/SKU sering ke-paste dari Excel dengan angka 0 di depan (mis.
+// SKU aslinya "322064" tapi format sel Excel nya nyimpen "0322064") — SKU di
+// sheet/SAP gak pake 0 di depan, jadi kita buang biar match. Cuma buang 0 yang
+// diikuti digit lain (bukan SKU yang isinya cuma "0").
+function _mekRdStripSkuZero(s) {
+  return String(s||'').trim().replace(/^0+(?=\d)/, '');
+}
+
+function _mekRdNormalizeSku(tr) {
+  var td = tr && tr.querySelector('[data-col="sku"]');
+  if (!td) return;
+  var stripped = _mekRdStripSkuZero(td.textContent);
+  if (td.textContent.trim() !== stripped) td.textContent = stripped;
+}
+
 function _mekRdAppendRow(plant, vals) {
   var v = vals || {};
   var tbody = document.getElementById('mekRdTbody'+plant);
@@ -3166,17 +3182,24 @@ function _mekRdAppendRow(plant, vals) {
     td.contentEditable = 'true';
     td.spellcheck = false;
     td.style.cssText = 'padding:6px 8px;font-size:12px;' + (col!=='sku'&&col!=='nama' ? 'text-align:right;' : '');
-    if (v[col] !== undefined && v[col] !== null && v[col] !== '') td.textContent = v[col];
+    var val = v[col];
+    if (col === 'sku' && val) val = _mekRdStripSkuZero(val);
+    if (val !== undefined && val !== null && val !== '') td.textContent = val;
     if (col === 'reservedOut') {
       td.addEventListener('input', function(){ _mekRdUpdateDetailBtnState(tr); });
       td.addEventListener('blur',  function(){ _mekRdUpdateDetailBtnState(tr); });
+    }
+    if (col === 'sku') {
+      td.addEventListener('blur', function(){ _mekRdNormalizeSku(tr); });
     }
     tr.appendChild(td);
   });
   var tdAct = document.createElement('td');
   tdAct.style.cssText = 'text-align:center;white-space:nowrap;';
-  tdAct.innerHTML = '<button class="mek-rd-detail-btn" onclick="_mekRdOpenDetailFromRow(this,\''+plant+'\')" title="Detail reservasi" style="background:none;border:none;color:#2b6cb0;cursor:pointer;font-size:12px;padding:2px 5px;"><i class="fas fa-list"></i></button>'
-    + '<button onclick="_mekRdDeleteRow(this,\''+plant+'\')" title="Hapus baris" style="background:none;border:none;color:#fc8181;cursor:pointer;font-size:12px;padding:2px 5px;"><i class="fas fa-times"></i></button>';
+  // Jarak antara tombol Detail & Hapus dilebarin (margin-left di tombol Hapus)
+  // biar gak gampang salah pencet — sebelumnya mepet banget.
+  tdAct.innerHTML = '<button class="mek-rd-detail-btn" onclick="_mekRdOpenDetailFromRow(this,\''+plant+'\')" title="Detail reservasi" style="background:none;border:1px solid transparent;color:#2b6cb0;cursor:pointer;font-size:13px;padding:4px 7px;border-radius:5px;"><i class="fas fa-list"></i></button>'
+    + '<button onclick="_mekRdDeleteRow(this,\''+plant+'\')" title="Hapus baris" style="background:none;border:1px solid transparent;color:#fc8181;cursor:pointer;font-size:13px;padding:4px 7px;border-radius:5px;margin-left:10px;"><i class="fas fa-times"></i></button>';
   tr.appendChild(tdAct);
   tbody.appendChild(tr);
   _mekRdUpdateDetailBtnState(tr);
@@ -3309,6 +3332,7 @@ function _mekRdDetailRenumber() {
 }
 
 function _mekRdDetailDeleteRow(btn) {
+  if (!confirm('Yakin mau hapus baris ini?')) return;
   var tr = btn.closest('tr');
   if (tr) tr.remove();
   _mekRdDetailRenumber();
