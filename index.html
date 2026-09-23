@@ -2356,6 +2356,17 @@
         z-index:10;
         animation:mekRvPanelIn .22s ease;
       }
+      /* Tombol panah pas expanded: normalnya dia flex item yang duduk di
+         antara peta (60%) & list (40%). Begitu list jadi position:absolute
+         (poin di atas), tombol ini masih "nempel" di posisi lama itu (~60%
+         dari kiri, center vertikal) — jatuhnya malah nyangkut DI TENGAH
+         panel tabel yang sekarang lebar penuh, ketimpa konten tabel. Fix-nya
+         sama: keluarin dia juga dari flex flow pas expanded, pindah jadi
+         absolute nempel di pojok kanan-atas panel (di atas z-index list),
+         biar keliatan jelas & tetap gampang diklik buat balik/collapse. */
+      #monitoringEksporPage .mekrv-split.mekrv-expanded .mekrv-split-toggle{
+        position:absolute;top:10px;right:16px;z-index:12;flex:none;align-self:auto;
+      }
     }
     @keyframes mekRvPanelIn{
       from{ transform:translateX(28px); opacity:0; }
