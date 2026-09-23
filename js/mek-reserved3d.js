@@ -410,7 +410,17 @@ function _initScene() {
     _camera.top = viewSize; _camera.bottom = -viewSize;
     _camera.updateProjectionMatrix();
   }
-  window.addEventListener('resize', resize);
+  // ResizeObserver, bukan cuma window 'resize' — biar canvas ikut nyesuain
+  // pas CONTAINER-nya berubah ukuran (misal tombol lebarkan-tabel di Reserved
+  // View), bukan cuma pas window browser-nya sendiri di-resize. Browser
+  // nge-batch callback ResizeObserver ke 1x per frame, jadi aman dipanggil
+  // trus selama transisi CSS tanpa bikin lag.
+  if (window.ResizeObserver) {
+    var _ro = new ResizeObserver(function(){ resize(); });
+    _ro.observe(_canvas.parentElement || _canvas);
+  } else {
+    window.addEventListener('resize', resize);
+  }
   _resizeFn = resize;
   _camera.position.set(50,45,70);
 
