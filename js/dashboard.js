@@ -870,6 +870,10 @@ function _applyChartZoom() {
           selClass   : string  — CSS class untuk cell terselect
           onAfterPaste: fn(tr) — callback setelah paste per baris (opsional)
           onDelete   : fn(tr,col) — callback setelah delete cell (opsional)
+          appendRowFn: fn()    — nambah 1 baris kosong ke tbody (opsional, dipakai
+                        paste kalau data yang di-paste lebih banyak baris daripada
+                        yang ada; kalau gak di-set, fallback nebak nama fungsi
+                        global dari tbodyId — kurang reliable, sebisanya selalu isi)
         }
       */
       var tbl    = document.getElementById(cfg.tblId);
@@ -1015,8 +1019,12 @@ function _applyChartZoom() {
         var rows=text.split(/\r?\n/).filter(function(l,i,a){ return !(i===a.length-1&&l===''); });
         rows.forEach(function(rowStr,ri){
           while(allTrs().length<=startR+ri){
-            // Append kosong jika kurang baris — panggil fungsi append tabel masing-masing
-            var appendFn = window['_append'+cfg.tbodyId.charAt(0).toUpperCase()+cfg.tbodyId.slice(1).replace('Tbody','')+'Row']
+            // Append kosong jika kurang baris. cfg.appendRowFn (kalau di-set caller)
+            // dipakai duluan — jauh lebih tahan banting daripada nebak nama fungsi
+            // global dari tbodyId, yang gampang meleset kalau nama tbody gak persis
+            // ikut pola "xxxTbody" → "_appendXxxRow".
+            var appendFn = cfg.appendRowFn
+                        || window['_append'+cfg.tbodyId.charAt(0).toUpperCase()+cfg.tbodyId.slice(1).replace('Tbody','')+'Row']
                         || window['_append'+cfg.tbodyId.replace('Tbody','')+'Row']
                         || window['_append'+cfg.tbodyId.replace('tbody','').charAt(0).toUpperCase()+cfg.tbodyId.replace('tbody','').slice(1)+'Row'];
             if(appendFn) appendFn(); else break;
@@ -1334,7 +1342,14 @@ function _applyChartZoom() {
         '.stok-sel{background:#bfdbfe!important;}'+
         '.stok-fill-preview{background:#dbeafe!important;outline:1px dashed #3b82f6;}'+
         '.stok-rn{cursor:pointer;user-select:none;}'+
-        '.stok-rn:hover{background:#edf2f7;}';
+        // Hover pakai filter (bukan ganti background) — kalau row-no cell nya
+        // gelap+teks putih (kelas .row-no default), background flat kayak
+        // #edf2f7 bakal nimpa gradasi gelapnya tapi teks tetap putih → angka
+        // jadi nyaris gak keliatan pas mouse lewat/drag-select. filter:brightness
+        // cuma nge-terangin warna yang udah ada, jadi kontrasnya tetap aman
+        // apapun skin row-no nya (gelap atau terang).
+        '.stok-rn:hover{filter:brightness(1.18);}'+
+        '.stok-rn:active{filter:brightness(1.3);}';
       document.head.appendChild(s);
     })();
 
