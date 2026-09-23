@@ -2296,9 +2296,19 @@
     #monitoringEksporPage .mekrv-split-list{flex:1 1 auto;min-width:0;width:100%;}
     @media (orientation:landscape) and (min-width:760px){
       #monitoringEksporPage .mekrv-split{flex-direction:row;}
-      #monitoringEksporPage .mekrv-split-map{flex:1 1 60%;}
-      #monitoringEksporPage .mekrv-split-list{flex:1 1 40%;max-width:420px;max-height:700px;overflow-y:auto;}
+      #monitoringEksporPage .mekrv-split-map{flex:1 1 60%;transition:flex-basis .25s ease,filter .25s ease,opacity .25s ease;}
+      #monitoringEksporPage .mekrv-split-list{flex:1 1 40%;max-width:420px;max-height:700px;overflow-y:auto;transition:flex-basis .25s ease,max-width .25s ease;}
+      #monitoringEksporPage .mekrv-split-toggle{display:flex;align-self:center;flex:0 0 22px;align-items:center;justify-content:center;}
     }
+    #monitoringEksporPage .mekrv-split-toggle{display:none;}
+    #monitoringEksporPage .mekrv-split-toggle button{
+      width:22px;height:46px;border:1px solid #e2e8f0;background:#fff;border-radius:8px;cursor:pointer;
+      color:#4a5568;font-size:12px;display:flex;align-items:center;justify-content:center;
+      box-shadow:0 1px 4px rgba(0,0,0,.08);transition:background .15s,color .15s;
+    }
+    #monitoringEksporPage .mekrv-split-toggle button:hover{background:#edf2f7;color:#1a3a5c;}
+    #monitoringEksporPage .mekrv-split.mekrv-expanded .mekrv-split-map{flex:0 0 70px;min-width:70px;filter:blur(4px);opacity:.35;pointer-events:none;}
+    #monitoringEksporPage .mekrv-split.mekrv-expanded .mekrv-split-list{flex:1 1 auto;max-width:none;}
     #monitoringEksporPage .mek-card-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:14px;}
     #monitoringEksporPage .mek-card{background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:14px 16px;display:flex;align-items:center;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,.05);}
     #monitoringEksporPage .mek-card-ico{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;}
@@ -5019,9 +5029,17 @@
     <!-- ════ TAB INPUT PLANNING ════ -->
     <div id="mekInputPane" style="display:none;">
 
-      <!-- Langsung tampilkan panel Email (WA dan SI dihapus) -->
-
-
+      <!-- Sub-tab: Input Planning Ekspor / Input Planning Direct -->
+      <div style="display:flex;gap:0;background:#f7fafc;border-bottom:1px solid #e2e8f0;flex-shrink:0;">
+        <button id="mekInputSubEksporBtn" onclick="mekInputSwitchSub('ekspor')"
+          style="padding:8px 18px;font-size:12px;font-weight:700;border:none;background:none;cursor:pointer;color:#1a3a5c;border-bottom:3px solid #1a3a5c;margin-bottom:-1px;">
+          <i class="fas fa-envelope"></i> Input Planning Ekspor
+        </button>
+        <button id="mekInputSubDirectBtn" onclick="mekInputSwitchSub('direct')"
+          style="padding:8px 18px;font-size:12px;font-weight:700;border:none;background:none;cursor:pointer;color:#718096;border-bottom:3px solid transparent;margin-bottom:-1px;">
+          <i class="fas fa-boxes-stacked"></i> Input Planning Direct
+        </button>
+      </div>
 
       <!-- ════ PANEL EMAIL ════ -->
       <div id="mekEmailPanel" style="display:flex;height:calc(100vh - 112px);overflow:hidden;flex-direction:column;" onpaste="mekHandleEmailPaste(event)">
@@ -5091,7 +5109,137 @@
 
       </div><!-- /mekEmailPanel -->
 
+      <!-- ════ PANEL RESERVED DIRECT ════ -->
+      <div id="mekReservedDirectPanel" style="display:none;height:calc(100vh - 150px);overflow:auto;-webkit-overflow-scrolling:touch;padding:14px 0;">
+
+        <div style="margin:0 14px 12px;font-size:11px;color:#718096;">
+          <i class="fas fa-info-circle"></i> Ketik langsung atau <b>Ctrl+V</b> paste dari Excel. Klik <i class="fas fa-list"></i> di baris SKU buat isi detail reservasi (Deliv Date/Status/MRP/Customer/Qty). Simpan tiap plant terpisah — data hari ini akan menimpa data yang disimpan hari ini juga, data hari-hari sebelumnya tetap tersimpan sebagai histori.
+        </div>
+
+        <!-- PLANT 1111 -->
+        <div class="mek-rd-plant-block" style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;margin:0 14px 16px;overflow:hidden;">
+          <div style="padding:10px 14px;background:linear-gradient(90deg,#1a3a5c,#2b6cb0);color:#fff;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <span style="font-size:13px;font-weight:800;letter-spacing:.3px;"><i class="fas fa-industry"></i> PLANT 1111</span>
+            <span id="mekRd1111Tgl" style="font-size:10px;opacity:.85;">Belum ada data tersimpan</span>
+            <div style="margin-left:auto;display:flex;gap:6px;">
+              <button onclick="_mekRdAddRow('1111')" style="padding:5px 12px;border-radius:7px;border:1px solid rgba(255,255,255,.4);background:rgba(255,255,255,.15);color:#fff;font-size:11px;font-weight:700;cursor:pointer;"><i class="fas fa-plus"></i> Baris</button>
+              <button onclick="mekSaveReservedDirect('1111')" style="padding:5px 14px;border-radius:7px;border:none;background:#fff;color:#1a3a5c;font-size:11px;font-weight:800;cursor:pointer;"><i class="fas fa-save"></i> Simpan</button>
+            </div>
+          </div>
+          <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+            <table id="mekRdTbl1111" class="mek-plan-tbl" style="min-width:920px;">
+              <thead><tr>
+                <th style="width:28px;text-align:center;">#</th>
+                <th style="min-width:110px;">SKU</th>
+                <th style="min-width:220px;">NAMA BARANG</th>
+                <th style="min-width:90px;text-align:right;">BUFFER</th>
+                <th style="min-width:100px;text-align:right;">STOCK PHISIK</th>
+                <th style="min-width:100px;text-align:right;">RESERVED IN</th>
+                <th style="min-width:100px;text-align:right;">RESERVED OUT</th>
+                <th style="min-width:100px;text-align:right;">STOCK ENDING</th>
+                <th style="width:56px;"></th>
+              </tr></thead>
+              <tbody id="mekRdTbody1111"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- PLANT 1112 -->
+        <div class="mek-rd-plant-block" style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;margin:0 14px 16px;overflow:hidden;">
+          <div style="padding:10px 14px;background:linear-gradient(90deg,#1a3a5c,#2b6cb0);color:#fff;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <span style="font-size:13px;font-weight:800;letter-spacing:.3px;"><i class="fas fa-industry"></i> PLANT 1112</span>
+            <span id="mekRd1112Tgl" style="font-size:10px;opacity:.85;">Belum ada data tersimpan</span>
+            <div style="margin-left:auto;display:flex;gap:6px;">
+              <button onclick="_mekRdAddRow('1112')" style="padding:5px 12px;border-radius:7px;border:1px solid rgba(255,255,255,.4);background:rgba(255,255,255,.15);color:#fff;font-size:11px;font-weight:700;cursor:pointer;"><i class="fas fa-plus"></i> Baris</button>
+              <button onclick="mekSaveReservedDirect('1112')" style="padding:5px 14px;border-radius:7px;border:none;background:#fff;color:#1a3a5c;font-size:11px;font-weight:800;cursor:pointer;"><i class="fas fa-save"></i> Simpan</button>
+            </div>
+          </div>
+          <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+            <table id="mekRdTbl1112" class="mek-plan-tbl" style="min-width:920px;">
+              <thead><tr>
+                <th style="width:28px;text-align:center;">#</th>
+                <th style="min-width:110px;">SKU</th>
+                <th style="min-width:220px;">NAMA BARANG</th>
+                <th style="min-width:90px;text-align:right;">BUFFER</th>
+                <th style="min-width:100px;text-align:right;">STOCK PHISIK</th>
+                <th style="min-width:100px;text-align:right;">RESERVED IN</th>
+                <th style="min-width:100px;text-align:right;">RESERVED OUT</th>
+                <th style="min-width:100px;text-align:right;">STOCK ENDING</th>
+                <th style="width:56px;"></th>
+              </tr></thead>
+              <tbody id="mekRdTbody1112"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- PLANT 1113 -->
+        <div class="mek-rd-plant-block" style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;margin:0 14px 16px;overflow:hidden;">
+          <div style="padding:10px 14px;background:linear-gradient(90deg,#1a3a5c,#2b6cb0);color:#fff;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <span style="font-size:13px;font-weight:800;letter-spacing:.3px;"><i class="fas fa-industry"></i> PLANT 1113</span>
+            <span id="mekRd1113Tgl" style="font-size:10px;opacity:.85;">Belum ada data tersimpan</span>
+            <div style="margin-left:auto;display:flex;gap:6px;">
+              <button onclick="_mekRdAddRow('1113')" style="padding:5px 12px;border-radius:7px;border:1px solid rgba(255,255,255,.4);background:rgba(255,255,255,.15);color:#fff;font-size:11px;font-weight:700;cursor:pointer;"><i class="fas fa-plus"></i> Baris</button>
+              <button onclick="mekSaveReservedDirect('1113')" style="padding:5px 14px;border-radius:7px;border:none;background:#fff;color:#1a3a5c;font-size:11px;font-weight:800;cursor:pointer;"><i class="fas fa-save"></i> Simpan</button>
+            </div>
+          </div>
+          <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+            <table id="mekRdTbl1113" class="mek-plan-tbl" style="min-width:920px;">
+              <thead><tr>
+                <th style="width:28px;text-align:center;">#</th>
+                <th style="min-width:110px;">SKU</th>
+                <th style="min-width:220px;">NAMA BARANG</th>
+                <th style="min-width:90px;text-align:right;">BUFFER</th>
+                <th style="min-width:100px;text-align:right;">STOCK PHISIK</th>
+                <th style="min-width:100px;text-align:right;">RESERVED IN</th>
+                <th style="min-width:100px;text-align:right;">RESERVED OUT</th>
+                <th style="min-width:100px;text-align:right;">STOCK ENDING</th>
+                <th style="width:56px;"></th>
+              </tr></thead>
+              <tbody id="mekRdTbody1113"></tbody>
+            </table>
+          </div>
+        </div>
+
+      </div><!-- /mekReservedDirectPanel -->
+
     </div><!-- /mekInputPane -->
+
+    <!-- ════ MODAL DETAIL RESERVED PER SKU ════ -->
+    <div id="mekRdDetailModal" style="display:none;position:fixed;inset:0;background:rgba(15,32,39,.55);z-index:3000;align-items:center;justify-content:center;padding:20px;">
+      <div style="background:#fff;border-radius:12px;max-width:1050px;width:100%;max-height:88vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.3);">
+        <div style="padding:14px 18px;background:linear-gradient(90deg,#1a3a5c,#2b6cb0);color:#fff;display:flex;align-items:center;gap:10px;border-radius:12px 12px 0 0;flex-wrap:wrap;">
+          <div>
+            <div style="font-size:13px;font-weight:800;">Detail Reserved &mdash; <span id="mekRdDetailSku">-</span></div>
+            <div id="mekRdDetailSub" style="font-size:10px;opacity:.85;"></div>
+          </div>
+          <div style="margin-left:auto;display:flex;gap:6px;">
+            <button onclick="_mekRdDetailAddRow()" style="padding:5px 12px;border-radius:7px;border:1px solid rgba(255,255,255,.4);background:rgba(255,255,255,.15);color:#fff;font-size:11px;font-weight:700;cursor:pointer;"><i class="fas fa-plus"></i> Baris</button>
+            <button onclick="mekSaveReservedDirectDetail()" style="padding:5px 14px;border-radius:7px;border:none;background:#fff;color:#1a3a5c;font-size:11px;font-weight:800;cursor:pointer;"><i class="fas fa-save"></i> Simpan</button>
+            <button onclick="mekCloseRdDetail()" style="padding:5px 10px;border-radius:7px;border:1px solid rgba(255,255,255,.4);background:none;color:#fff;font-size:13px;cursor:pointer;" title="Tutup"><i class="fas fa-times"></i></button>
+          </div>
+        </div>
+        <div style="padding:10px 14px 0;font-size:11px;color:#718096;">
+          <i class="fas fa-info-circle"></i> Ketik langsung atau Ctrl+V paste dari Excel. Kolom <b>Qty Reserved</b> otomatis dijadikan angka positif (absolut) walau sumber datanya minus.
+        </div>
+        <div style="overflow-x:auto;padding:10px 14px 14px;-webkit-overflow-scrolling:touch;">
+          <table id="mekRdDetailTbl" class="mek-plan-tbl" style="min-width:1000px;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.06);">
+            <thead><tr>
+              <th style="width:28px;text-align:center;">#</th>
+              <th style="min-width:110px;">DELIV DATE</th>
+              <th style="min-width:100px;">STATUS</th>
+              <th style="min-width:80px;"></th>
+              <th style="min-width:80px;"></th>
+              <th style="min-width:90px;">MRP</th>
+              <th style="min-width:110px;">CUSTOMER CODE</th>
+              <th style="min-width:200px;">CUSTOMER NAME</th>
+              <th style="min-width:110px;text-align:right;">QTY RESERVED</th>
+              <th style="width:28px;"></th>
+            </tr></thead>
+            <tbody id="mekRdDetailTbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
 
     <!-- ════ TAB PLANNING ════ -->
     <div id="mekPlanningPane" style="display:none;height:calc(100vh - 112px);overflow:hidden;flex-direction:column;">
@@ -5244,6 +5392,16 @@
         </div>
       </div>
 
+      <!-- Filter tipe reservasi — ALL/EKSPOR/DIRECT sudah jalan, RDC/MDC/MT nyusul -->
+      <div id="mekRvTipeBar" style="display:flex;gap:6px;flex-wrap:wrap;padding:10px 14px 0;flex-shrink:0;">
+        <button id="mekRvTipeAll"    class="mek-tab-btn active" onclick="mekRvSetTipe('all')"    style="padding:5px 12px;font-size:11px;">ALL</button>
+        <button id="mekRvTipeEkspor" class="mek-tab-btn"        onclick="mekRvSetTipe('ekspor')" style="padding:5px 12px;font-size:11px;">EKSPOR</button>
+        <button id="mekRvTipeDirect" class="mek-tab-btn"        onclick="mekRvSetTipe('direct')" style="padding:5px 12px;font-size:11px;">DIRECT</button>
+        <button id="mekRvTipeRdc"    class="mek-tab-btn"        onclick="mekRvSetTipe('rdc')"    style="padding:5px 12px;font-size:11px;">RDC</button>
+        <button id="mekRvTipeMdc"    class="mek-tab-btn"        onclick="mekRvSetTipe('mdc')"    style="padding:5px 12px;font-size:11px;">MDC</button>
+        <button id="mekRvTipeMt"     class="mek-tab-btn"        onclick="mekRvSetTipe('mt')"     style="padding:5px 12px;font-size:11px;">MT</button>
+      </div>
+
       <!-- Filter bar (sama kaya tab Kesiapan Stock) — filter list "Reserved Stock
            Monitoring" di bawah; peta 3D/2D tetap nampilin semua lokasi. -->
       <div id="mekRvFilterBar" class="real-filter-bar" style="flex-shrink:0;">
@@ -5272,7 +5430,11 @@
           <option value="h12_24">12 – 24 jam</option>
           <option value="gt24">&gt; 24 jam (Delay)</option>
         </select>
-        <button onclick="document.getElementById('mekRvFilterSku').value='';document.getElementById('mekRvFilterNoSo').value='';document.getElementById('mekRvFilterTujuan').value='';document.getElementById('mekRvFilterPlant').value='';document.getElementById('mekRvFilterAging').value='';_mekRvApplyRowFilter();"
+        <label style="display:flex;align-items:center;gap:5px;cursor:pointer;user-select:none;font-weight:600;">
+          <input type="checkbox" id="mekRvShowClosedToggle" onchange="_mekRvApplyRowFilter()" style="width:14px;height:14px;cursor:pointer;">
+          Tampilkan yang closed
+        </label>
+        <button onclick="document.getElementById('mekRvFilterSku').value='';document.getElementById('mekRvFilterNoSo').value='';document.getElementById('mekRvFilterTujuan').value='';document.getElementById('mekRvFilterPlant').value='';document.getElementById('mekRvFilterAging').value='';document.getElementById('mekRvShowClosedToggle').checked=false;_mekRvApplyRowFilter();"
           style="padding:6px 12px;border-radius:8px;border:1px solid #e2e8f0;background:#fff;font-size:12px;font-weight:600;cursor:pointer;color:#718096;">
           <i class="fas fa-times"></i> Reset
         </button>
@@ -5333,14 +5495,14 @@
             <div style="display:flex;gap:4px;">
               <button id="mekRvModeSimpleBtn" onclick="mekRvSetMode('simple')" class="mek-tab-btn" style="padding:5px 10px;font-size:11px;">2D Simple</button>
               <button id="mekRvModeAktualBtn" onclick="mekRvSetMode('aktual')" class="mek-tab-btn" style="padding:5px 10px;font-size:11px;">2D Aktual</button>
-              <button id="mekRvMode3dBtn" onclick="mekRvSetMode('3d')" class="mek-tab-btn active" style="padding:5px 10px;font-size:11px;">3D</button>
-              <button id="mekRvModeAktual3dBtn" onclick="mekRvSetMode('aktual3d')" class="mek-tab-btn" style="padding:5px 10px;font-size:11px;">3D Aktual</button>
+              <button id="mekRvMode3dBtn" onclick="mekRvSetMode('3d')" class="mek-tab-btn" style="padding:5px 10px;font-size:11px;">3D</button>
+              <button id="mekRvModeAktual3dBtn" onclick="mekRvSetMode('aktual3d')" class="mek-tab-btn active" style="padding:5px 10px;font-size:11px;">3D Aktual</button>
             </div>
           </div>
 
           <div id="mekRv2dSimpleWrap" style="display:none;overflow:auto;padding:8px 2px;"></div>
           <div id="mekRv2dAktualWrap" style="display:none;overflow:auto;padding:8px 2px;"></div>
-          <div id="mekRv3dWrap" style="position:relative;width:100%;height:640px;background:#f8fafc;border-radius:8px;overflow:hidden;">
+          <div id="mekRv3dWrap" style="display:none;position:relative;width:100%;height:640px;background:#f8fafc;border-radius:8px;overflow:hidden;">
             <canvas id="mekRv3dCanvas" style="width:100%;height:100%;display:block;"></canvas>
             <div id="mekRv3dTooltip" style="display:none;position:absolute;pointer-events:none;background:#1a202c;color:#fff;font-size:11px;padding:6px 10px;border-radius:6px;max-width:220px;z-index:10;"></div>
             <div id="mekRv3dLoading" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#a0aec0;font-size:12px;">
@@ -5372,11 +5534,17 @@
               <div id="mekRv3dPopupBody" style="padding:8px 10px;font-size:11px;line-height:1.6;"></div>
             </div>
           </div>
-          <div id="mekRvAktual3dChips" style="display:none;flex-wrap:wrap;gap:6px;margin:2px 0 8px;"></div>
-          <div id="mekRv3dAktualWrap" style="display:none;overflow:auto;padding:8px 2px;"></div>
+          <div id="mekRvAktual3dChips" style="display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 8px;"></div>
+          <div id="mekRv3dAktualWrap" style="display:block;overflow:auto;padding:8px 2px;"></div>
           <div style="text-align:right;font-size:10px;color:#a0aec0;margin-top:4px;">Tap sel = detail · (mode 3D: drag = rotate, scroll = zoom · mode 3D Aktual: pilih rak buat lihat detail per-posisi)</div>
         </div>
         </div><!-- /mekrv-split-map -->
+
+        <div class="mekrv-split-toggle">
+          <button id="mekRvExpandBtn" onclick="mekRvToggleExpand()" title="Lebarkan tabel">
+            <i class="fas fa-chevron-left"></i>
+          </button>
+        </div>
 
         <div class="mekrv-split-list">
         <div style="font-size:12px;font-weight:800;color:#718096;text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px;">Reserved Stock Monitoring</div>
