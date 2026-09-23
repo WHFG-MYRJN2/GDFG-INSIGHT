@@ -597,19 +597,41 @@ function mekLoadReservedView() {
   // nunggu data reservasi selesai dulu — mode 3D/3D Aktual butuh dua-duanya,
   // jadi kalau serial (satu abis satu) loading-nya numpuk 2x round-trip GAS.
   _mekRvLoadGroupsThen(function(){});
-  API.run('getMekReservedMap', { showAll: _mekRvShowAll }, function(res) {
+
+  // Ambil rows DIRECT paralel juga (bukan nunggu getMekReservedMap kelar dulu).
+  // includeClosed selalu true di sini — toggle "tampilkan yang closed" di UI
+  // memfilter di client (_mekRvApplyRowFilter), jadi datanya cukup ditarik sekali.
+  var mekRes = null, directRows = null, doneCount = 0;
+  function tryRender() {
+    doneCount++;
+    if (doneCount < 2) return;
     done();
-    if (!res || !res.success) {
+    if (!mekRes || !mekRes.success) {
       var listEl = document.getElementById('mekRvList');
-      if (listEl) listEl.innerHTML = '<div style="text-align:center;padding:30px;color:#c53030;font-size:12px;">Gagal memuat data: ' + _mekEsc((res && res.message) || 'unknown') + '</div>';
+      if (listEl) listEl.innerHTML = '<div style="text-align:center;padding:30px;color:#c53030;font-size:12px;">Gagal memuat data: ' + _mekEsc((mekRes && mekRes.message) || 'unknown') + '</div>';
       return;
     }
-    _mekReservedData = res;
-    _mekRenderReservedView(res);
+    if (directRows && directRows.length) {
+      mekRes.rows = (mekRes.rows || []).concat(directRows);
+    }
+    _mekReservedData = mekRes;
+    _mekRenderReservedView(mekRes);
+  }
+
+  API.run('getMekReservedMap', { showAll: _mekRvShowAll }, function(res) {
+    mekRes = res;
+    tryRender();
   }, function(err) {
-    done();
-    var listEl = document.getElementById('mekRvList');
-    if (listEl) listEl.innerHTML = '<div style="text-align:center;padding:30px;color:#c53030;font-size:12px;">Gagal memuat data (koneksi)</div>';
+    mekRes = { success:false, message:'koneksi' };
+    tryRender();
+  });
+
+  API.run('getMekReservedDirectForView', { includeClosed: true }, function(res) {
+    directRows = (res && res.success && res.rows) || [];
+    tryRender();
+  }, function(err) {
+    directRows = [];
+    tryRender();
   });
 }
 
@@ -631,7 +653,7 @@ function _mekReservedFmtHours(h) {
 // fisik asli, PETA2D_CELLS/PETA2D_TBINS/PETA2D_LABELS untuk Aktual,
 // PETA_MAP_ROWS untuk Simple), warna di-swap ke status reservasi ──
 var _mekRvBinAgg = {};
-var _mekRvMode = '3d';
+var _mekRvMode = 'aktual3d'; // default tampilan Reserved View = 3D Aktual (bukan 3D Rotate)
 
 var MEKRV_MAP_ROWS = [
   {rows:[{l:'A',max:28}]}, null,
@@ -652,6 +674,20 @@ function _mekRvColorClass(agg) {
   if (!agg || agg.totalKarton <= 0) return 'mekrv-empty';
   if (agg.totalReserved <= 0) return 'mekrv-avail';
   return agg.hasLongWait ? 'mekrv-longwait' : 'mekrv-reserved';
+}
+
+// Tombol panah antara peta & tabel — lebarkan tabel ke arah peta (peta di-blur/redup,
+// bukan disembunyikan total) biar semua kolom "Reserved Stock Monitoring" keliatan
+// tanpa perlu scroll ke samping.
+function mekRvToggleExpand() {
+  var wrap = document.querySelector('#monitoringEksporPage .mekrv-split');
+  if (!wrap) return;
+  var expanded = wrap.classList.toggle('mekrv-expanded');
+  var btn = document.getElementById('mekRvExpandBtn');
+  if (btn) {
+    btn.innerHTML = '<i class="fas fa-chevron-' + (expanded ? 'right' : 'left') + '"></i>';
+    btn.title = expanded ? 'Tampilkan peta' : 'Lebarkan tabel';
+  }
 }
 
 function mekRvSetMode(mode) {
@@ -1694,6 +1730,9 @@ function _mekRvApplyRowFilter() {
   var tujuanF = ((document.getElementById('mekRvFilterTujuan') ||{}).value||'').toLowerCase().trim();
   var plantF  = ((document.getElementById('mekRvFilterPlant')  ||{}).value||'').toLowerCase().trim();
   var agingF  = ((document.getElementById('mekRvFilterAging')  ||{}).value||'').trim();
+  var tipeSet = _mekRvTipeSet || {};
+  var isAllTipe = Object.keys(tipeSet).length === 0;
+  var showClosed = !!((document.getElementById('mekRvShowClosedToggle')||{}).checked);
 
   var rows = raw.filter(function(r){
     if (skuF && (r.sku||'').toLowerCase().indexOf(skuF) < 0 && (r.nama||'').toLowerCase().indexOf(skuF) < 0) return false;
@@ -1705,9 +1744,11 @@ function _mekRvApplyRowFilter() {
       return false;
     }
     if (agingF && r.tier !== agingF) return false;
+    if (!isAllTipe && !tipeSet[r.sourceType||'ekspor']) return false;
+    if (r.closed && !showClosed) return false;
     return true;
   });
-  _mekRvRenderRowsList(rows, !!(skuF || noSoF || tujuanF || plantF || agingF));
+  _mekRvRenderRowsList(rows, !!(skuF || noSoF || tujuanF || plantF || agingF || !isAllTipe));
 }
 
 // Recalculate KPI "Reserved" / "Container Waiting" / "Longest Waiting" dari rows
@@ -1826,16 +1867,17 @@ function _mekRvRenderRowsList(rows, filterActive) {
     + '</tr>';
   }).join('');
 
-  listEl.innerHTML = '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid #e2e8f0;border-radius:10px;">'
+  var thStyle = 'text-align:left;padding:8px 10px;font-size:10px;color:#718096;text-transform:uppercase;background:#f8fafc;border-bottom:2px solid #e2e8f0;position:sticky;top:0;z-index:2;';
+  listEl.innerHTML = '<div style="overflow:auto;max-height:560px;-webkit-overflow-scrolling:touch;border:1px solid #e2e8f0;border-radius:10px;">'
     + '<table style="width:100%;min-width:640px;border-collapse:collapse;background:#fff;">'
       + '<thead><tr>'
-        + '<th style="text-align:left;padding:8px 10px;font-size:10px;color:#718096;text-transform:uppercase;background:#f8fafc;border-bottom:2px solid #e2e8f0;">SKU</th>'
-        + '<th style="text-align:left;padding:8px 10px;font-size:10px;color:#718096;text-transform:uppercase;background:#f8fafc;border-bottom:2px solid #e2e8f0;">No. SO (DO)</th>'
-        + '<th style="text-align:left;padding:8px 10px;font-size:10px;color:#718096;text-transform:uppercase;background:#f8fafc;border-bottom:2px solid #e2e8f0;">Tgl Planning</th>'
-        + '<th style="text-align:right;padding:8px 10px;font-size:10px;color:#718096;text-transform:uppercase;background:#f8fafc;border-bottom:2px solid #e2e8f0;">Qty Reserved</th>'
-        + '<th style="text-align:center;padding:8px 10px;font-size:10px;color:#718096;text-transform:uppercase;background:#f8fafc;border-bottom:2px solid #e2e8f0;">Container Status</th>'
-        + '<th style="text-align:left;padding:8px 10px;font-size:10px;color:#718096;text-transform:uppercase;background:#f8fafc;border-bottom:2px solid #e2e8f0;">Waiting Time</th>'
-        + '<th style="text-align:left;padding:8px 10px;font-size:10px;color:#718096;text-transform:uppercase;background:#f8fafc;border-bottom:2px solid #e2e8f0;">Tujuan</th>'
+        + '<th style="' + thStyle + '">SKU</th>'
+        + '<th style="' + thStyle + '">No. SO (DO)</th>'
+        + '<th style="' + thStyle + '">Tgl Planning</th>'
+        + '<th style="' + thStyle + 'text-align:right;">Qty Reserved</th>'
+        + '<th style="' + thStyle + 'text-align:center;">Container Status</th>'
+        + '<th style="' + thStyle + '">Waiting Time</th>'
+        + '<th style="' + thStyle + '">Tujuan</th>'
       + '</tr></thead>'
       + '<tbody>' + rowsHtml + '</tbody>'
     + '</table>'
@@ -3038,6 +3080,250 @@ function _mekCollectManualRows() {
       source:'EMAIL', _isFirst:true, _groupSize:1 });
   });
   return rows;
+}
+
+// ══════════════════════════════════════════════════════════════
+// TAB INPUT PLANNING DIRECT / RESERVED DIRECT — 3 tabel plant
+// (1111/1112/1113), masing-masing pakai _STOKInit. Simpan ke sheet
+// "RESERVED DIRECT" (ringkasan) & "RESERVED DIRECT DETAIL" (per-SKU),
+// snapshot harian (ditimpa kalau save ulang di hari yang sama).
+// ══════════════════════════════════════════════════════════════
+var _mekInputSub = 'ekspor';
+var _mekRdInited = false;
+var MEK_RD_PLANTS = ['1111','1112','1113'];
+var MEK_RD_COLS = ['sku','nama','buffer','stockPhisik','reservedIn','reservedOut','stockEnding'];
+
+function mekInputSwitchSub(sub) {
+  _mekInputSub = sub;
+  var btnE = document.getElementById('mekInputSubEksporBtn');
+  var btnD = document.getElementById('mekInputSubDirectBtn');
+  var panE = document.getElementById('mekEmailPanel');
+  var panD = document.getElementById('mekReservedDirectPanel');
+  if (btnE) { btnE.style.color = sub==='ekspor'?'#1a3a5c':'#718096'; btnE.style.borderBottomColor = sub==='ekspor'?'#1a3a5c':'transparent'; }
+  if (btnD) { btnD.style.color = sub==='direct'?'#1a3a5c':'#718096'; btnD.style.borderBottomColor = sub==='direct'?'#1a3a5c':'transparent'; }
+  if (panE) panE.style.display = sub==='ekspor' ? 'flex' : 'none';
+  if (panD) panD.style.display = sub==='direct' ? 'block' : 'none';
+  if (sub === 'direct' && !_mekRdInited) { _mekRdInited = true; mekLoadReservedDirectAll(); }
+}
+
+function _mekRdBindTable(plant) {
+  _STOKInit({
+    tblId: 'mekRdTbl'+plant, tbodyId: 'mekRdTbody'+plant, cols: MEK_RD_COLS, autoCols: {}, selClass: 'mek-rd-sel-'+plant
+  });
+}
+
+function _mekRdAppendRow(plant, vals) {
+  var v = vals || {};
+  var tbody = document.getElementById('mekRdTbody'+plant);
+  if (!tbody) return;
+  var tr = document.createElement('tr');
+  var tdNo = document.createElement('td');
+  tdNo.className = 'row-no stok-rn';
+  tr.appendChild(tdNo);
+  MEK_RD_COLS.forEach(function(col){
+    var td = document.createElement('td');
+    td.dataset.col = col;
+    td.contentEditable = 'true';
+    td.spellcheck = false;
+    td.style.cssText = 'padding:6px 8px;font-size:12px;' + (col!=='sku'&&col!=='nama' ? 'text-align:right;' : '');
+    if (v[col] !== undefined && v[col] !== null && v[col] !== '') td.textContent = v[col];
+    tr.appendChild(td);
+  });
+  var tdAct = document.createElement('td');
+  tdAct.style.cssText = 'text-align:center;white-space:nowrap;';
+  tdAct.innerHTML = '<button onclick="_mekRdOpenDetailFromRow(this,\''+plant+'\')" title="Detail reservasi" style="background:none;border:none;color:#2b6cb0;cursor:pointer;font-size:12px;padding:2px 5px;"><i class="fas fa-list"></i></button>'
+    + '<button onclick="this.closest(\'tr\').remove();" title="Hapus baris" style="background:none;border:none;color:#fc8181;cursor:pointer;font-size:12px;padding:2px 5px;"><i class="fas fa-times"></i></button>';
+  tr.appendChild(tdAct);
+  tbody.appendChild(tr);
+}
+
+function _mekRdAddRow(plant) {
+  for (var i=0;i<5;i++) _mekRdAppendRow(plant, {});
+}
+
+function _mekRdOpenDetailFromRow(btn, plant) {
+  var tr = btn.closest('tr');
+  var skuTd = tr.querySelector('[data-col="sku"]');
+  var sku = skuTd ? skuTd.textContent.trim() : '';
+  if (!sku) { showToast('Isi SKU dulu di baris ini', 'warning'); return; }
+  mekRdOpenDetail(plant, sku);
+}
+
+function mekLoadReservedDirectAll() {
+  MEK_RD_PLANTS.forEach(function(p){
+    var tbody = document.getElementById('mekRdTbody'+p);
+    if (tbody) tbody.innerHTML = '';
+  });
+  API.run('getMekReservedDirectAll', {}, function(res) {
+    if (!res || !res.success) {
+      showToast('Gagal memuat data Reserved Direct', 'error');
+      MEK_RD_PLANTS.forEach(function(p){ _mekRdAddRow(p); _mekRdBindTable(p); });
+      return;
+    }
+    MEK_RD_PLANTS.forEach(function(p){
+      var d = (res.data && res.data[p]) || { tanggal:'', rows:[] };
+      var tglEl = document.getElementById('mekRd'+p+'Tgl');
+      if (tglEl) tglEl.textContent = d.tanggal ? ('Tersimpan terakhir: ' + _mekFmtTglDisplay(d.tanggal)) : 'Belum ada data tersimpan';
+      var rows = d.rows || [];
+      if (!rows.length) rows = [{}];
+      rows.forEach(function(r){ _mekRdAppendRow(p, r); });
+      for (var i=0;i<3;i++) _mekRdAppendRow(p, {});
+      _mekRdBindTable(p);
+    });
+  }, function(err) {
+    showToast('Gagal memuat data Reserved Direct (koneksi)', 'error');
+    MEK_RD_PLANTS.forEach(function(p){ _mekRdAddRow(p); _mekRdBindTable(p); });
+  });
+}
+
+function mekSaveReservedDirect(plant) {
+  var tbody = document.getElementById('mekRdTbody'+plant);
+  if (!tbody) return;
+  var rows = [];
+  Array.from(tbody.rows).forEach(function(tr){
+    function g(col){ var el=tr.querySelector('[data-col="'+col+'"]'); return el?el.textContent.trim():''; }
+    var sku = g('sku');
+    if (!sku) return;
+    rows.push({ sku:sku, nama:g('nama'), buffer:g('buffer'), stockPhisik:g('stockPhisik'), reservedIn:g('reservedIn'), reservedOut:g('reservedOut'), stockEnding:g('stockEnding') });
+  });
+  if (!rows.length) { showToast('Belum ada SKU yang diisi', 'warning'); return; }
+  API.run('saveMekReservedDirectHeader', { plant: plant, rows: rows }, function(res) {
+    if (res && res.success) {
+      showToast(res.message || 'Tersimpan', 'success');
+      var tglEl = document.getElementById('mekRd'+plant+'Tgl');
+      if (tglEl) tglEl.textContent = 'Tersimpan terakhir: ' + _mekFmtTglDisplay(new Date().toISOString().slice(0,10));
+    } else {
+      showToast('Gagal simpan: ' + ((res&&res.message)||'unknown'), 'error');
+    }
+  }, function(err) {
+    showToast('Gagal simpan (koneksi)', 'error');
+  });
+}
+
+var _mekRdDetailCtx = { plant:'', sku:'' };
+var MEK_RD_DETAIL_COLS = ['delivDate','status','kosong1','kosong2','mrp','custCode','custName','qtyReserved'];
+
+function mekRdOpenDetail(plant, sku) {
+  _mekRdDetailCtx = { plant: plant, sku: sku };
+  document.getElementById('mekRdDetailSku').textContent = sku;
+  document.getElementById('mekRdDetailSub').textContent = 'Plant ' + plant;
+  var tbody = document.getElementById('mekRdDetailTbody');
+  if (tbody) tbody.innerHTML = '';
+  var modal = document.getElementById('mekRdDetailModal');
+  if (modal) modal.style.display = 'flex';
+
+  API.run('getMekReservedDirectDetail', { plant: plant, sku: sku }, function(res) {
+    var rows = (res && res.success && res.data) || [];
+    if (!rows.length) rows = [{}];
+    rows.forEach(function(r){ _mekRdDetailAppendRow(r); });
+    for (var i=0;i<3;i++) _mekRdDetailAppendRow({});
+    _mekRdBindDetailTable();
+  }, function(err) {
+    _mekRdDetailAppendRow({});
+    for (var i=0;i<3;i++) _mekRdDetailAppendRow({});
+    _mekRdBindDetailTable();
+  });
+}
+
+function _mekRdBindDetailTable() {
+  _STOKInit({
+    tblId: 'mekRdDetailTbl', tbodyId: 'mekRdDetailTbody', cols: MEK_RD_DETAIL_COLS, autoCols: {}, selClass: 'mek-rd-detail-sel',
+    onAfterPaste: function(tr){ _mekRdAbsQtyCell(tr); }
+  });
+}
+
+function _mekRdAbsQtyCell(tr) {
+  var td = tr.querySelector('[data-col="qtyReserved"]');
+  if (!td) return;
+  var v = parseFloat((td.textContent||'').replace(/[^0-9.\-]/g,''));
+  if (!isNaN(v)) td.textContent = Math.abs(v);
+}
+
+function _mekRdDetailAppendRow(vals) {
+  var v = vals || {};
+  var tbody = document.getElementById('mekRdDetailTbody');
+  if (!tbody) return;
+  var tr = document.createElement('tr');
+  var tdNo = document.createElement('td');
+  tdNo.className = 'row-no stok-rn';
+  tr.appendChild(tdNo);
+  MEK_RD_DETAIL_COLS.forEach(function(col){
+    var td = document.createElement('td');
+    td.dataset.col = col;
+    td.contentEditable = 'true';
+    td.spellcheck = false;
+    td.style.cssText = 'padding:6px 8px;font-size:12px;' + (col==='qtyReserved' ? 'text-align:right;' : '');
+    if (v[col] !== undefined && v[col] !== null && v[col] !== '') td.textContent = v[col];
+    if (col === 'qtyReserved') {
+      td.addEventListener('blur', function(){
+        var val = parseFloat((this.textContent||'').replace(/[^0-9.\-]/g,''));
+        this.textContent = isNaN(val) ? '' : Math.abs(val);
+      });
+    }
+    tr.appendChild(td);
+  });
+  var tdDel = document.createElement('td');
+  tdDel.style.cssText = 'text-align:center;';
+  tdDel.innerHTML = '<button onclick="this.closest(\'tr\').remove();" style="background:none;border:none;color:#fc8181;cursor:pointer;font-size:12px;padding:2px 5px;"><i class="fas fa-times"></i></button>';
+  tr.appendChild(tdDel);
+  tbody.appendChild(tr);
+}
+
+function _mekRdDetailAddRow() {
+  for (var i=0;i<3;i++) _mekRdDetailAppendRow({});
+}
+
+function mekSaveReservedDirectDetail() {
+  var plant = _mekRdDetailCtx.plant, sku = _mekRdDetailCtx.sku;
+  if (!plant || !sku) return;
+  var tbody = document.getElementById('mekRdDetailTbody');
+  if (!tbody) return;
+  var rows = [];
+  Array.from(tbody.rows).forEach(function(tr){
+    function g(col){ var el=tr.querySelector('[data-col="'+col+'"]'); return el?el.textContent.trim():''; }
+    var delivDate=g('delivDate'), custCode=g('custCode'), custName=g('custName'), qty=g('qtyReserved');
+    if (!delivDate && !custCode && !custName && !qty) return;
+    rows.push({ delivDate:delivDate, status:g('status'), kosong1:g('kosong1'), kosong2:g('kosong2'), mrp:g('mrp'), custCode:custCode, custName:custName, qtyReserved: Math.abs(parseFloat(qty)||0) });
+  });
+  API.run('saveMekReservedDirectDetail', { plant: plant, sku: sku, rows: rows }, function(res) {
+    if (res && res.success) showToast(res.message || 'Detail tersimpan', 'success');
+    else showToast('Gagal simpan detail: ' + ((res&&res.message)||'unknown'), 'error');
+  }, function(err) {
+    showToast('Gagal simpan detail (koneksi)', 'error');
+  });
+}
+
+function mekCloseRdDetail() {
+  var modal = document.getElementById('mekRdDetailModal');
+  if (modal) modal.style.display = 'none';
+}
+
+// ── Reserved View: filter tipe (ALL/EKSPOR/DIRECT/RDC/MDC/MT) — bisa pilih
+// lebih dari 1 tipe sekaligus (multi-select). Set kosong = "ALL" (semua
+// tipe tampil, gak ada yang dibatasi). Klik "ALL" reset ke situasi itu;
+// klik salah satu tipe toggle dia masuk/keluar dari pilihan — kalau semua
+// tipe individual akhirnya kepilih semua, otomatis balik jadi "ALL" biar
+// tombol ALL tetap nyala dan gak ada 2 state yang keliatan sama tapi beda.
+var MEK_RV_TIPE_LIST = ['ekspor','direct','rdc','mdc','mt'];
+var _mekRvTipeSet = {}; // {tipe:true} — kosong berarti ALL
+function mekRvSetTipe(tipe) {
+  if (tipe === 'all') {
+    _mekRvTipeSet = {};
+  } else {
+    if (_mekRvTipeSet[tipe]) delete _mekRvTipeSet[tipe];
+    else _mekRvTipeSet[tipe] = true;
+    if (Object.keys(_mekRvTipeSet).length >= MEK_RV_TIPE_LIST.length) _mekRvTipeSet = {};
+  }
+  var isAll = Object.keys(_mekRvTipeSet).length === 0;
+  var map = { all:'mekRvTipeAll', ekspor:'mekRvTipeEkspor', direct:'mekRvTipeDirect', rdc:'mekRvTipeRdc', mdc:'mekRvTipeMdc', mt:'mekRvTipeMt' };
+  Object.keys(map).forEach(function(k){
+    var btn = document.getElementById(map[k]);
+    if (!btn) return;
+    var active = k === 'all' ? isAll : (!isAll && !!_mekRvTipeSet[k]);
+    btn.classList.toggle('active', active);
+    btn.style.color = active ? '#1a3a5c' : '#718096';
+  });
+  _mekRvApplyRowFilter();
 }
 
 // ======================================================
