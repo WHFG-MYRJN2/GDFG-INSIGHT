@@ -1723,12 +1723,16 @@ function _mekRvUpdateFilteredKpis(rows) {
     var dLong = Math.floor(longestHours/24), hLong = Math.round(longestHours%24);
     longestLabel = dLong > 0 ? (dLong+'d '+hLong+'h') : (Math.round(longestHours)+'h');
   }
+  var shortageSkuSet = {};
+  rows.forEach(function(r){ if (!r.closed && r.stockCukup === false) shortageSkuSet[r.sku] = true; });
   var elR = document.getElementById('mekRvKpiReserved');
   var elC = document.getElementById('mekRvKpiContainer');
   var elL = document.getElementById('mekRvKpiLongest');
+  var elS = document.getElementById('mekRvKpiShortage');
   if (elR) elR.textContent = totalQty.toLocaleString('id-ID');
   if (elC) elC.textContent = containerWaiting;
   if (elL) elL.textContent = longestLabel;
+  if (elS) elS.textContent = Object.keys(shortageSkuSet).length;
 }
 
 // Strip "Status Container" (Belum/Proses/Keluar) di bawah tabel — sama persis
@@ -1792,10 +1796,22 @@ function _mekRvRenderRowsList(rows, filterActive) {
       var sudahKeluarCont = Math.max(0, r.jumlahCont - (r.sisaCont||0));
       contDetail = '<div style="font-size:9px;color:#a0aec0;margin-top:2px;">' + sudahKeluarCont + '/' + r.jumlahCont + ' container keluar</div>';
     }
+    // Kecukupan stock SKU ini (butuh vs stock yang ada, semua bin) — SAMA kayak yang
+    // dipakai tab Kesiapan Stock. Kalau gak cukup (termasuk stock 0 sama sekali),
+    // kasih badge merah di bawah nama SKU, biar keliatan langsung di Reserved View
+    // tanpa perlu pindah tab.
+    var shortageBadge = '';
+    if (!r.closed && r.stockCukup === false) {
+      var kurangTx = r.stockTersedia <= 0
+        ? 'Stock kosong (butuh ' + (r.stockButuh||0).toLocaleString('id-ID') + ')'
+        : 'Kurang ' + Math.abs(r.stockSelisih||0).toLocaleString('id-ID') + ' (ada ' + (r.stockTersedia||0).toLocaleString('id-ID') + '/butuh ' + (r.stockButuh||0).toLocaleString('id-ID') + ')';
+      shortageBadge = '<div style="font-size:9px;font-weight:700;color:#c53030;margin-top:2px;white-space:normal;"><i class="fas fa-triangle-exclamation"></i> ' + kurangTx + '</div>';
+    }
     return '<tr' + (r.closed ? ' style="opacity:.7;"' : '') + '>'
       + '<td style="padding:8px 10px;border-bottom:1px solid #edf2f7;">'
         + '<div style="font-weight:800;font-size:12px;color:#2d3748;">' + _mekEsc(r.sku||'-') + '</div>'
         + '<div style="font-size:10px;color:#a0aec0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px;">' + _mekEsc(r.nama||'-') + '</div>'
+        + shortageBadge
       + '</td>'
       + '<td style="padding:8px 10px;border-bottom:1px solid #edf2f7;font-size:11px;color:#2d3748;white-space:nowrap;">' + _mekEsc(r.noSo||'-') + '</td>'
       + '<td style="padding:8px 10px;border-bottom:1px solid #edf2f7;font-size:11px;color:#2d3748;white-space:nowrap;">' + (r.tanggal ? _mekEsc(_mekFmtTglDisplay(r.tanggal)) : '-') + '</td>'
