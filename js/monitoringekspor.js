@@ -1948,12 +1948,28 @@ function mekRvDownloadExcel() {
 // — kalau mode yang lagi aktif BUKAN 3D Aktual, wrap-nya emang lagi
 // display:none, jadi proses render sementara ini gak keliatan/gak bikin
 // layar "lompat" sama sekali buat user.
-function _mekRvCaptureAktual3dSvg() {
+//
+// PENTING soal ukuran: SVG-nya di layar cuma dikasih width:100% (CSS persen,
+// gak ada atribut width/height eksplisit) — sizing kaya gitu dikenal suka
+// salah render pas di-print/di-convert ke PDF (Chrome & browser lain punya
+// banyak bug lawas soal SVG persen di context print), hasilnya bisa keliatan
+// "aneh"/detailnya ilang. Makanya sebelum di-embed ke halaman cetak, di sini
+// SENGAJA di-clone dan dikasih atribut width/height EKSPLISIT (dalam mm)
+// biar renderer print gak perlu nebak-nebak dari CSS.
+function _mekRvCaptureAktual3dSvg(boxWmm, boxHmm) {
   var prevRack = _mekRvSelectedRack;
   _mekRvSelectedRack = 'ALL';
   _mekRvRenderAktual3DBody();
   var svgEl = document.querySelector('#mekRv3dAktualWrap svg');
-  var svgHtml = svgEl ? svgEl.outerHTML : '';
+  var svgHtml = '';
+  if (svgEl) {
+    var clone = svgEl.cloneNode(true);
+    clone.removeAttribute('style');
+    clone.setAttribute('width', boxWmm + 'mm');
+    clone.setAttribute('height', boxHmm + 'mm');
+    clone.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+    svgHtml = clone.outerHTML;
+  }
   _mekRvSelectedRack = prevRack;
   _mekRvRenderAktual3DBody();
   return svgHtml;
@@ -1967,7 +1983,15 @@ function mekRvDownloadPdf() {
   }
   if (!_mekRvGroups || !_mekRvGroups.length) showToast('Menyiapkan PDF...', '');
   _mekRvLoadGroupsThen(function(){
-    var svgHtml = _mekRvCaptureAktual3dSvg();
+    // Petanya berbentuk denah gudang yang lebar/landscape — kalau dipaksa
+    // muat ke lebar halaman potrait (~174mm) doang, sisa tinggi halaman
+    // (~245mm) jadi kosong ke bawah & detail rak keliatan kecil/padat.
+    // Solusinya: SVG-nya diputar 90° biar makai sisi PANJANG halaman
+    // (~245mm) sebagai lebar efektifnya — halaman dokumennya sendiri tetep
+    // A4 potrait persis kayak diminta, cuma gambar petanya aja yang
+    // dirotasi biar lebih besar & jelas (teknik umum buat diagram lebar
+    // di laporan potrait).
+    var svgHtml = _mekRvCaptureAktual3dSvg(245, 170);
     _mekRvBuildPrintPdf(tbl.outerHTML, svgHtml);
   });
 }
@@ -1992,9 +2016,14 @@ function _mekRvBuildPrintPdf(tableHtml, svgHtml) {
     'span[style*="background:#c6f6d5"] { background: #c6f6d5 !important; color: #276749 !important; border-radius: 8px; padding: 1px 6px; }',
     'span[style*="background:#fed7d7"] { background: #fed7d7 !important; color: #c53030 !important; border-radius: 8px; padding: 1px 6px; }',
     'span[style*="background:#feebc8"] { background: #feebc8 !important; color: #744210 !important; border-radius: 8px; padding: 1px 6px; }',
-    '.mapwrap { text-align: center; }',
-    '.mapwrap svg { width: 100%; height: auto; max-height: 250mm; }',
-    '.mapempty { padding: 60px 0; text-align: center; color: #a0aec0; font-size: 11px; }',
+    // Kotak "viewport" seukuran ruang kosong yang tersisa di halaman (lebar
+    // konten ~174mm, tinggi sisa ~245mm) — SVG di dalamnya diputar 90° lewat
+    // .map-rotated (dimensi PRA-rotasi sengaja ditukar: width=245mm/height=170mm,
+    // biar abis diputar jadi pas 170mm x 245mm, muat persis di viewport).
+    '.map-viewport { position: relative; width: 174mm; height: 245mm; margin: 0 auto; overflow: visible; }',
+    '.map-rotated { position: absolute; top: 50%; left: 50%; width: 245mm; height: 170mm; transform: translate(-50%,-50%) rotate(90deg); }',
+    '.map-rotated svg { display: block; width: 100%; height: 100%; }',
+    '.mapempty { padding: 100mm 0 0; text-align: center; color: #a0aec0; font-size: 11px; }',
     '@page { size: A4 portrait; margin: 8mm; }'
   ].join('\n');
 
@@ -2006,20 +2035,50 @@ function _mekRvBuildPrintPdf(tableHtml, svgHtml) {
 
   var page2 = '<div class="pdf-page">'
     + '<h2>Peta 3D Aktual — Reserved Stock</h2>'
-    + '<p class="sub">Semua rak &nbsp;|&nbsp; Dicetak: ' + tglPrint + '</p>'
-    + '<div class="mapwrap">' + (svgHtml || '<div class="mapempty">Peta tidak tersedia</div>') + '</div>'
+    + '<p class="sub">Semua rak &nbsp;|&nbsp; Dicetak: ' + tglPrint + ' &nbsp;|&nbsp; (gambar diputar 90° biar lebih besar/jelas)</p>'
+    + (svgHtml
+        ? '<div class="map-viewport"><div class="map-rotated">' + svgHtml + '</div></div>'
+        : '<div class="mapempty">Peta tidak tersedia</div>')
     + '</div>';
 
   var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Reserved Stock Monitoring</title>'
-    + '<style>' + css + '</style></head><body>' + page1 + page2
-    + '<script>window.onload=function(){setTimeout(function(){window.print();},150);}<\/script>'
-    + '</body></html>';
+    + '<style>' + css + '</style></head><body>' + page1 + page2 + '</body></html>';
 
-  var win = window.open('', '_blank');
-  if (!win) { showToast('Popup diblokir browser. Izinkan popup untuk halaman ini.', 'error'); return; }
+  _mekRvPrintHtmlDoc(html);
+}
+
+// Cetak lewat iframe TERSEMBUNYI (bukan window.open tab/jendela baru) — biar
+// gak kerasa "double handling" (buka tab dulu baru muncul dialog print).
+// Dialog print langsung muncul di atas halaman yang lagi dibuka user, iframe-nya
+// dibuang lagi sesudah selesai (atau abis timeout, buat browser yang gak
+// nembak event "afterprint").
+function _mekRvPrintHtmlDoc(html) {
+  var old = document.getElementById('mekRvPrintFrame');
+  if (old) old.remove();
+  var iframe = document.createElement('iframe');
+  iframe.id = 'mekRvPrintFrame';
+  iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;';
+  document.body.appendChild(iframe);
+
+  var win = iframe.contentWindow;
+  win.document.open();
   win.document.write(html);
   win.document.close();
-  win.focus();
+
+  var cleaned = false;
+  function cleanup() {
+    if (cleaned) return;
+    cleaned = true;
+    setTimeout(function(){ if (iframe.parentNode) iframe.parentNode.removeChild(iframe); }, 300);
+  }
+  win.onafterprint = cleanup;
+  setTimeout(cleanup, 60000); // jaga-jaga kalau event afterprint gak nembak (beberapa browser mobile)
+
+  // Kasih jeda dikit buat layout/render kelar (tabel + SVG) sebelum panggil print.
+  setTimeout(function(){
+    win.focus();
+    win.print();
+  }, 200);
 }
 
 // ════════════════════════════════════════════════════════════
