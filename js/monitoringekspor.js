@@ -1869,7 +1869,7 @@ function _mekRvRenderRowsList(rows, filterActive) {
 
   var thStyle = 'text-align:left;padding:8px 10px;font-size:10px;color:#718096;text-transform:uppercase;background:#f8fafc;border-bottom:2px solid #e2e8f0;position:sticky;top:0;z-index:2;';
   listEl.innerHTML = '<div style="overflow:auto;max-height:560px;-webkit-overflow-scrolling:touch;border:1px solid #e2e8f0;border-radius:10px;">'
-    + '<table style="width:100%;min-width:640px;border-collapse:collapse;background:#fff;">'
+    + '<table id="mekRvTable" style="width:100%;min-width:640px;border-collapse:collapse;background:#fff;">'
       + '<thead><tr>'
         + '<th style="' + thStyle + '">SKU</th>'
         + '<th style="' + thStyle + '">No. SO (DO)</th>'
@@ -1882,6 +1882,144 @@ function _mekRvRenderRowsList(rows, filterActive) {
       + '<tbody>' + rowsHtml + '</tbody>'
     + '</table>'
   + '</div>';
+}
+
+// ════════════════════════════════════════════════════════════
+// DOWNLOAD Reserved View — PDF (A4 potrait, hal.1 tabel sesuai filter aktif,
+// hal.terakhir peta 3D Aktual semua rak) & Excel (tabel doang, sesuai filter).
+// ════════════════════════════════════════════════════════════
+function mekRvToggleDownloadMenu() {
+  var menu = document.getElementById('mekRvDownloadMenu');
+  if (!menu) return;
+  var isOpen = menu.style.display !== 'none';
+  menu.style.display = isOpen ? 'none' : 'block';
+  if (!isOpen) {
+    setTimeout(function() {
+      document.addEventListener('click', function _close(e) {
+        var wrap = document.getElementById('mekRvDownloadWrap');
+        if (wrap && !wrap.contains(e.target)) {
+          menu.style.display = 'none';
+          document.removeEventListener('click', _close);
+        }
+      });
+    }, 10);
+  }
+}
+
+// Ringkasan filter yang lagi aktif — dipakai buat subtitle di PDF & Excel biar
+// jelas data yang di-download itu udah difilter apa aja (atau "semua data").
+function _mekRvFilterSummaryText() {
+  var parts   = [];
+  var sku     = ((document.getElementById('mekRvFilterSku')    ||{}).value||'').trim();
+  var noSo    = ((document.getElementById('mekRvFilterNoSo')   ||{}).value||'').trim();
+  var tujuan  = ((document.getElementById('mekRvFilterTujuan') ||{}).value||'').trim();
+  var plant   = ((document.getElementById('mekRvFilterPlant')  ||{}).value||'').trim();
+  var aging   = ((document.getElementById('mekRvFilterAging')  ||{}).value||'').trim();
+  var closed  = !!((document.getElementById('mekRvShowClosedToggle')||{}).checked);
+  var tipeSet = _mekRvTipeSet || {};
+  var isAllTipe = Object.keys(tipeSet).length === 0;
+
+  if (sku)    parts.push('SKU/Nama: "' + sku + '"');
+  if (noSo)   parts.push('No.SO: "' + noSo + '"');
+  if (tujuan) parts.push('Tujuan: "' + tujuan + '"');
+  if (plant)  parts.push(plant === '__NO_PLANT__' ? 'Plant: Tanpa Tag' : ('Plant: ' + plant));
+  if (aging)  {
+    var agingLabel = { lt4:'< 4 jam', h4_12:'4–12 jam', h12_24:'12–24 jam', gt24:'> 24 jam (Delay)' };
+    parts.push('Aging: ' + (agingLabel[aging] || aging));
+  }
+  if (!isAllTipe) parts.push('Tipe: ' + Object.keys(tipeSet).map(function(k){ return k.toUpperCase(); }).join(', '));
+  if (closed) parts.push('Termasuk yang closed');
+
+  return parts.length ? ('Filter aktif — ' + parts.join(' · ')) : 'Semua data (tanpa filter)';
+}
+
+function mekRvDownloadExcel() {
+  var tbl = document.getElementById('mekRvTable');
+  if (!tbl || !tbl.querySelectorAll('tbody tr').length) {
+    showToast('Tidak ada data sesuai filter untuk di-download.', 'warning');
+    return;
+  }
+  _mekExportTableExcel('mekRvTable', 'Reserved Stock Monitoring', _mekRvFilterSummaryText());
+}
+
+// Ambil markup SVG "Peta 3D Aktual" (SEMUA rak) buat halaman terakhir PDF.
+// Dipaksa ke rak ALL sesaat aja (biar overview lengkap, bukan cuma rak yang
+// lagi dipilih user), lalu state peta dibalikin PERSIS kaya semula sesudahnya
+// — kalau mode yang lagi aktif BUKAN 3D Aktual, wrap-nya emang lagi
+// display:none, jadi proses render sementara ini gak keliatan/gak bikin
+// layar "lompat" sama sekali buat user.
+function _mekRvCaptureAktual3dSvg() {
+  var prevRack = _mekRvSelectedRack;
+  _mekRvSelectedRack = 'ALL';
+  _mekRvRenderAktual3DBody();
+  var svgEl = document.querySelector('#mekRv3dAktualWrap svg');
+  var svgHtml = svgEl ? svgEl.outerHTML : '';
+  _mekRvSelectedRack = prevRack;
+  _mekRvRenderAktual3DBody();
+  return svgHtml;
+}
+
+function mekRvDownloadPdf() {
+  var tbl = document.getElementById('mekRvTable');
+  if (!tbl || !tbl.querySelectorAll('tbody tr').length) {
+    showToast('Tidak ada data sesuai filter untuk di-download.', 'warning');
+    return;
+  }
+  if (!_mekRvGroups || !_mekRvGroups.length) showToast('Menyiapkan PDF...', '');
+  _mekRvLoadGroupsThen(function(){
+    var svgHtml = _mekRvCaptureAktual3dSvg();
+    _mekRvBuildPrintPdf(tbl.outerHTML, svgHtml);
+  });
+}
+
+function _mekRvBuildPrintPdf(tableHtml, svgHtml) {
+  var now = new Date();
+  var tglPrint = ('0'+now.getDate()).slice(-2)+'/'+('0'+(now.getMonth()+1)).slice(-2)+'/'+now.getFullYear()+
+    ' '+('0'+now.getHours()).slice(-2)+':'+('0'+now.getMinutes()).slice(-2);
+  var subtitle = _mekRvFilterSummaryText();
+
+  var css = [
+    '* { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; box-sizing: border-box; }',
+    'body { font-family: Arial, sans-serif; font-size: 9px; margin: 0; padding: 0; }',
+    '.pdf-page { padding: 10mm; page-break-after: always; }',
+    '.pdf-page:last-child { page-break-after: auto; }',
+    'h2 { font-size: 13px; margin: 0 0 2px; color: #1a3a5c; }',
+    'p.sub { font-size: 9px; margin: 0 0 8px; color: #718096; }',
+    'table { width: 100%; table-layout: auto; border-collapse: collapse; }',
+    'th { background: #1a3a5c !important; color: #fff !important; padding: 4px 5px; font-size: 8px; text-align: left; border: 1px solid #2d4a6a; white-space: normal; word-break: break-word; }',
+    'td { padding: 3px 5px; font-size: 8px; border: 1px solid #e2e8f0; vertical-align: middle; white-space: normal !important; word-break: break-word; }',
+    'tr:nth-child(even) td { background: #f7fafc !important; }',
+    'span[style*="background:#c6f6d5"] { background: #c6f6d5 !important; color: #276749 !important; border-radius: 8px; padding: 1px 6px; }',
+    'span[style*="background:#fed7d7"] { background: #fed7d7 !important; color: #c53030 !important; border-radius: 8px; padding: 1px 6px; }',
+    'span[style*="background:#feebc8"] { background: #feebc8 !important; color: #744210 !important; border-radius: 8px; padding: 1px 6px; }',
+    '.mapwrap { text-align: center; }',
+    '.mapwrap svg { width: 100%; height: auto; max-height: 250mm; }',
+    '.mapempty { padding: 60px 0; text-align: center; color: #a0aec0; font-size: 11px; }',
+    '@page { size: A4 portrait; margin: 8mm; }'
+  ].join('\n');
+
+  var page1 = '<div class="pdf-page">'
+    + '<h2>Reserved Stock Monitoring</h2>'
+    + '<p class="sub">' + _mekEsc(subtitle) + ' &nbsp;|&nbsp; Dicetak: ' + tglPrint + '</p>'
+    + tableHtml
+    + '</div>';
+
+  var page2 = '<div class="pdf-page">'
+    + '<h2>Peta 3D Aktual — Reserved Stock</h2>'
+    + '<p class="sub">Semua rak &nbsp;|&nbsp; Dicetak: ' + tglPrint + '</p>'
+    + '<div class="mapwrap">' + (svgHtml || '<div class="mapempty">Peta tidak tersedia</div>') + '</div>'
+    + '</div>';
+
+  var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Reserved Stock Monitoring</title>'
+    + '<style>' + css + '</style></head><body>' + page1 + page2
+    + '<script>window.onload=function(){setTimeout(function(){window.print();},150);}<\/script>'
+    + '</body></html>';
+
+  var win = window.open('', '_blank');
+  if (!win) { showToast('Popup diblokir browser. Izinkan popup untuk halaman ini.', 'error'); return; }
+  win.document.write(html);
+  win.document.close();
+  win.focus();
 }
 
 // ════════════════════════════════════════════════════════════
