@@ -2308,7 +2308,18 @@
     #monitoringEksporPage .mekrv-split-toggle{display:none;}
     @media (orientation:landscape) and (min-width:760px){
       #monitoringEksporPage .mekrv-split{flex-direction:row;}
-      #monitoringEksporPage .mekrv-split-map{flex:1 1 60%;transition:flex-basis .25s ease,filter .25s ease,opacity .25s ease;}
+      /* overflow:hidden WAJIB di sini — isi peta "3D Aktual" itu ratusan div
+         krat yang posisinya absolute, dihitung manual buat ukuran penuh.
+         Begitu box-nya diciutin ke 70px pas expand, posisi div-div itu gak
+         ikut dihitung ulang (murni geser CSS, bukan re-render JS), jadi kalau
+         overflow-nya kebuka mereka nembus keluar nimpa tabel di sebelahnya —
+         itu yang keliatan kayak "warna biru transparan" nyasar ke tabel.
+         transition CUMA di filter+opacity (bukan flex-basis) biar pas expand
+         gak perlu re-layout ratusan div itu tiap frame animasi — box-nya
+         loncat langsung ke ukuran final, yang di-animasikan cuma blur/fade-nya
+         (murah, cuma butuh 1 layer komposit) → jauh lebih smooth/gak nge-lag.
+      */
+      #monitoringEksporPage .mekrv-split-map{flex:1 1 60%;overflow:hidden;transition:filter .25s ease,opacity .25s ease;}
       #monitoringEksporPage .mekrv-split-list{flex:1 1 40%;max-width:420px;max-height:700px;overflow-y:auto;transition:flex-basis .25s ease,max-width .25s ease;}
       #monitoringEksporPage .mekrv-split-toggle{display:flex;align-self:center;flex:0 0 22px;align-items:center;justify-content:center;}
     }
