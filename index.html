@@ -5076,7 +5076,7 @@
             </button>
           </div>
           <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
-            <table id="mekEmailManualTbl" class="mek-plan-tbl" style="min-width:1400px;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.06);">
+            <table id="mekEmailManualTbl" class="mek-plan-tbl" style="min-width:1400px;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.06);" tabindex="0">
               <thead>
                 <tr>
                   <th style="width:28px;text-align:center;">#</th>
@@ -5123,11 +5123,12 @@
             <span id="mekRd1111Tgl" style="font-size:10px;opacity:.85;">Belum ada data tersimpan</span>
             <div style="margin-left:auto;display:flex;gap:6px;">
               <button onclick="_mekRdAddRow('1111')" style="padding:5px 12px;border-radius:7px;border:1px solid rgba(255,255,255,.4);background:rgba(255,255,255,.15);color:#fff;font-size:11px;font-weight:700;cursor:pointer;"><i class="fas fa-plus"></i> Baris</button>
+              <button onclick="mekClearReservedDirect('1111')" style="padding:5px 12px;border-radius:7px;border:1px solid rgba(255,255,255,.4);background:rgba(255,255,255,.15);color:#fed7d7;font-size:11px;font-weight:700;cursor:pointer;"><i class="fas fa-trash"></i> Clear</button>
               <button onclick="mekSaveReservedDirect('1111')" style="padding:5px 14px;border-radius:7px;border:none;background:#fff;color:#1a3a5c;font-size:11px;font-weight:800;cursor:pointer;"><i class="fas fa-save"></i> Simpan</button>
             </div>
           </div>
           <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
-            <table id="mekRdTbl1111" class="mek-plan-tbl" style="min-width:920px;">
+            <table id="mekRdTbl1111" class="mek-plan-tbl" style="min-width:920px;" tabindex="0">
               <thead><tr>
                 <th style="width:28px;text-align:center;">#</th>
                 <th style="min-width:110px;">SKU</th>
@@ -5151,11 +5152,12 @@
             <span id="mekRd1112Tgl" style="font-size:10px;opacity:.85;">Belum ada data tersimpan</span>
             <div style="margin-left:auto;display:flex;gap:6px;">
               <button onclick="_mekRdAddRow('1112')" style="padding:5px 12px;border-radius:7px;border:1px solid rgba(255,255,255,.4);background:rgba(255,255,255,.15);color:#fff;font-size:11px;font-weight:700;cursor:pointer;"><i class="fas fa-plus"></i> Baris</button>
+              <button onclick="mekClearReservedDirect('1112')" style="padding:5px 12px;border-radius:7px;border:1px solid rgba(255,255,255,.4);background:rgba(255,255,255,.15);color:#fed7d7;font-size:11px;font-weight:700;cursor:pointer;"><i class="fas fa-trash"></i> Clear</button>
               <button onclick="mekSaveReservedDirect('1112')" style="padding:5px 14px;border-radius:7px;border:none;background:#fff;color:#1a3a5c;font-size:11px;font-weight:800;cursor:pointer;"><i class="fas fa-save"></i> Simpan</button>
             </div>
           </div>
           <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
-            <table id="mekRdTbl1112" class="mek-plan-tbl" style="min-width:920px;">
+            <table id="mekRdTbl1112" class="mek-plan-tbl" style="min-width:920px;" tabindex="0">
               <thead><tr>
                 <th style="width:28px;text-align:center;">#</th>
                 <th style="min-width:110px;">SKU</th>
@@ -5179,11 +5181,12 @@
             <span id="mekRd1113Tgl" style="font-size:10px;opacity:.85;">Belum ada data tersimpan</span>
             <div style="margin-left:auto;display:flex;gap:6px;">
               <button onclick="_mekRdAddRow('1113')" style="padding:5px 12px;border-radius:7px;border:1px solid rgba(255,255,255,.4);background:rgba(255,255,255,.15);color:#fff;font-size:11px;font-weight:700;cursor:pointer;"><i class="fas fa-plus"></i> Baris</button>
+              <button onclick="mekClearReservedDirect('1113')" style="padding:5px 12px;border-radius:7px;border:1px solid rgba(255,255,255,.4);background:rgba(255,255,255,.15);color:#fed7d7;font-size:11px;font-weight:700;cursor:pointer;"><i class="fas fa-trash"></i> Clear</button>
               <button onclick="mekSaveReservedDirect('1113')" style="padding:5px 14px;border-radius:7px;border:none;background:#fff;color:#1a3a5c;font-size:11px;font-weight:800;cursor:pointer;"><i class="fas fa-save"></i> Simpan</button>
             </div>
           </div>
           <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
-            <table id="mekRdTbl1113" class="mek-plan-tbl" style="min-width:920px;">
+            <table id="mekRdTbl1113" class="mek-plan-tbl" style="min-width:920px;" tabindex="0">
               <thead><tr>
                 <th style="width:28px;text-align:center;">#</th>
                 <th style="min-width:110px;">SKU</th>
@@ -5214,6 +5217,7 @@
           </div>
           <div style="margin-left:auto;display:flex;gap:6px;">
             <button onclick="_mekRdDetailAddRow()" style="padding:5px 12px;border-radius:7px;border:1px solid rgba(255,255,255,.4);background:rgba(255,255,255,.15);color:#fff;font-size:11px;font-weight:700;cursor:pointer;"><i class="fas fa-plus"></i> Baris</button>
+            <button onclick="mekClearReservedDirectDetail()" style="padding:5px 12px;border-radius:7px;border:1px solid rgba(255,255,255,.4);background:rgba(255,255,255,.15);color:#fed7d7;font-size:11px;font-weight:700;cursor:pointer;"><i class="fas fa-trash"></i> Clear</button>
             <button onclick="mekSaveReservedDirectDetail()" style="padding:5px 14px;border-radius:7px;border:none;background:#fff;color:#1a3a5c;font-size:11px;font-weight:800;cursor:pointer;"><i class="fas fa-save"></i> Simpan</button>
             <button onclick="mekCloseRdDetail()" style="padding:5px 10px;border-radius:7px;border:1px solid rgba(255,255,255,.4);background:none;color:#fff;font-size:13px;cursor:pointer;" title="Tutup"><i class="fas fa-times"></i></button>
           </div>
@@ -5222,7 +5226,7 @@
           <i class="fas fa-info-circle"></i> Ketik langsung atau Ctrl+V paste dari Excel. Kolom <b>Qty Reserved</b> otomatis dijadikan angka positif (absolut) walau sumber datanya minus.
         </div>
         <div style="overflow-x:auto;padding:10px 14px 14px;-webkit-overflow-scrolling:touch;">
-          <table id="mekRdDetailTbl" class="mek-plan-tbl" style="min-width:1000px;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.06);">
+          <table id="mekRdDetailTbl" class="mek-plan-tbl" style="min-width:1000px;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.06);" tabindex="0">
             <thead><tr>
               <th style="width:28px;text-align:center;">#</th>
               <th style="min-width:110px;">DELIV DATE</th>
