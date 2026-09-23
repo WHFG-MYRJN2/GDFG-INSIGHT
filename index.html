@@ -2330,7 +2330,13 @@
     }
     #monitoringEksporPage .mekrv-split-toggle button:hover{background:linear-gradient(135deg,#2b6cb0,#3182ce);transform:scale(1.05);}
     #monitoringEksporPage .mekrv-split.mekrv-expanded .mekrv-split-map{flex:0 0 70px;min-width:70px;filter:blur(4px);opacity:.35;pointer-events:none;}
-    #monitoringEksporPage .mekrv-split.mekrv-expanded .mekrv-split-list{flex:1 1 auto;max-width:none;}
+    /* flex-basis & max-width HARUS ditutup dengan nilai angka/persen, bukan
+       kata kunci "auto"/"none" — transition CSS gak bisa interpolasi kata
+       kunci, jadi walau ada `transition`, browser bakal loncat instan kalau
+       nilai akhirnya "auto"/"none". Makanya di sini dipakai "92%"/"4000px"
+       (angka gede yang gak bakal jadi batas nyata) biar animasinya beneran
+       jalan pelan-pelan, bukan loncat. */
+    #monitoringEksporPage .mekrv-split.mekrv-expanded .mekrv-split-list{flex:1 1 92%;max-width:4000px;}
     #monitoringEksporPage .mek-card-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:14px;}
     #monitoringEksporPage .mek-card{background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:14px 16px;display:flex;align-items:center;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,.05);}
     #monitoringEksporPage .mek-card-ico{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;}
