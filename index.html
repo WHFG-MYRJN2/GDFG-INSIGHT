@@ -2287,6 +2287,12 @@
     #monitoringEksporPage .mek-tab-btn{padding:10px 22px;font-size:12px;font-weight:700;border:none;background:none;cursor:pointer;color:#718096;border-bottom:3px solid transparent;margin-bottom:-2px;text-transform:uppercase;letter-spacing:.5px;display:flex;align-items:center;gap:6px;transition:color .2s,border-color .2s;}
     #monitoringEksporPage .mek-tab-btn.active{color:#1a3a5c;border-bottom-color:#1a3a5c;}
     #monitoringEksporPage .mek-tab-btn:hover{color:#1a3a5c;}
+    /* Varian "pill" buat grup tab yang kecil/rapat (filter tipe, mode peta) —
+       underline tipis kurang keliatan di ukuran kecil, jadi state aktif dikasih
+       background solid biar gampang dibedain sekali lihat. */
+    #monitoringEksporPage .mek-pill-tab{border:1.5px solid #e2e8f0!important;border-radius:8px!important;background:#fff!important;margin-bottom:0!important;color:#4a5568!important;font-weight:700;}
+    #monitoringEksporPage .mek-pill-tab:hover{background:#f7fafc!important;color:#1a3a5c!important;}
+    #monitoringEksporPage .mek-pill-tab.active{background:#1a3a5c!important;border-color:#1a3a5c!important;color:#fff!important;box-shadow:0 1px 4px rgba(26,58,92,.35);}
     #monitoringEksporPage .mek-rv3d-vc-btn{background:#2d3748;color:#e2e8f0;border:1px solid #4a5568;border-radius:5px;font-size:9px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;letter-spacing:.3px;transition:background .15s;}
     #monitoringEksporPage .mek-rv3d-vc-btn:hover{background:#4a5568;}
     /* Reserved View: peta & list side-by-side pas landscape (layar lebar),
@@ -2294,19 +2300,24 @@
     #monitoringEksporPage .mekrv-split{display:flex;flex-direction:column;gap:14px;align-items:flex-start;}
     #monitoringEksporPage .mekrv-split-map{flex:1 1 auto;min-width:0;width:100%;}
     #monitoringEksporPage .mekrv-split-list{flex:1 1 auto;min-width:0;width:100%;}
+    /* Default (potrait/layar sempit): tombol lebarkan-tabel disembunyikan —
+       HARUS ditulis SEBELUM media query di bawah, karena selector-nya identik
+       (spesifisitas sama) jadi yang menang cuma aturan yang urutannya paling
+       belakang; kalau ini ditaruh SESUDAH media query, dia bakal nimpa terus
+       versi display:flex-nya kapan pun, di layar selebar apapun. */
+    #monitoringEksporPage .mekrv-split-toggle{display:none;}
     @media (orientation:landscape) and (min-width:760px){
       #monitoringEksporPage .mekrv-split{flex-direction:row;}
       #monitoringEksporPage .mekrv-split-map{flex:1 1 60%;transition:flex-basis .25s ease,filter .25s ease,opacity .25s ease;}
       #monitoringEksporPage .mekrv-split-list{flex:1 1 40%;max-width:420px;max-height:700px;overflow-y:auto;transition:flex-basis .25s ease,max-width .25s ease;}
       #monitoringEksporPage .mekrv-split-toggle{display:flex;align-self:center;flex:0 0 22px;align-items:center;justify-content:center;}
     }
-    #monitoringEksporPage .mekrv-split-toggle{display:none;}
     #monitoringEksporPage .mekrv-split-toggle button{
-      width:22px;height:46px;border:1px solid #e2e8f0;background:#fff;border-radius:8px;cursor:pointer;
-      color:#4a5568;font-size:12px;display:flex;align-items:center;justify-content:center;
-      box-shadow:0 1px 4px rgba(0,0,0,.08);transition:background .15s,color .15s;
+      width:26px;height:56px;border:none;background:linear-gradient(135deg,#1a3a5c,#2b6cb0);border-radius:8px;cursor:pointer;
+      color:#fff;font-size:13px;display:flex;align-items:center;justify-content:center;
+      box-shadow:0 2px 6px rgba(26,58,92,.4);transition:background .15s,transform .15s;
     }
-    #monitoringEksporPage .mekrv-split-toggle button:hover{background:#edf2f7;color:#1a3a5c;}
+    #monitoringEksporPage .mekrv-split-toggle button:hover{background:linear-gradient(135deg,#2b6cb0,#3182ce);transform:scale(1.05);}
     #monitoringEksporPage .mekrv-split.mekrv-expanded .mekrv-split-map{flex:0 0 70px;min-width:70px;filter:blur(4px);opacity:.35;pointer-events:none;}
     #monitoringEksporPage .mekrv-split.mekrv-expanded .mekrv-split-list{flex:1 1 auto;max-width:none;}
     #monitoringEksporPage .mek-card-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:14px;}
@@ -5138,7 +5149,7 @@
                 <th style="min-width:100px;text-align:right;">RESERVED IN</th>
                 <th style="min-width:100px;text-align:right;">RESERVED OUT</th>
                 <th style="min-width:100px;text-align:right;">STOCK ENDING</th>
-                <th style="width:56px;"></th>
+                <th style="width:90px;"></th>
               </tr></thead>
               <tbody id="mekRdTbody1111"></tbody>
             </table>
@@ -5167,7 +5178,7 @@
                 <th style="min-width:100px;text-align:right;">RESERVED IN</th>
                 <th style="min-width:100px;text-align:right;">RESERVED OUT</th>
                 <th style="min-width:100px;text-align:right;">STOCK ENDING</th>
-                <th style="width:56px;"></th>
+                <th style="width:90px;"></th>
               </tr></thead>
               <tbody id="mekRdTbody1112"></tbody>
             </table>
@@ -5196,7 +5207,7 @@
                 <th style="min-width:100px;text-align:right;">RESERVED IN</th>
                 <th style="min-width:100px;text-align:right;">RESERVED OUT</th>
                 <th style="min-width:100px;text-align:right;">STOCK ENDING</th>
-                <th style="width:56px;"></th>
+                <th style="width:90px;"></th>
               </tr></thead>
               <tbody id="mekRdTbody1113"></tbody>
             </table>
@@ -5398,12 +5409,12 @@
 
       <!-- Filter tipe reservasi — ALL/EKSPOR/DIRECT sudah jalan, RDC/MDC/MT nyusul -->
       <div id="mekRvTipeBar" style="display:flex;gap:6px;flex-wrap:wrap;padding:10px 14px 0;flex-shrink:0;">
-        <button id="mekRvTipeAll"    class="mek-tab-btn active" onclick="mekRvSetTipe('all')"    style="padding:5px 12px;font-size:11px;">ALL</button>
-        <button id="mekRvTipeEkspor" class="mek-tab-btn"        onclick="mekRvSetTipe('ekspor')" style="padding:5px 12px;font-size:11px;">EKSPOR</button>
-        <button id="mekRvTipeDirect" class="mek-tab-btn"        onclick="mekRvSetTipe('direct')" style="padding:5px 12px;font-size:11px;">DIRECT</button>
-        <button id="mekRvTipeRdc"    class="mek-tab-btn"        onclick="mekRvSetTipe('rdc')"    style="padding:5px 12px;font-size:11px;">RDC</button>
-        <button id="mekRvTipeMdc"    class="mek-tab-btn"        onclick="mekRvSetTipe('mdc')"    style="padding:5px 12px;font-size:11px;">MDC</button>
-        <button id="mekRvTipeMt"     class="mek-tab-btn"        onclick="mekRvSetTipe('mt')"     style="padding:5px 12px;font-size:11px;">MT</button>
+        <button id="mekRvTipeAll"    class="mek-tab-btn mek-pill-tab active" onclick="mekRvSetTipe('all')"    style="padding:5px 12px;font-size:11px;">ALL</button>
+        <button id="mekRvTipeEkspor" class="mek-tab-btn mek-pill-tab"        onclick="mekRvSetTipe('ekspor')" style="padding:5px 12px;font-size:11px;">EKSPOR</button>
+        <button id="mekRvTipeDirect" class="mek-tab-btn mek-pill-tab"        onclick="mekRvSetTipe('direct')" style="padding:5px 12px;font-size:11px;">DIRECT</button>
+        <button id="mekRvTipeRdc"    class="mek-tab-btn mek-pill-tab"        onclick="mekRvSetTipe('rdc')"    style="padding:5px 12px;font-size:11px;">RDC</button>
+        <button id="mekRvTipeMdc"    class="mek-tab-btn mek-pill-tab"        onclick="mekRvSetTipe('mdc')"    style="padding:5px 12px;font-size:11px;">MDC</button>
+        <button id="mekRvTipeMt"     class="mek-tab-btn mek-pill-tab"        onclick="mekRvSetTipe('mt')"     style="padding:5px 12px;font-size:11px;">MT</button>
       </div>
 
       <!-- Filter bar (sama kaya tab Kesiapan Stock) — filter list "Reserved Stock
@@ -5497,10 +5508,10 @@
               </label>
             </div>
             <div style="display:flex;gap:4px;">
-              <button id="mekRvModeSimpleBtn" onclick="mekRvSetMode('simple')" class="mek-tab-btn" style="padding:5px 10px;font-size:11px;">2D Simple</button>
-              <button id="mekRvModeAktualBtn" onclick="mekRvSetMode('aktual')" class="mek-tab-btn" style="padding:5px 10px;font-size:11px;">2D Aktual</button>
-              <button id="mekRvMode3dBtn" onclick="mekRvSetMode('3d')" class="mek-tab-btn" style="padding:5px 10px;font-size:11px;">3D</button>
-              <button id="mekRvModeAktual3dBtn" onclick="mekRvSetMode('aktual3d')" class="mek-tab-btn active" style="padding:5px 10px;font-size:11px;">3D Aktual</button>
+              <button id="mekRvModeSimpleBtn" onclick="mekRvSetMode('simple')" class="mek-tab-btn mek-pill-tab" style="padding:5px 10px;font-size:11px;">2D Simple</button>
+              <button id="mekRvModeAktualBtn" onclick="mekRvSetMode('aktual')" class="mek-tab-btn mek-pill-tab" style="padding:5px 10px;font-size:11px;">2D Aktual</button>
+              <button id="mekRvMode3dBtn" onclick="mekRvSetMode('3d')" class="mek-tab-btn mek-pill-tab" style="padding:5px 10px;font-size:11px;">3D</button>
+              <button id="mekRvModeAktual3dBtn" onclick="mekRvSetMode('aktual3d')" class="mek-tab-btn mek-pill-tab active" style="padding:5px 10px;font-size:11px;">3D Aktual</button>
             </div>
           </div>
 
