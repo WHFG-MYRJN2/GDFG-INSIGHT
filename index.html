@@ -2335,6 +2335,19 @@
     */
     #monitoringEksporPage .mekrv-split.mekrv-expanded .mekrv-split-map{pointer-events:none;}
     @media (orientation:landscape) and (min-width:760px){
+      /* PENTING: begitu .mekrv-split-list jadi position:absolute, dia KELUAR
+         dari flex flow .mekrv-split. Kalau .mekrv-split-map dibiarkan pakai
+         flex-grow:1 (warisan dari aturan flex:1 1 60% di atas), dia bakal
+         otomatis "ngembang" ngisi ruang yang ditinggalkan si list — dari
+         60% lebar jadi 100% — SAAT ITU JUGA, sebelum @keyframes si panel
+         sempat jalan sama sekali. Itu penyebab "tersendat di peta dulu baru
+         expand tabel": lebar peta berubah mendadak → browser harus
+         re-layout ratusan div krat "3D Aktual" dalam satu frame (mahal),
+         BARU animasi panel tabelnya keliatan jalan di atasnya. Fix-nya:
+         kunci flex-grow map jadi 0 pas expanded, biar lebarnya tetep 60%
+         persis kayak sebelum expand — gak ada reflow/resize apapun di peta,
+         panel tabel doang yang bergerak (nutupin sisa 40%+ di atasnya). */
+      #monitoringEksporPage .mekrv-split.mekrv-expanded .mekrv-split-map{flex:0 1 60%;}
       #monitoringEksporPage .mekrv-split.mekrv-expanded .mekrv-split-list{
         position:absolute;top:0;left:0;right:0;bottom:0;
         max-width:none;max-height:none;overflow-y:auto;
