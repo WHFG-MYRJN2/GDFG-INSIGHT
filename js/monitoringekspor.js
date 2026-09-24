@@ -3396,6 +3396,21 @@ function _mekRdDeleteRow(btn, plant) {
   _mekRdRenumber(plant);
 }
 
+// Parse angka format id-ID (titik = pemisah RIBUAN, koma = pemisah desimal)
+// — dipakai di semua sel angka tabel Reserved Direct (header & detail).
+// PENTING: parseFloat() bawaan JS nganggep titik = desimal, jadi "2.700"
+// (maksudnya 2700) kebaca jadi 2.7 kalau di-parseFloat langsung. Sama
+// persis kayak fungsi parseNum() yang dipakai backend (Code.gs, saveFdosData)
+// buat parsing angka hasil paste dari Excel: buang semua titik dulu (dianggap
+// ribuan), baru ganti koma jadi titik (dianggap desimal).
+function _mekRdParseNum(text) {
+  if (text === '' || text === null || text === undefined) return NaN;
+  var s = String(text).trim();
+  if (s === '-' || s === '') return NaN;
+  s = s.replace(/\./g, '').replace(/,/g, '.');
+  return parseFloat(s);
+}
+
 // Tombol "Detail reservasi" (ikon list) di tiap baris SKU cuma aktif kalau
 // RESERVED OUT baris itu > 0 — detail per SKU isinya rincian reservasi yang
 // nyusun angka Reserved Out, jadi gak ada gunanya dibuka kalau Reserved Out
@@ -3406,7 +3421,7 @@ function _mekRdUpdateDetailBtnState(tr) {
   var btn = tr.querySelector('.mek-rd-detail-btn');
   var outTd = tr.querySelector('[data-col="reservedOut"]');
   if (!btn || !outTd) return;
-  var v = parseFloat((outTd.textContent||'').replace(/[^0-9.\-]/g,''));
+  var v = _mekRdParseNum(outTd.textContent);
   var active = !isNaN(v) && v > 0;
   btn.disabled = !active;
   btn.style.opacity = active ? '1' : '.35';
@@ -3501,7 +3516,7 @@ function _mekRdOpenDetailFromRow(btn, plant) {
   var sku = skuTd ? skuTd.textContent.trim() : '';
   if (!sku) { showToast('Isi SKU dulu di baris ini', 'warning'); return; }
   var outTd = tr.querySelector('[data-col="reservedOut"]');
-  var outVal = outTd ? parseFloat((outTd.textContent||'').replace(/[^0-9.\-]/g,'')) : 0;
+  var outVal = outTd ? _mekRdParseNum(outTd.textContent) : 0;
   if (isNaN(outVal) || outVal <= 0) { showToast('Isi Reserved Out dulu (harus > 0) untuk input detail reservasi', 'warning'); return; }
   mekRdOpenDetail(plant, sku, outVal);
 }
@@ -3613,7 +3628,7 @@ function _mekRdDetailComputeTotal() {
     var qtyTd = tr.querySelector('[data-col="qtyReserved"]');
     if (!statusTd || !qtyTd) return;
     if (!_mekRdIsValidStatusClient(statusTd.textContent)) return;
-    var v = parseFloat((qtyTd.textContent||'').replace(/[^0-9.\-]/g,''));
+    var v = _mekRdParseNum(qtyTd.textContent);
     if (!isNaN(v)) total += Math.abs(v);
   });
   return total;
@@ -3647,7 +3662,7 @@ function _mekRdUpdateDetailSummary() {
 function _mekRdAbsQtyCell(tr) {
   var td = tr.querySelector('[data-col="qtyReserved"]');
   if (!td) return;
-  var v = parseFloat((td.textContent||'').replace(/[^0-9.\-]/g,''));
+  var v = _mekRdParseNum(td.textContent);
   if (!isNaN(v)) td.textContent = Math.abs(v);
 }
 
@@ -3686,7 +3701,7 @@ function _mekRdDetailAppendRow(vals) {
     if (v[col] !== undefined && v[col] !== null && v[col] !== '') td.textContent = v[col];
     if (col === 'qtyReserved') {
       td.addEventListener('blur', function(){
-        var val = parseFloat((this.textContent||'').replace(/[^0-9.\-]/g,''));
+        var val = _mekRdParseNum(this.textContent);
         this.textContent = isNaN(val) ? '' : Math.abs(val);
       });
     }
