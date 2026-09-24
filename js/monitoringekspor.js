@@ -1738,10 +1738,19 @@ function _mekRvApplyRowFilter() {
     if (skuF && (r.sku||'').toLowerCase().indexOf(skuF) < 0 && (r.nama||'').toLowerCase().indexOf(skuF) < 0) return false;
     if (noSoF && (r.noSo||'').toLowerCase().indexOf(noSoF) < 0) return false;
     if (tujuanF && (r.tujuan||'').toLowerCase().indexOf(tujuanF) < 0) return false;
-    if (plantF === '__no_plant__') {
-      if ((r.plant||'').trim()) return false;
-    } else if (plantF && (r.plant||'').toLowerCase().indexOf(plantF) < 0) {
-      return false;
+    // Filter Plant ini vocab-nya khusus lokasi gudang EKSPOR (mis. "JAYANTI 2")
+    // — baris DIRECT sengaja gak punya field "plant" itu (dia pakai Plant SAP
+    // 1111/1112/1113 sendiri, beda konsep, lihat catatan di
+    // getMekReservedDirectForView). Makanya baris DIRECT dikecualikan dari
+    // filter ini biar gak ke-filter abis pas Plant defaultnya "JAYANTI 2"
+    // (sebelumnya ini yang bikin data DIRECT keliatan "gak kebaca" —
+    // r.plant kosong gak pernah cocok sama "JAYANTI 2").
+    if (r.sourceType !== 'direct') {
+      if (plantF === '__no_plant__') {
+        if ((r.plant||'').trim()) return false;
+      } else if (plantF && (r.plant||'').toLowerCase().indexOf(plantF) < 0) {
+        return false;
+      }
     }
     if (agingF && r.tier !== agingF) return false;
     if (!isAllTipe && !tipeSet[r.sourceType||'ekspor']) return false;
