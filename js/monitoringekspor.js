@@ -1802,6 +1802,43 @@ function _mekRvApplyRowFilter() {
     return true;
   });
   _mekRvRenderRowsList(rows, !!(skuF || noSoF || tujuanF || plantF || agingF || !isAllTipe));
+  _mekRvUpdateStockKpis(skuF);
+}
+
+// KPI "Total Stock" / "Available" / "Reserved %" — dulu statis dari summary
+// server (level stock fisik gudang EKSPOR doang, gak pernah ikut filter apa
+// pun), beda sama kartu "Reserved"/"Container Waiting"/"Longest Waiting"/"SKU
+// Kurang Stock" yang emang udah dihitung ulang dari rows terfilter
+// (_mekRvUpdateFilteredKpis). Sekarang dihitung ULANG dari _mekRvCellsRaw
+// (bin fisik) tiap kali filter berubah, biar semua kartu konsisten ikut
+// filter — pakai logic pendekatan tipe yang SAMA kayak yang mewarnai peta
+// (_mekRvGetFilterAwareReserveInfo), jadi angka di kartu selalu nyambung sama
+// warna yang keliatan di peta.
+// CATATAN: yang bisa diterapkan ke level stock fisik (per-bin) cuma filter
+// SKU/NAMA & tipe (ALL/EKSPOR/DIRECT/dst) — No.SO/Tujuan/Plant/Aging/Closed
+// itu atribut per-baris RESERVASI, gak ada padanannya di level stock fisik
+// per-bin, jadi 3 kartu ini sengaja gak berubah kalau cuma filter2 itu doang
+// yang diisi (sama kayak kenapa Plant filter dikecualikan dari baris DIRECT).
+function _mekRvUpdateStockKpis(skuF) {
+  if (skuF === undefined) skuF = ((document.getElementById('mekRvFilterSku')||{}).value||'').toLowerCase().trim();
+  var info = _mekRvGetFilterAwareReserveInfo();
+  var totalStock = 0, totalReserved = 0;
+  (_mekRvCellsRaw || []).forEach(function(c){
+    if (skuF && (c.sku||'').toLowerCase().indexOf(skuF) < 0 && (c.nama||'').toLowerCase().indexOf(skuF) < 0) return;
+    var karton = c.karton || 0;
+    var reserved = info.showEkspor ? Math.min(c.reservedKarton || 0, karton) : 0;
+    if (info.approxSkuSet[c.sku]) reserved = karton; // pendekatan per-SKU, sama kayak _mekRvRebuildBinAgg
+    totalStock    += karton;
+    totalReserved += reserved;
+  });
+  var available = Math.max(0, totalStock - totalReserved);
+  var pct = totalStock > 0 ? (totalReserved / totalStock * 100) : 0;
+  var elT = document.getElementById('mekRvKpiTotal');
+  var elA = document.getElementById('mekRvKpiAvailable');
+  var elP = document.getElementById('mekRvKpiPct');
+  if (elT) elT.textContent = totalStock.toLocaleString('id-ID');
+  if (elA) elA.textContent = available.toLocaleString('id-ID');
+  if (elP) elP.textContent = pct.toFixed(1) + '%';
 }
 
 // Recalculate KPI "Reserved" / "Container Waiting" / "Longest Waiting" dari rows
