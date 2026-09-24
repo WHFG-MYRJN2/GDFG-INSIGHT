@@ -3503,7 +3503,7 @@ function _mekRdOpenDetailFromRow(btn, plant) {
   var outTd = tr.querySelector('[data-col="reservedOut"]');
   var outVal = outTd ? parseFloat((outTd.textContent||'').replace(/[^0-9.\-]/g,'')) : 0;
   if (isNaN(outVal) || outVal <= 0) { showToast('Isi Reserved Out dulu (harus > 0) untuk input detail reservasi', 'warning'); return; }
-  mekRdOpenDetail(plant, sku);
+  mekRdOpenDetail(plant, sku, outVal);
 }
 
 function mekLoadReservedDirectAll() {
@@ -3557,11 +3557,11 @@ function mekSaveReservedDirect(plant) {
   });
 }
 
-var _mekRdDetailCtx = { plant:'', sku:'' };
+var _mekRdDetailCtx = { plant:'', sku:'', reservedOut:0 };
 var MEK_RD_DETAIL_COLS = ['delivDate','status','kosong1','kosong2','mrp','custCode','custName','qtyReserved'];
 
-function mekRdOpenDetail(plant, sku) {
-  _mekRdDetailCtx = { plant: plant, sku: sku };
+function mekRdOpenDetail(plant, sku, reservedOut) {
+  _mekRdDetailCtx = { plant: plant, sku: sku, reservedOut: Math.abs(Number(reservedOut) || 0) };
   document.getElementById('mekRdDetailSku').textContent = sku;
   document.getElementById('mekRdDetailSub').textContent = 'Plant ' + plant;
   var tbody = document.getElementById('mekRdDetailTbody');
@@ -3575,19 +3575,73 @@ function mekRdOpenDetail(plant, sku) {
     rows.forEach(function(r){ _mekRdDetailAppendRow(r); });
     for (var i=0;i<3;i++) _mekRdDetailAppendRow({});
     _mekRdBindDetailTable();
+    _mekRdUpdateDetailSummary();
   }, function(err) {
     _mekRdDetailAppendRow({});
     for (var i=0;i<3;i++) _mekRdDetailAppendRow({});
     _mekRdBindDetailTable();
+    _mekRdUpdateDetailSummary();
   });
 }
 
 function _mekRdBindDetailTable() {
   _STOKInit({
     tblId: 'mekRdDetailTbl', tbodyId: 'mekRdDetailTbody', cols: MEK_RD_DETAIL_COLS, autoCols: {}, selClass: 'stok-sel',
-    onAfterPaste: function(tr){ _mekRdAbsQtyCell(tr); },
+    onAfterPaste: function(tr){ _mekRdAbsQtyCell(tr); _mekRdUpdateDetailSummary(); },
     appendRowFn: function(){ _mekRdDetailAppendRow({}); }
   });
+  // Bind sekali aja (delegated) — biar total di ringkasan atas ke-update
+  // TIAP kali user ngetik/ngedit sel apa pun di tabel (status ATAU qty),
+  // gak cuma pas blur kolom qty doang.
+  var tbody = document.getElementById('mekRdDetailTbody');
+  if (tbody && !tbody._mekRdSummaryBound) {
+    tbody._mekRdSummaryBound = true;
+    tbody.addEventListener('input', _mekRdUpdateDetailSummary);
+    tbody.addEventListener('focusout', _mekRdUpdateDetailSummary);
+  }
+}
+
+// Jumlahin Qty Reserved dari baris yang STATUS-nya "Order"/"Deliv." doang
+// (sama persis logika backend) — inilah yang beneran dihitung ke Reserved
+// Out, baris status lain diabaikan.
+function _mekRdDetailComputeTotal() {
+  var tbody = document.getElementById('mekRdDetailTbody');
+  if (!tbody) return 0;
+  var total = 0;
+  Array.from(tbody.rows).forEach(function(tr){
+    var statusTd = tr.querySelector('[data-col="status"]');
+    var qtyTd = tr.querySelector('[data-col="qtyReserved"]');
+    if (!statusTd || !qtyTd) return;
+    if (!_mekRdIsValidStatusClient(statusTd.textContent)) return;
+    var v = parseFloat((qtyTd.textContent||'').replace(/[^0-9.\-]/g,''));
+    if (!isNaN(v)) total += Math.abs(v);
+  });
+  return total;
+}
+
+// Update kotak ringkasan di atas tabel Detail: total yang udah keisi
+// (Order+Deliv.) vs Reserved Out yang harus dipenuhi, biar user langsung
+// tau dari awal ngisi udah cukup/kurang/lebih — gak perlu nebak-nebak
+// sampai baru ketahuan pas klik Simpan.
+function _mekRdUpdateDetailSummary() {
+  var el = document.getElementById('mekRdDetailSummary');
+  if (!el) return;
+  var total = _mekRdDetailComputeTotal();
+  var target = Math.abs(Number(_mekRdDetailCtx.reservedOut) || 0);
+  var fTotal = Math.round(total).toLocaleString('id-ID');
+  var fTarget = Math.round(target).toLocaleString('id-ID');
+  var diff = total - target;
+  var badge;
+  if (target <= 0) {
+    badge = '<span style="color:#718096;">Reserved Out belum diketahui</span>';
+  } else if (Math.abs(diff) < 0.01) {
+    badge = '<span style="color:#276749;font-weight:800;"><i class="fas fa-check-circle"></i> Sudah terpenuhi</span>';
+  } else if (diff < 0) {
+    badge = '<span style="color:#c53030;font-weight:800;"><i class="fas fa-exclamation-circle"></i> Kurang ' + Math.round(-diff).toLocaleString('id-ID') + '</span>';
+  } else {
+    badge = '<span style="color:#c05621;font-weight:800;"><i class="fas fa-exclamation-triangle"></i> Lebih ' + Math.round(diff).toLocaleString('id-ID') + '</span>';
+  }
+  el.innerHTML = 'Terisi (status Order/Deliv.): <b>' + fTotal + '</b> &nbsp;|&nbsp; Reserved Out: <b>' + fTarget + '</b> &nbsp;&mdash;&nbsp; ' + badge;
 }
 
 function _mekRdAbsQtyCell(tr) {
@@ -3611,6 +3665,7 @@ function _mekRdDetailDeleteRow(btn) {
   var tr = btn.closest('tr');
   if (tr) tr.remove();
   _mekRdDetailRenumber();
+  _mekRdUpdateDetailSummary();
 }
 
 function _mekRdDetailAppendRow(vals) {
@@ -3656,6 +3711,7 @@ function mekClearReservedDirectDetail() {
   if (tbody) tbody.innerHTML = '';
   for (var i=0;i<3;i++) _mekRdDetailAppendRow({});
   showToast('Tabel detail dikosongkan', '');
+  _mekRdUpdateDetailSummary();
 }
 
 // STATUS valid = "Order"/"Deliv." — dicocokkan sama persis kayak backend
@@ -3686,12 +3742,21 @@ function mekSaveReservedDirectDetail() {
       // Kosongin tabel detail-nya (sisain beberapa baris kosong) begitu
       // beneran udah tersimpan — sebelumnya baris-barisnya tetap nampil
       // persis kayak sebelum Simpan, jadi kerasa kayak "kok gak ke-save".
-      tbody.innerHTML = '';
-      for (var i=0;i<3;i++) _mekRdDetailAppendRow({});
-      // Update highlight baris SKU ini di tabel header (jadi hijau) tanpa
-      // perlu reload ulang semua data dari server.
       var totalQty = rows.filter(function(r){ return _mekRdIsValidStatusClient(r.status); })
         .reduce(function(sum, r){ return sum + Math.abs(Number(r.qtyReserved)||0); }, 0);
+      tbody.innerHTML = '';
+      for (var i=0;i<3;i++) _mekRdDetailAppendRow({});
+      // Tabelnya baru aja dikosongin di atas, jadi JANGAN hitung ulang
+      // ringkasan dari tabel (bakal keliatan "Kurang" padahal barusan aja
+      // berhasil tersimpan pas-pasan) — tampilin angka yang BENERAN kesimpan.
+      var sumEl = document.getElementById('mekRdDetailSummary');
+      if (sumEl) {
+        sumEl.innerHTML = '<span style="color:#276749;font-weight:800;"><i class="fas fa-check-circle"></i> Tersimpan: '
+          + Math.round(totalQty).toLocaleString('id-ID') + ' / ' + Math.round(_mekRdDetailCtx.reservedOut).toLocaleString('id-ID')
+          + '</span> &nbsp;<span style="color:#a0aec0;">(tabel dikosongin — isi baris baru buat nambah/ubah lagi)</span>';
+      }
+      // Update highlight baris SKU ini di tabel header (jadi hijau) tanpa
+      // perlu reload ulang semua data dari server.
       _mekRdMarkHeaderRowDetailQty(plant, sku, totalQty);
     } else {
       showToast('Gagal simpan detail: ' + ((res&&res.message)||'unknown'), 'error');
