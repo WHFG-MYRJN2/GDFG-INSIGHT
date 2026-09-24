@@ -2443,11 +2443,13 @@
     /* Tabel header Reserved Direct (Detail reservasi per SKU) — pakai class
        plan-done/plan-pending yang SAMA kaya tab Input Planning: hijau kalau
        SKU-nya (Reserved Out > 0) udah punya detail reservasi (Qty > 0),
-       merah muda kalau belum diisi detailnya sama sekali. */
-    #mekRdTbl1111 tbody tr.plan-done td, #mekRdTbl1112 tbody tr.plan-done td, #mekRdTbl1113 tbody tr.plan-done td { background: #f0fff4 !important; }
-    #mekRdTbl1111 tbody tr.plan-done:hover td, #mekRdTbl1112 tbody tr.plan-done:hover td, #mekRdTbl1113 tbody tr.plan-done:hover td { background: #c6f6d5 !important; }
-    #mekRdTbl1111 tbody tr.plan-pending td, #mekRdTbl1112 tbody tr.plan-pending td, #mekRdTbl1113 tbody tr.plan-pending td { background: #fff5f5 !important; }
-    #mekRdTbl1111 tbody tr.plan-pending:hover td, #mekRdTbl1112 tbody tr.plan-pending:hover td, #mekRdTbl1113 tbody tr.plan-pending:hover td { background: #fed7d7 !important; }
+       merah muda kalau belum diisi detailnya sama sekali. Kolom nomor (#)
+       DIKECUALIKAN (:not(.row-no)) — dia punya badge gelap sendiri, jangan
+       ikut ketiban warna hijau/merah baris. */
+    #mekRdTbl1111 tbody tr.plan-done td:not(.row-no), #mekRdTbl1112 tbody tr.plan-done td:not(.row-no), #mekRdTbl1113 tbody tr.plan-done td:not(.row-no) { background: #f0fff4 !important; }
+    #mekRdTbl1111 tbody tr.plan-done:hover td:not(.row-no), #mekRdTbl1112 tbody tr.plan-done:hover td:not(.row-no), #mekRdTbl1113 tbody tr.plan-done:hover td:not(.row-no) { background: #c6f6d5 !important; }
+    #mekRdTbl1111 tbody tr.plan-pending td:not(.row-no), #mekRdTbl1112 tbody tr.plan-pending td:not(.row-no), #mekRdTbl1113 tbody tr.plan-pending td:not(.row-no) { background: #fff5f5 !important; }
+    #mekRdTbl1111 tbody tr.plan-pending:hover td:not(.row-no), #mekRdTbl1112 tbody tr.plan-pending:hover td:not(.row-no), #mekRdTbl1113 tbody tr.plan-pending:hover td:not(.row-no) { background: #fed7d7 !important; }
     /* Kolom WEEK — compact */
     #mekPlanningTbl td:nth-child(2),
     #mekPlanningTbl th:nth-child(2) { width: 44px; text-align: center; }
@@ -5324,6 +5326,9 @@
         </div>
         <div style="padding:10px 14px 0;font-size:11px;color:#718096;">
           <i class="fas fa-info-circle"></i> Ketik langsung atau Ctrl+V paste dari Excel. Kolom <b>Qty Reserved</b> otomatis dijadikan angka positif (absolut) walau sumber datanya minus.
+        </div>
+        <div id="mekRdDetailSummary" style="margin:8px 14px 0;padding:8px 12px;border-radius:8px;background:#f7fafc;border:1px solid #e2e8f0;font-size:12px;color:#4a5568;">
+          Terisi: <b>0</b> &nbsp;|&nbsp; Reserved Out: <b>0</b>
         </div>
         <div style="overflow-x:auto;padding:10px 14px 14px;-webkit-overflow-scrolling:touch;">
           <table id="mekRdDetailTbl" class="mek-plan-tbl" style="min-width:1000px;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.06);" tabindex="0">
