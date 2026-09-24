@@ -2440,6 +2440,14 @@
     /* Baris pending — merah muda */
     #mekPlanningTbl tbody tr.plan-pending td { background: #fff5f5 !important; }
     #mekPlanningTbl tbody tr.plan-pending:hover td { background: #fed7d7 !important; }
+    /* Tabel header Reserved Direct (Detail reservasi per SKU) — pakai class
+       plan-done/plan-pending yang SAMA kaya tab Input Planning: hijau kalau
+       SKU-nya (Reserved Out > 0) udah punya detail reservasi (Qty > 0),
+       merah muda kalau belum diisi detailnya sama sekali. */
+    #mekRdTbl1111 tbody tr.plan-done td, #mekRdTbl1112 tbody tr.plan-done td, #mekRdTbl1113 tbody tr.plan-done td { background: #f0fff4 !important; }
+    #mekRdTbl1111 tbody tr.plan-done:hover td, #mekRdTbl1112 tbody tr.plan-done:hover td, #mekRdTbl1113 tbody tr.plan-done:hover td { background: #c6f6d5 !important; }
+    #mekRdTbl1111 tbody tr.plan-pending td, #mekRdTbl1112 tbody tr.plan-pending td, #mekRdTbl1113 tbody tr.plan-pending td { background: #fff5f5 !important; }
+    #mekRdTbl1111 tbody tr.plan-pending:hover td, #mekRdTbl1112 tbody tr.plan-pending:hover td, #mekRdTbl1113 tbody tr.plan-pending:hover td { background: #fed7d7 !important; }
     /* Kolom WEEK — compact */
     #mekPlanningTbl td:nth-child(2),
     #mekPlanningTbl th:nth-child(2) { width: 44px; text-align: center; }
