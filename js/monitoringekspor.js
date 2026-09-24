@@ -1942,37 +1942,100 @@ function mekRvDownloadExcel() {
   _mekExportTableExcel('mekRvTable', 'Reserved Stock Monitoring', _mekRvFilterSummaryText());
 }
 
-// Ambil markup SVG "Peta 3D Aktual" (SEMUA rak) buat halaman terakhir PDF.
+// Ambil peta "Peta 3D Aktual" (SEMUA rak) buat halaman terakhir PDF —
+// SEBAGAI GAMBAR RASTER (screenshot/PNG), bukan markup SVG mentah.
 // Dipaksa ke rak ALL sesaat aja (biar overview lengkap, bukan cuma rak yang
 // lagi dipilih user), lalu state peta dibalikin PERSIS kaya semula sesudahnya
 // — kalau mode yang lagi aktif BUKAN 3D Aktual, wrap-nya emang lagi
 // display:none, jadi proses render sementara ini gak keliatan/gak bikin
 // layar "lompat" sama sekali buat user.
 //
-// PENTING soal ukuran: SVG-nya di layar cuma dikasih width:100% (CSS persen,
-// gak ada atribut width/height eksplisit) — sizing kaya gitu dikenal suka
-// salah render pas di-print/di-convert ke PDF (Chrome & browser lain punya
-// banyak bug lawas soal SVG persen di context print), hasilnya bisa keliatan
-// "aneh"/detailnya ilang. Makanya sebelum di-embed ke halaman cetak, di sini
-// SENGAJA di-clone dan dikasih atribut width/height EKSPLISIT (dalam mm)
-// biar renderer print gak perlu nebak-nebak dari CSS.
-function _mekRvCaptureAktual3dSvg(boxWmm, boxHmm) {
+// KENAPA DI-RASTER (bukan nempel SVG mentah kaya sebelumnya): peta "ALL rak"
+// bisa berisi RIBUAN elemen <polygon> (tiap kubus/carton individual). Nempel
+// SVG-nya langsung ke dokumen cetak berarti browser harus nge-layout &
+// nge-render ribuan elemen itu LAGI di context print/iframe yang baru — ini
+// yang bikin proses jadi berat/lag. Dengan di-convert jadi satu gambar PNG
+// dulu (lewat <canvas>), dokumen cetaknya cuma perlu taruh SATU elemen <img>
+// di halaman terakhir — jauh lebih ringan buat browser nge-layout & nge-print,
+// dan sebagai bonus warna/garis pinggirnya otomatis lebih halus (gak ada lagi
+// efek "gelap/rumit" pas ukurannya diperbesar ke halaman cetak).
+//
+// Caranya: markup SVG di-ambil dari DOM (dgn viewBox aslinya dipertahankan,
+// stroke ditipisin dikit biar bersih pas di-raster), dibungkus jadi Blob
+// image/svg+xml, dimuat lewat elemen <img>, digambar ke <canvas> seukuran
+// target cetak (dalam px sesuai DPI), lalu diambil sebagai data-URL PNG.
+// Ini proses ASYNC (nunggu img.onload), makanya butuh callback.
+function _mekRvCaptureAktual3dImage(boxWmm, boxHmm, callback) {
   var prevRack = _mekRvSelectedRack;
-  _mekRvSelectedRack = 'ALL';
-  _mekRvRenderAktual3DBody();
-  var svgEl = document.querySelector('#mekRv3dAktualWrap svg');
-  var svgHtml = '';
-  if (svgEl) {
-    var clone = svgEl.cloneNode(true);
-    clone.removeAttribute('style');
-    clone.setAttribute('width', boxWmm + 'mm');
-    clone.setAttribute('height', boxHmm + 'mm');
-    clone.setAttribute('preserveAspectRatio', 'xMidYMid meet');
-    svgHtml = clone.outerHTML;
+  var alreadyAll = (_mekRvMode === 'aktual3d' && prevRack === 'ALL');
+  if (!alreadyAll) {
+    _mekRvSelectedRack = 'ALL';
+    _mekRvRenderAktual3DBody();
   }
-  _mekRvSelectedRack = prevRack;
-  _mekRvRenderAktual3DBody();
-  return svgHtml;
+  var svgEl = document.querySelector('#mekRv3dAktualWrap svg');
+
+  function finish(dataUrl) {
+    if (!alreadyAll) {
+      _mekRvSelectedRack = prevRack;
+      // Ditunda 1 tick biar gak nge-block alur bikin PDF/buka dialog print —
+      // render balik ini cuma buat ngembaliin tampilan layar user, gak
+      // dibutuhin sama sekali buat proses PDF-nya (gambarnya udah keambil).
+      setTimeout(function(){ _mekRvRenderAktual3DBody(); }, 0);
+    }
+    callback(dataUrl || '');
+  }
+
+  if (!svgEl) { finish(''); return; }
+
+  var DPI = 150; // cukup tajam buat cetak A4, tapi ukuran file gak kebesaran
+  var pxW = Math.round(boxWmm / 25.4 * DPI);
+  var pxH = Math.round(boxHmm / 25.4 * DPI);
+
+  var raw = svgEl.outerHTML;
+  // Tag pembuka <svg ...>: buang style CSS-persen-nya, pertahankan viewBox,
+  // kasih xmlns (wajib buat SVG standalone/lepas dari DOM) + width/height
+  // eksplisit dalam PIXEL (bukan mm — ini buat di-raster ke canvas, bukan
+  // ditempel langsung ke halaman cetak).
+  raw = raw.replace(/^<svg\b[^>]*>/, function(openTag){
+    var vb = /viewBox="[^"]*"/.exec(openTag);
+    return '<svg xmlns="http://www.w3.org/2000/svg" ' + (vb ? vb[0] + ' ' : '')
+      + 'width="' + pxW + '" height="' + pxH + '">';
+  });
+  // Tipisin stroke-width & redupin stroke-opacity yang tebal — via regex
+  // string, bukan loop per-elemen, biar tetap cepat walau elemennya ribuan.
+  raw = raw.replace(/stroke-width="([\d.]+)"/g, function(m, w){
+    return 'stroke-width="' + Math.max(parseFloat(w) * 0.35, 0.12).toFixed(2) + '"';
+  });
+  raw = raw.replace(/stroke-opacity="([\d.]+)"/g, function(m, o){
+    var v = parseFloat(o);
+    return v > 0.5 ? ('stroke-opacity="' + (v * 0.6).toFixed(2) + '"') : m;
+  });
+
+  var svgBlob = new Blob([raw], {type: 'image/svg+xml;charset=utf-8'});
+  var blobUrl = URL.createObjectURL(svgBlob);
+  var img = new Image();
+  img.onload = function() {
+    try {
+      var canvas = document.createElement('canvas');
+      canvas.width = pxW;
+      canvas.height = pxH;
+      var ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, pxW, pxH);
+      ctx.drawImage(img, 0, 0, pxW, pxH);
+      var dataUrl = canvas.toDataURL('image/png');
+      URL.revokeObjectURL(blobUrl);
+      finish(dataUrl);
+    } catch (e) {
+      URL.revokeObjectURL(blobUrl);
+      finish('');
+    }
+  };
+  img.onerror = function() {
+    URL.revokeObjectURL(blobUrl);
+    finish('');
+  };
+  img.src = blobUrl;
 }
 
 function mekRvDownloadPdf() {
@@ -1986,17 +2049,19 @@ function mekRvDownloadPdf() {
     // Petanya berbentuk denah gudang yang lebar/landscape — kalau dipaksa
     // muat ke lebar halaman potrait (~174mm) doang, sisa tinggi halaman
     // (~245mm) jadi kosong ke bawah & detail rak keliatan kecil/padat.
-    // Solusinya: SVG-nya diputar 90° biar makai sisi PANJANG halaman
+    // Solusinya: gambar petanya diputar 90° biar makai sisi PANJANG halaman
     // (~245mm) sebagai lebar efektifnya — halaman dokumennya sendiri tetep
     // A4 potrait persis kayak diminta, cuma gambar petanya aja yang
     // dirotasi biar lebih besar & jelas (teknik umum buat diagram lebar
-    // di laporan potrait).
-    var svgHtml = _mekRvCaptureAktual3dSvg(245, 170);
-    _mekRvBuildPrintPdf(tbl.outerHTML, svgHtml);
+    // di laporan potrait). Peta di-raster jadi PNG dulu (async) sebelum
+    // dokumen cetaknya dibangun.
+    _mekRvCaptureAktual3dImage(245, 170, function(imgDataUrl){
+      _mekRvBuildPrintPdf(tbl.outerHTML, imgDataUrl);
+    });
   });
 }
 
-function _mekRvBuildPrintPdf(tableHtml, svgHtml) {
+function _mekRvBuildPrintPdf(tableHtml, imgDataUrl) {
   var now = new Date();
   var tglPrint = ('0'+now.getDate()).slice(-2)+'/'+('0'+(now.getMonth()+1)).slice(-2)+'/'+now.getFullYear()+
     ' '+('0'+now.getHours()).slice(-2)+':'+('0'+now.getMinutes()).slice(-2);
@@ -2022,7 +2087,7 @@ function _mekRvBuildPrintPdf(tableHtml, svgHtml) {
     // biar abis diputar jadi pas 170mm x 245mm, muat persis di viewport).
     '.map-viewport { position: relative; width: 174mm; height: 245mm; margin: 0 auto; overflow: visible; }',
     '.map-rotated { position: absolute; top: 50%; left: 50%; width: 245mm; height: 170mm; transform: translate(-50%,-50%) rotate(90deg); }',
-    '.map-rotated svg { display: block; width: 100%; height: 100%; }',
+    '.map-rotated img { display: block; width: 100%; height: 100%; object-fit: contain; }',
     '.mapempty { padding: 100mm 0 0; text-align: center; color: #a0aec0; font-size: 11px; }',
     '@page { size: A4 portrait; margin: 8mm; }'
   ].join('\n');
@@ -2036,8 +2101,8 @@ function _mekRvBuildPrintPdf(tableHtml, svgHtml) {
   var page2 = '<div class="pdf-page">'
     + '<h2>Peta 3D Aktual — Reserved Stock</h2>'
     + '<p class="sub">Semua rak &nbsp;|&nbsp; Dicetak: ' + tglPrint + ' &nbsp;|&nbsp; (gambar diputar 90° biar lebih besar/jelas)</p>'
-    + (svgHtml
-        ? '<div class="map-viewport"><div class="map-rotated">' + svgHtml + '</div></div>'
+    + (imgDataUrl
+        ? '<div class="map-viewport"><div class="map-rotated"><img src="' + imgDataUrl + '" alt="Peta 3D Aktual"></div></div>'
         : '<div class="mapempty">Peta tidak tersedia</div>')
     + '</div>';
 
@@ -3347,6 +3412,18 @@ function _mekRdUpdateDetailBtnState(tr) {
   btn.style.opacity = active ? '1' : '.35';
   btn.style.cursor = active ? 'pointer' : 'not-allowed';
   btn.title = active ? 'Detail reservasi' : 'Isi Reserved Out (>0) dulu untuk input detail';
+
+  // Highlight baris — hijau kalau Reserved Out > 0 dan detail reservasinya
+  // udah diisi (qty > 0), merah muda kalau Reserved Out > 0 tapi detail-nya
+  // BELUM diisi. Sama persis pola "done/pending" di tab Input Planning
+  // (class plan-done/plan-pending, warnanya di-handle CSS), biar user
+  // langsung keliatan SKU mana yang masih perlu diisi detail-nya sebelum
+  // bisa Simpan header. tr.dataset.detailQty diisi pas baris dimuat dari
+  // server (lihat _mekRdAppendRow), atau di-update langsung abis Simpan
+  // Detail berhasil (lihat _mekRdMarkHeaderRowDetailQty).
+  var dq = Math.abs(parseFloat(tr.dataset.detailQty || '0')) || 0;
+  tr.classList.remove('plan-done', 'plan-pending');
+  if (active) tr.classList.add(dq > 0 ? 'plan-done' : 'plan-pending');
 }
 
 // Kode barang/SKU sering ke-paste dari Excel dengan angka 0 di depan (mis.
@@ -3369,6 +3446,7 @@ function _mekRdAppendRow(plant, vals) {
   var tbody = document.getElementById('mekRdTbody'+plant);
   if (!tbody) return;
   var tr = document.createElement('tr');
+  tr.dataset.detailQty = v.detailQty || 0; // dipakai _mekRdUpdateDetailBtnState buat nentuin hijau/merah
   var tdNo = document.createElement('td');
   tdNo.className = 'row-no stok-rn';
   tdNo.textContent = tbody.rows.length + 1;
@@ -3580,6 +3658,16 @@ function mekClearReservedDirectDetail() {
   showToast('Tabel detail dikosongkan', '');
 }
 
+// STATUS valid = "Order"/"Deliv." — dicocokkan sama persis kayak backend
+// (_mekRdIsValidStatus di Code.gs), dipakai di sini cuma buat ngitung ulang
+// total Qty yang KEPAKAI (abis di-filter status) buat nge-highlight baris
+// header, bukan buat nge-block apa-apa di frontend (validasi asli tetap di
+// server).
+function _mekRdIsValidStatusClient(status) {
+  var s = String(status||'').trim().toLowerCase();
+  return s.indexOf('order') === 0 || s.indexOf('deliv') === 0;
+}
+
 function mekSaveReservedDirectDetail() {
   var plant = _mekRdDetailCtx.plant, sku = _mekRdDetailCtx.sku;
   if (!plant || !sku) return;
@@ -3593,10 +3681,35 @@ function mekSaveReservedDirectDetail() {
     rows.push({ delivDate:delivDate, status:g('status'), kosong1:g('kosong1'), kosong2:g('kosong2'), mrp:g('mrp'), custCode:custCode, custName:custName, qtyReserved: Math.abs(parseFloat(qty)||0) });
   });
   API.run('saveMekReservedDirectDetail', { plant: plant, sku: sku, rows: rows }, function(res) {
-    if (res && res.success) showToast(res.message || 'Detail tersimpan', 'success');
-    else showToast('Gagal simpan detail: ' + ((res&&res.message)||'unknown'), 'error');
+    if (res && res.success) {
+      showToast(res.message || 'Detail tersimpan', 'success');
+      // Kosongin tabel detail-nya (sisain beberapa baris kosong) begitu
+      // beneran udah tersimpan — sebelumnya baris-barisnya tetap nampil
+      // persis kayak sebelum Simpan, jadi kerasa kayak "kok gak ke-save".
+      tbody.innerHTML = '';
+      for (var i=0;i<3;i++) _mekRdDetailAppendRow({});
+      // Update highlight baris SKU ini di tabel header (jadi hijau) tanpa
+      // perlu reload ulang semua data dari server.
+      var totalQty = rows.filter(function(r){ return _mekRdIsValidStatusClient(r.status); })
+        .reduce(function(sum, r){ return sum + Math.abs(Number(r.qtyReserved)||0); }, 0);
+      _mekRdMarkHeaderRowDetailQty(plant, sku, totalQty);
+    } else {
+      showToast('Gagal simpan detail: ' + ((res&&res.message)||'unknown'), 'error');
+    }
   }, function(err) {
     showToast('Gagal simpan detail (koneksi)', 'error');
+  });
+}
+
+function _mekRdMarkHeaderRowDetailQty(plant, sku, totalQty) {
+  var tbody = document.getElementById('mekRdTbody'+plant);
+  if (!tbody) return;
+  Array.from(tbody.rows).forEach(function(tr){
+    var skuTd = tr.querySelector('[data-col="sku"]');
+    if (skuTd && skuTd.textContent.trim() === sku) {
+      tr.dataset.detailQty = totalQty;
+      _mekRdUpdateDetailBtnState(tr);
+    }
   });
 }
 
