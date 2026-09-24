@@ -4879,6 +4879,133 @@ var _mekBySkuLastState = null;
 var _mekCapFilter = 'all';  // 'all' | 'datang' | 'belum'
 var _mekCapMode   = 'email';  // 'all' | 'wa' | 'si' | 'email' (default: Detail)
 
+// ════════════════════════════════════════════════════════════
+// SUMMARY: sub-tab EKSPOR (Capaian Planning, eksisting) / DIRECT (pivot
+// SO/DO Reserved Direct per Tanggal DO — dari data Input Planning Direct)
+// ════════════════════════════════════════════════════════════
+var _mekDirectSummaryLoaded = false;
+
+function mekSummarySwitchSub(which) {
+  var elE = document.getElementById('mekSumSubEkspor');
+  var elD = document.getElementById('mekSumSubDirect');
+  var paneE = document.getElementById('mekPaneCapaian');
+  var paneD = document.getElementById('mekPaneDirect');
+  if (elE) elE.classList.toggle('active', which === 'ekspor');
+  if (elD) elD.classList.toggle('active', which === 'direct');
+  if (paneE) paneE.style.display = which === 'ekspor' ? 'block' : 'none';
+  if (paneD) paneD.style.display = which === 'direct' ? 'block' : 'none';
+  if (which === 'direct' && !_mekDirectSummaryLoaded) mekLoadDirectSummary();
+}
+
+function mekLoadDirectSummary() {
+  var body = document.getElementById('mekDirectSummaryBody');
+  if (!body) return;
+  body.innerHTML = '<div style="text-align:center;padding:50px;color:#a0aec0;font-size:13px;"><i class="fas fa-spinner fa-spin" style="font-size:24px;"></i></div>';
+  API.run('getMekReservedDirectSummary', {}, function(res) {
+    _mekDirectSummaryLoaded = true;
+    if (!res || !res.success) {
+      body.innerHTML = '<div style="text-align:center;padding:30px;color:#c53030;font-size:12px;">Gagal memuat data: ' + _mekEsc((res && res.message) || 'unknown') + '</div>';
+      return;
+    }
+    _mekRenderDirectSummary(res);
+  }, function() {
+    _mekDirectSummaryLoaded = true;
+    body.innerHTML = '<div style="text-align:center;padding:30px;color:#c53030;font-size:12px;">Gagal memuat data: koneksi</div>';
+  });
+}
+
+function _mekDirectFmtTglDot(ymd) {
+  if (!ymd) return '-';
+  var p = String(ymd).split('-');
+  if (p.length !== 3) return ymd;
+  return p[2] + '.' + p[1] + '.' + p[0];
+}
+
+function _mekRenderDirectSummary(res) {
+  var body = document.getElementById('mekDirectSummaryBody');
+  if (!body) return;
+  var dates = res.dates || [];
+  var rows  = res.rows  || [];
+
+  if (!rows.length) {
+    body.innerHTML = '<div style="text-align:center;padding:50px;color:#a0aec0;font-size:13px;">'
+      + '<i class="fas fa-check-circle" style="font-size:30px;display:block;margin-bottom:10px;opacity:.3;"></i>'
+      + 'Gak ada SKU Reserved Out Direct yang pending saat ini</div>';
+    return;
+  }
+
+  var now = new Date();
+  var todayLabel = ('0'+now.getDate()).slice(-2)+'.'+('0'+(now.getMonth()+1)).slice(-2)+'.'+now.getFullYear();
+
+  var thStyle   = 'padding:7px 8px;font-size:10px;font-weight:800;color:#2d3748;background:#e2e8f0;border:1px solid #cbd5e0;text-align:center;';
+  var thSoStyle = 'padding:5px 8px;font-size:10px;font-weight:800;color:#744210;background:#fbd38d;border:1px solid #cbd5e0;text-align:center;';
+  var thDoStyle = 'padding:5px 8px;font-size:10px;font-weight:800;color:#fff;background:#dd6b20;border:1px solid #cbd5e0;text-align:center;';
+
+  // ── Header 3 baris: SKU/Nama/Reserved Out (rowspan 3) lalu grup Tanggal DO → SO/DO ──
+  var headRow1 = '<tr>'
+    + '<th rowspan="3" style="'+thStyle+'min-width:70px;">SKU</th>'
+    + '<th rowspan="3" style="'+thStyle+'min-width:170px;text-align:left;">NAMA BARANG</th>'
+    + '<th rowspan="3" style="'+thStyle+'min-width:90px;">RESERVED<br>OUT DIRECT</th>'
+    + (dates.length ? '<th colspan="'+(dates.length*2)+'" style="'+thStyle+'">TANGGAL DO</th>' : '<th style="'+thStyle+'">TANGGAL DO</th>')
+  + '</tr>';
+  var headRow2 = '<tr>'
+    + dates.map(function(d){ return '<th colspan="2" style="'+thStyle+'">' + _mekDirectFmtTglDot(d) + '</th>'; }).join('')
+    + (!dates.length ? '<th style="'+thStyle+'">-</th>' : '')
+  + '</tr>';
+  var headRow3 = '<tr>'
+    + dates.map(function(){ return '<th style="'+thSoStyle+'">SO</th><th style="'+thDoStyle+'">DO</th>'; }).join('')
+    + (!dates.length ? '<th style="'+thStyle+'"></th>' : '')
+  + '</tr>';
+
+  var tdStyle = 'padding:6px 8px;font-size:11px;color:#2d3748;border:1px solid #e2e8f0;text-align:center;';
+  var bodyRows = rows.map(function(r, i) {
+    var zebra = i % 2 === 1 ? 'background:#f7fafc;' : '';
+    var cells = dates.map(function(d) {
+      var c = r.cells[d] || { so:0, do:0 };
+      var soTx = c.so > 0 ? c.so.toLocaleString('id-ID') : '-';
+      var doTx = c.do > 0 ? c.do.toLocaleString('id-ID') : '-';
+      return '<td style="'+tdStyle+zebra+'">' + soTx + '</td><td style="'+tdStyle+zebra+'">' + doTx + '</td>';
+    }).join('');
+    return '<tr>'
+      + '<td style="'+tdStyle+zebra+'font-weight:800;">' + _mekEsc(r.sku) + '</td>'
+      + '<td style="'+tdStyle+zebra+'text-align:left;">' + _mekEsc(r.nama||'-') + '</td>'
+      + '<td style="'+tdStyle+zebra+'font-weight:700;">' + (r.reservedOut||0).toLocaleString('id-ID') + '</td>'
+      + cells
+    + '</tr>';
+  }).join('');
+
+  var totalCells = dates.map(function(d) {
+    var t = (res.totalPerDate && res.totalPerDate[d]) || { so:0, do:0 };
+    return '<td style="'+tdStyle+'background:#e2e8f0;font-weight:800;">' + (t.so||0).toLocaleString('id-ID') + '</td>'
+         + '<td style="'+tdStyle+'background:#e2e8f0;font-weight:800;">' + (t.do||0).toLocaleString('id-ID') + '</td>';
+  }).join('');
+  var footRow = '<tr>'
+    + '<td colspan="3" style="'+tdStyle+'background:#e2e8f0;font-weight:800;text-align:right;">JUMLAH ( KARTON )</td>'
+    + (dates.length ? totalCells : '<td style="'+tdStyle+'background:#e2e8f0;"></td>')
+  + '</tr>';
+
+  var tableHtml = '<div style="font-size:15px;font-weight:800;color:#1a3a5c;text-align:center;margin-bottom:10px;">'
+      + 'Data Pending DO Direct yang (Menunggu Armada) ' + todayLabel
+    + '</div>'
+    + '<div style="overflow:auto;border:1px solid #cbd5e0;border-radius:8px;-webkit-overflow-scrolling:touch;">'
+      + '<table style="border-collapse:collapse;min-width:100%;white-space:nowrap;">'
+        + '<thead>' + headRow1 + headRow2 + headRow3 + '</thead>'
+        + '<tbody>' + bodyRows + footRow + '</tbody>'
+      + '</table>'
+    + '</div>';
+
+  var boxesHtml = '<div style="display:grid;grid-template-columns:1fr 2fr;gap:0;max-width:420px;margin:16px auto 0;border:1px solid #cbd5e0;border-radius:8px;overflow:hidden;">'
+    + '<div style="background:#f6e05e;padding:10px 12px;font-size:12px;font-weight:800;color:#744210;display:flex;align-items:center;">JUMLAH SO ( KARTON )</div>'
+    + '<div style="background:#e2e8f0;padding:10px 12px;font-size:18px;font-weight:800;color:#2d3748;text-align:center;">' + (res.totalSo||0).toLocaleString('id-ID') + '</div>'
+    + '<div style="background:#ed8936;padding:10px 12px;font-size:12px;font-weight:800;color:#fff;display:flex;align-items:center;">JUMLAH DO ( KARTON )</div>'
+    + '<div style="background:#e2e8f0;padding:10px 12px;font-size:18px;font-weight:800;color:#2d3748;text-align:center;">' + (res.totalDo||0).toLocaleString('id-ID') + '</div>'
+    + '<div style="background:#cbd5e0;padding:10px 12px;font-size:12px;font-weight:800;color:#2d3748;display:flex;align-items:center;">TOTAL ALL</div>'
+    + '<div style="background:#e2e8f0;padding:10px 12px;font-size:20px;font-weight:900;color:#1a3a5c;text-align:center;">' + (res.totalAll||0).toLocaleString('id-ID') + '</div>'
+  + '</div>';
+
+  body.innerHTML = tableHtml + boxesHtml;
+}
+
 function mekCapSwitchMode(mode) {
   _mekCapEmailLastFrom = ''; _mekCapEmailLastTo = ''; _mekCapEmailLastView = '';
   _mekCapMode = mode;
