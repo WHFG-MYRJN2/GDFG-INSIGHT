@@ -3406,7 +3406,38 @@ function _mekCollectManualRows() {
 var _mekInputSub = 'ekspor';
 var _mekRdInited = false;
 var MEK_RD_PLANTS = ['1111','1112','1113'];
-var MEK_RD_COLS = ['sku','nama','buffer','stockPhisik','reservedIn','reservedOut','stockEnding'];
+// Kolom "pallet" sengaja ditaruh PALING BELAKANG (bukan nyempil di antara
+// reservedOut & stockEnding) biar urutan kolom yang di-paste dari Excel
+// (SKU..STOCK ENDING, 7 kolom) gak kegeser — _STOKInit motong isi paste
+// berdasarkan POSISI kolom di array ini, jadi nambah kolom baru di tengah
+// bakal bikin kolom-kolom sesudahnya salah baca pas paste.
+var MEK_RD_COLS = ['sku','nama','buffer','stockPhisik','reservedIn','reservedOut','stockEnding','pallet'];
+
+// Cache sheet STD keyed by SKU {sku: std} — dipakai buat ngitung kolom
+// PALLET otomatis di tabel Reserved Direct. Beda sama _mekStdCache di atas
+// (keyed by nama, buat fuzzy-match parsing SI). Di-load abis data Reserved
+// Direct selesai dimuat, lalu dipakai buat itung ulang tiap kali Reserved
+// Out diketik/di-paste atau SKU-nya berubah.
+var _mekRdStdBySku = null;
+function _mekRdLoadStdBySku(callback) {
+  if (_mekRdStdBySku) { callback(_mekRdStdBySku); return; }
+  API.run('getStandarPalet', {}, function(res) {
+    _mekRdStdBySku = {};
+    ((res && res.data) || []).forEach(function(r) {
+      var sku = _mekRdStripSkuZero(r.sku || '');
+      if (sku) _mekRdStdBySku[sku] = Number(r.std) || 0;
+    });
+    callback(_mekRdStdBySku);
+  }, function() { _mekRdStdBySku = {}; callback({}); });
+}
+
+function _mekRdRecomputeAllPallets() {
+  MEK_RD_PLANTS.forEach(function(p){
+    var tbody = document.getElementById('mekRdTbody'+p);
+    if (!tbody) return;
+    Array.from(tbody.rows).forEach(function(tr){ _mekRdUpdateDetailBtnState(tr); });
+  });
+}
 
 function mekInputSwitchSub(sub) {
   _mekInputSub = sub;
@@ -3423,7 +3454,9 @@ function mekInputSwitchSub(sub) {
 
 function _mekRdBindTable(plant) {
   _STOKInit({
-    tblId: 'mekRdTbl'+plant, tbodyId: 'mekRdTbody'+plant, cols: MEK_RD_COLS, autoCols: {}, selClass: 'stok-sel',
+    // pallet: true → kolom read-only/auto, dilewatin pas paste/delete/fill
+    // (isinya selalu dihitung ulang dari Reserved Out, bukan diinput manual)
+    tblId: 'mekRdTbl'+plant, tbodyId: 'mekRdTbody'+plant, cols: MEK_RD_COLS, autoCols: {pallet:true}, selClass: 'stok-sel',
     appendRowFn: function(){ _mekRdAppendRow(plant, {}); },
     onAfterPaste: function(tr){ _mekRdNormalizeSku(tr); _mekRdUpdateDetailBtnState(tr); }
   });
@@ -3464,6 +3497,31 @@ function _mekRdParseNum(text) {
   return parseFloat(s);
 }
 
+// Itung kolom PALLET dari Reserved Out — rumus sama persis kayak yang
+// dipakai buat Input Kapasitas/Opname: Math.ceil(qty / STD), STD-nya
+// diambil per-SKU dari sheet STD (_mekRdStdBySku). Kalau SKU-nya gak
+// ketemu di sheet STD (std 0/gak ada), pallet-nya dikosongin — gak bisa
+// dihitung tanpa STD.
+function _mekRdComputePalletVal(sku, outVal) {
+  var s = _mekRdStripSkuZero(sku);
+  var std = (_mekRdStdBySku && _mekRdStdBySku[s]) || 0;
+  if (!std || isNaN(outVal) || outVal <= 0) return null;
+  return Math.ceil(outVal / std);
+}
+
+function _mekRdUpdatePalletCell(tr) {
+  if (!tr) return;
+  var palletTd = tr.querySelector('[data-col="pallet"]');
+  if (!palletTd) return;
+  var skuTd = tr.querySelector('[data-col="sku"]');
+  var outTd = tr.querySelector('[data-col="reservedOut"]');
+  var sku = skuTd ? skuTd.textContent.trim() : '';
+  var outVal = outTd ? _mekRdParseNum(outTd.textContent) : NaN;
+  var pallet = _mekRdComputePalletVal(sku, outVal);
+  palletTd.textContent = pallet === null ? '' : pallet.toLocaleString('id-ID');
+  tr.dataset.pallet = pallet || 0;
+}
+
 // Tombol "Detail reservasi" (ikon list) di tiap baris SKU cuma aktif kalau
 // RESERVED OUT baris itu > 0 — detail per SKU isinya rincian reservasi yang
 // nyusun angka Reserved Out, jadi gak ada gunanya dibuka kalau Reserved Out
@@ -3481,17 +3539,23 @@ function _mekRdUpdateDetailBtnState(tr) {
   btn.style.cursor = active ? 'pointer' : 'not-allowed';
   btn.title = active ? 'Detail reservasi' : 'Isi Reserved Out (>0) dulu untuk input detail';
 
-  // Highlight baris — hijau kalau Reserved Out > 0 dan detail reservasinya
-  // udah diisi (qty > 0), merah muda kalau Reserved Out > 0 tapi detail-nya
-  // BELUM diisi. Sama persis pola "done/pending" di tab Input Planning
-  // (class plan-done/plan-pending, warnanya di-handle CSS), biar user
-  // langsung keliatan SKU mana yang masih perlu diisi detail-nya sebelum
-  // bisa Simpan header. tr.dataset.detailQty diisi pas baris dimuat dari
-  // server (lihat _mekRdAppendRow), atau di-update langsung abis Simpan
-  // Detail berhasil (lihat _mekRdMarkHeaderRowDetailQty).
+  _mekRdUpdatePalletCell(tr);
+  var pallet = Math.abs(parseFloat(tr.dataset.pallet || '0')) || 0;
+
+  // Highlight baris — hijau kalau detail reservasinya udah diisi (qty > 0).
+  // Merah muda CUMA kalau detail-nya WAJIB diisi (Reserved Out > 5000 karton
+  // ATAU Pallet hasil hitungan > 100 pallet) tapi belum diisi — SKU kecil di
+  // bawah ambang itu gak dipaksa merah walau Reserved Out-nya > 0, karena
+  // detailnya opsional buat SKU sekecil itu. Sama persis pola "done/pending"
+  // di tab Input Planning (class plan-done/plan-pending, warnanya di-handle
+  // CSS). tr.dataset.detailQty diisi pas baris dimuat dari server (lihat
+  // _mekRdAppendRow), atau di-update langsung abis Simpan Detail berhasil
+  // (lihat _mekRdMarkHeaderRowDetailQty).
+  var mandatory = active && (v > 5000 || pallet > 100);
   var dq = Math.abs(parseFloat(tr.dataset.detailQty || '0')) || 0;
   tr.classList.remove('plan-done', 'plan-pending');
-  if (active) tr.classList.add(dq > 0 ? 'plan-done' : 'plan-pending');
+  if (dq > 0) tr.classList.add('plan-done');
+  else if (mandatory) tr.classList.add('plan-pending');
 }
 
 // Kode barang/SKU sering ke-paste dari Excel dengan angka 0 di depan (mis.
@@ -3522,6 +3586,15 @@ function _mekRdAppendRow(plant, vals) {
   MEK_RD_COLS.forEach(function(col){
     var td = document.createElement('td');
     td.dataset.col = col;
+    // PALLET: kolom auto/read-only, isinya cuma hasil hitungan (gak bisa
+    // diketik manual) — nilainya diisi belakangan oleh _mekRdUpdatePalletCell.
+    if (col === 'pallet') {
+      td.contentEditable = 'false';
+      td.style.cssText = 'padding:6px 8px;font-size:12px;text-align:right;background:#f7fafc;color:#4a5568;font-weight:700;';
+      td.title = 'Otomatis: Reserved Out ÷ STD, dibulatkan ke atas';
+      tr.appendChild(td);
+      return;
+    }
     td.contentEditable = 'true';
     td.spellcheck = false;
     td.style.cssText = 'padding:6px 8px;font-size:12px;' + (col!=='sku'&&col!=='nama' ? 'text-align:right;' : '');
@@ -3533,7 +3606,7 @@ function _mekRdAppendRow(plant, vals) {
       td.addEventListener('blur',  function(){ _mekRdUpdateDetailBtnState(tr); });
     }
     if (col === 'sku') {
-      td.addEventListener('blur', function(){ _mekRdNormalizeSku(tr); });
+      td.addEventListener('blur', function(){ _mekRdNormalizeSku(tr); _mekRdUpdateDetailBtnState(tr); });
     }
     tr.appendChild(td);
   });
@@ -3595,6 +3668,10 @@ function mekLoadReservedDirectAll() {
       for (var i=0;i<3;i++) _mekRdAppendRow(p, {});
       _mekRdBindTable(p);
     });
+    // Load cache STD (buat kolom PALLET) abis baris ke-render, baru hitung
+    // ulang pallet semua baris — kolom pallet awalnya kosong dulu sampai
+    // cache-nya siap.
+    _mekRdLoadStdBySku(function(){ _mekRdRecomputeAllPallets(); });
   }, function(err) {
     showToast('Gagal memuat data Reserved Direct (koneksi)', 'error');
     MEK_RD_PLANTS.forEach(function(p){ _mekRdAddRow(p); _mekRdBindTable(p); });
