@@ -1041,7 +1041,14 @@ function mekRvSelectAktual3dRack(bin) {
 // proporsional ke jumlah slot fisik (pallet + pecahan) baris itu. Ini yang
 // menggantikan p3dColorForItem(item) versi BinLoc (yang mewarnai 1 warna per
 // item berdasar tipe/bulan prodate) — di sini warnanya status reservasi.
+//
+// Filter-aware sama kayak _mekRvRebuildBinAgg (lihat _mekRvGetFilterAwareReserveInfo)
+// — reservedKarton EKSPOR di-nolkan kalau tipe "ekspor" gak lagi difilter,
+// dan SKU dari tipe lain (direct/dst) yang lagi punya reservasi aktif bikin
+// seluruh bin yang nyimpen SKU itu ikut kewarnai "reserved" (pendekatan
+// per-SKU, karena tipe non-ekspor gak nyimpen posisi bin eksak).
 function _mekAktual3dBuildBinMap() {
+  var info = _mekRvGetFilterAwareReserveInfo();
   var binMap = {};
   ((_mekReservedData && _mekReservedData.cells) || []).forEach(function(c){
     var bin = c.binLoc; if (!bin) return;
@@ -1050,12 +1057,13 @@ function _mekAktual3dBuildBinMap() {
     if (units <= 0 && c.karton > 0) units = 1; // pengaman — data pallet/pecahan kosong tapi ada karton
     if (units <= 0) return;
     var karton = c.karton || 0;
-    var reservedKarton = Math.min(c.reservedKarton||0, karton);
+    var reservedKarton = info.showEkspor ? Math.min(c.reservedKarton||0, karton) : 0;
+    if (info.approxSkuSet[c.sku]) reservedKarton = karton; // pendekatan per-SKU (tipe non-ekspor gak punya posisi bin)
     var reservedUnits = karton > 0 ? Math.round(units * (reservedKarton / karton)) : 0;
     if (reservedUnits > units) reservedUnits = units;
     if (reservedUnits < 0) reservedUnits = 0;
     var availableUnits = units - reservedUnits;
-    var isLongWait = !!_mekRvLongWaitSkus[c.sku];
+    var isLongWait = !!info.longWaitSkuSet[c.sku];
     if (reservedUnits > 0) binMap[bin].items.push({ units: reservedUnits, color: isLongWait ? MEKP3D_COLOR_LONGWAIT : MEKP3D_COLOR_WAITING });
     if (availableUnits > 0) binMap[bin].items.push({ units: availableUnits, color: MEKP3D_COLOR_AVAILABLE });
   });
@@ -1691,26 +1699,12 @@ function _mekRenderReservedView(data) {
   document.getElementById('mekRvKpiLongest').textContent   = s.longestWaitingLabel || '-';
 
   var rows = (data.rows || []).map(function(r){ r.tier = _mekReservedWaitTier(r.waitHours); return r; });
-  _mekRvRowsRaw = rows; // simpan mentah — dipakai _mekRvApplyRowFilter buat filter list
+  _mekRvRowsRaw  = rows;          // simpan mentah — dipakai _mekRvApplyRowFilter buat filter list
+  _mekRvCellsRaw = data.cells || []; // simpan mentah juga — dipakai buat bangun ULANG peta pas filter tipe (ALL/EKSPOR/DIRECT/dst) diganti
 
-  // Lokasi yang punya reservasi >24 jam — dipakai buat warna merah di peta
-  // (dicocokkan via SKU yang sama, karena cell BinLoc gak nyimpen waitHours langsung)
-  var longWaitSkus = {};
-  rows.forEach(function(r){ if (r.tier === 'gt24') longWaitSkus[r.sku] = true; });
-  _mekRvLongWaitSkus = longWaitSkus; // dipakai juga sama render 3D Aktual
-
-  // Agregasi per lokasi BinLoc — dipakai bareng oleh 2D Simple, 2D Aktual & 3D
-  var agg = {};
-  (data.cells || []).forEach(function(c){
-    var key = c.binLoc || '?';
-    if (!agg[key]) agg[key] = { binLoc: key, totalKarton: 0, totalReserved: 0, totalAvailable: 0, hasLongWait: false, items: [] };
-    agg[key].totalKarton    += c.karton || 0;
-    agg[key].totalReserved  += c.reservedKarton || 0;
-    agg[key].totalAvailable += c.availableKarton || 0;
-    agg[key].items.push({ sku: c.sku, nama: c.nama, karton: c.karton });
-    if (longWaitSkus[c.sku] && c.reservedKarton > 0) agg[key].hasLongWait = true;
-  });
-  _mekRvBinAgg = agg;
+  // Bangun agregasi peta (_mekRvBinAgg + _mekRvLongWaitSkus), ngikutin tipe
+  // filter yang lagi aktif — lihat _mekRvRebuildBinAgg().
+  _mekRvRebuildBinAgg();
 
   // Render peta sesuai mode yang lagi aktif
   mekRvRenderCurrentMode();
@@ -1719,9 +1713,59 @@ function _mekRenderReservedView(data) {
   _mekRvApplyRowFilter();
 }
 
-// ── Filter list "Reserved Stock Monitoring" — sama pola kaya Kesiapan Stock.
-// Cuma mem-filter tabel di bawah; peta 3D/2D tetap nampilin semua lokasi. ──
+// ── Info reservasi yang FILTER-AWARE (ngikutin tipe yang lagi dipilih di
+// Reserved View: ALL/EKSPOR/DIRECT/RDC/MDC/MT) — dipakai bareng oleh
+// _mekRvRebuildBinAgg (2D Simple/2D Aktual/3D Rotate) dan
+// _mekAktual3dBuildBinMap (3D Aktual). EKSPOR nyimpen reservedKarton AKURAT
+// per-bin (dihitung server dari alokasi FIFO stock vs planning) — kalau tipe
+// "ekspor" gak termasuk filter aktif, angka itu di-nolkan buat pewarnaan.
+// Tipe lain (direct/rdc/mdc/mt) SAMA SEKALI gak nyimpen posisi bin (cuma
+// SKU+Qty, gak ada data rak/level/depth) — jadi didekati PER-SKU: SKU yang
+// punya reservasi aktif (belum closed) dari tipe yang lagi dipilih bikin
+// SEMUA bin yang nyimpen SKU itu ditandai "reserved", walau porsi eksaknya
+// per bin gak diketahui (keterbatasan data, bukan bug).
+function _mekRvGetFilterAwareReserveInfo() {
+  var tipeSet = _mekRvTipeSet || {};
+  var isAllTipe = Object.keys(tipeSet).length === 0;
+  var showEkspor = isAllTipe || !!tipeSet.ekspor;
+  var approxSkuSet = {}, longWaitSkuSet = {};
+  (_mekRvRowsRaw || []).forEach(function(r){
+    var t = r.sourceType || 'ekspor';
+    var typeActive = isAllTipe || !!tipeSet[t];
+    if (!typeActive) return;
+    if (r.tier === 'gt24') longWaitSkuSet[r.sku] = true;
+    if (t === 'ekspor') return; // ekspor udah akurat lewat reservedKarton, gak butuh pendekatan SKU
+    if (!r.closed) approxSkuSet[r.sku] = true;
+  });
+  return { showEkspor: showEkspor, approxSkuSet: approxSkuSet, longWaitSkuSet: longWaitSkuSet };
+}
+
+// Bangun ulang _mekRvBinAgg (dipakai bareng 2D Simple/2D Aktual/3D Rotate)
+// dari _mekRvCellsRaw, ngikutin tipe filter aktif. Dipanggil pas data awal
+// dimuat DAN tiap kali filter tipe di-ganti (lihat mekRvSetTipe).
+function _mekRvRebuildBinAgg() {
+  var info = _mekRvGetFilterAwareReserveInfo();
+  _mekRvLongWaitSkus = info.longWaitSkuSet; // dipakai juga sama render 3D Aktual
+
+  var agg = {};
+  (_mekRvCellsRaw || []).forEach(function(c){
+    var key = c.binLoc || '?';
+    if (!agg[key]) agg[key] = { binLoc: key, totalKarton: 0, totalReserved: 0, totalAvailable: 0, hasLongWait: false, items: [] };
+    var karton = c.karton || 0;
+    var reserved = info.showEkspor ? Math.min(c.reservedKarton || 0, karton) : 0;
+    if (info.approxSkuSet[c.sku]) reserved = karton; // pendekatan per-SKU (tipe non-ekspor gak punya posisi bin)
+    agg[key].totalKarton    += karton;
+    agg[key].totalReserved  += reserved;
+    agg[key].totalAvailable += Math.max(0, karton - reserved);
+    agg[key].items.push({ sku: c.sku, nama: c.nama, karton: karton });
+    if (info.longWaitSkuSet[c.sku] && reserved > 0) agg[key].hasLongWait = true;
+  });
+  _mekRvBinAgg = agg;
+}
+
+// ── Filter list "Reserved Stock Monitoring" — sama pola kaya Kesiapan Stock. ──
 var _mekRvRowsRaw = [];
+var _mekRvCellsRaw = [];
 
 function _mekRvApplyRowFilter() {
   var raw = _mekRvRowsRaw || [];
@@ -3833,6 +3877,11 @@ function mekRvSetTipe(tipe) {
     btn.style.color = active ? '#1a3a5c' : '#718096';
   });
   _mekRvApplyRowFilter();
+  // Peta (2D/3D) sebelumnya gak pernah ikut berubah warna pas filter tipe
+  // di-ganti — cuma tabel di bawahnya yang kefilter. Sekarang peta juga
+  // dibangun ulang (warnanya) ngikutin tipe yang lagi dipilih.
+  _mekRvRebuildBinAgg();
+  mekRvRenderCurrentMode();
 }
 
 // ======================================================
