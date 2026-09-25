@@ -1841,14 +1841,46 @@ function _mekRvUpdateStockKpis(skuF) {
   if (elP) elP.textContent = pct.toFixed(1) + '%';
 }
 
+// DIRECT gak pernah dipecah per container (1 baris = 1 truk, digabung per
+// MRP — lihat getMekReservedDirectForView) — jadi vocab "container" gak
+// nyambung buat data DIRECT. Dipakai bareng oleh _mekRvUpdateFilteredKpis
+// (swap label & kartu "Open DO/SO Direct") dan _mekRvRenderStatusBreakdown
+// (sembunyiin strip "Status Container Reserved").
+function _mekRvTipeFilterInfo() {
+  var tipeSet = _mekRvTipeSet || {};
+  var isAllTipe = Object.keys(tipeSet).length === 0;
+  // directOnly: tipe DIRECT doang yang aktif dipilih (bukan ALL, bukan
+  // kombinasi bareng tipe lain) — di sini kartu "Container Waiting" di-swap
+  // JADI "Open DO/SO Direct" (bukan nambah kartu baru, karena isinya bakal
+  // sama persis).
+  var directOnly = !isAllTipe && !!tipeSet.direct && Object.keys(tipeSet).length === 1;
+  // showDirectCard: DIRECT ikut kepilih tapi BUKAN satu-satunya tipe aktif
+  // (ALL, atau DIRECT digabung sama tipe lain) — di sini kartu "Open DO/SO
+  // Direct" ditambahkan TERPISAH biar gak nyampur sama angka "Container
+  // Waiting" yang tipe lain.
+  var showDirectCard = !directOnly && (isAllTipe || !!tipeSet.direct);
+  return { directOnly: directOnly, showDirectCard: showDirectCard };
+}
+
 // Recalculate KPI "Reserved" / "Container Waiting" / "Longest Waiting" dari rows
 // yang sedang ditampilkan (kena filter kalau filter aktif). "Total Stock" /
-// "Available" / "Reserved %" tetap dari summary server (level stock keseluruhan,
-// gak spesifik per SO — jadi gak ikut filter SKU/No.SO/Tujuan/Plant/Aging).
+// "Available" / "Reserved %" dihitung terpisah, lihat _mekRvUpdateStockKpis.
 function _mekRvUpdateFilteredKpis(rows) {
   var totalQty = 0;
   rows.forEach(function(r){ totalQty += (r.qtyReserved||0); });
-  var containerWaiting = rows.filter(function(r){ return r.waitHours != null; }).length;
+
+  var tf = _mekRvTipeFilterInfo();
+  // "Open DO/SO Direct": baris DIRECT yang masih outstanding (belum closed —
+  // sama kriteria waitHours!=null kayak "container waiting"-nya EKSPOR).
+  var directWaiting = rows.filter(function(r){ return r.sourceType === 'direct' && r.waitHours != null; }).length;
+  // "Container Waiting" (kartu utama): kalau directOnly, isinya = directWaiting
+  // juga (toh rows-nya udah kefilter DIRECT semua) tapi labelnya di-swap jadi
+  // "Open DO/SO Direct". Selain itu, DIRECT dikecualikan dari hitungan biar
+  // gak dobel sama kartu terpisah pas showDirectCard aktif.
+  var containerWaiting = tf.directOnly
+    ? directWaiting
+    : rows.filter(function(r){ return r.sourceType !== 'direct' && r.waitHours != null; }).length;
+
   var longestHours = rows.reduce(function(m,r){ return (r.waitHours!=null && r.waitHours>m) ? r.waitHours : m; }, 0);
   var longestLabel = '-';
   if (longestHours > 0) {
@@ -1857,20 +1889,34 @@ function _mekRvUpdateFilteredKpis(rows) {
   }
   var shortageSkuSet = {};
   rows.forEach(function(r){ if (!r.closed && r.stockCukup === false) shortageSkuSet[r.sku] = true; });
-  var elR = document.getElementById('mekRvKpiReserved');
-  var elC = document.getElementById('mekRvKpiContainer');
-  var elL = document.getElementById('mekRvKpiLongest');
-  var elS = document.getElementById('mekRvKpiShortage');
-  if (elR) elR.textContent = totalQty.toLocaleString('id-ID');
-  if (elC) elC.textContent = containerWaiting;
-  if (elL) elL.textContent = longestLabel;
-  if (elS) elS.textContent = Object.keys(shortageSkuSet).length;
+
+  var elR  = document.getElementById('mekRvKpiReserved');
+  var elCL = document.getElementById('mekRvKpiContainerLabel');
+  var elC  = document.getElementById('mekRvKpiContainer');
+  var elL  = document.getElementById('mekRvKpiLongest');
+  var elS  = document.getElementById('mekRvKpiShortage');
+  var cardD = document.getElementById('mekRvCardDirectOpen');
+  var elD   = document.getElementById('mekRvKpiDirectOpen');
+  if (elR)  elR.textContent  = totalQty.toLocaleString('id-ID');
+  if (elCL) elCL.textContent = tf.directOnly ? 'Open DO/SO Direct' : 'Container Waiting';
+  if (elC)  elC.textContent  = containerWaiting;
+  if (elL)  elL.textContent  = longestLabel;
+  if (elS)  elS.textContent  = Object.keys(shortageSkuSet).length;
+  if (cardD) cardD.style.display = tf.showDirectCard ? '' : 'none';
+  if (elD)  elD.textContent  = directWaiting;
 }
 
 // Strip "Status Container" (Belum/Proses/Keluar) di bawah tabel — sama persis
 // vocab-nya kaya KPI di tab Summary (Capaian Planning): belum = belum ada truk
 // sama sekali, proses = truk sudah daftar/lagi loading, keluar = sudah kirim.
+// Disembunyikan total pas filter tipe DIRECT doang aktif — vocab "container"
+// gak nyambung buat DIRECT (lihat _mekRvTipeFilterInfo).
 function _mekRvRenderStatusBreakdown(rows) {
+  var cardStatus = document.getElementById('mekRvStatusContainerCard');
+  var tf = _mekRvTipeFilterInfo();
+  if (cardStatus) cardStatus.style.display = tf.directOnly ? 'none' : '';
+  if (tf.directOnly) return; // gak usah dihitung, toh lagi disembunyiin
+
   var b = { belum: 0, proses: 0, keluar: 0 };
   rows.forEach(function(r){
     var st = (r.containerStatus === 'daftar' || r.containerStatus === 'loading') ? 'proses'
