@@ -5590,8 +5590,12 @@
             <div id="mekRvKpiPct" style="font-size:20px;font-weight:800;color:#2c5282;">—</div>
           </div>
           <div style="background:#faf5ff;border:1px solid #e9d8fd;border-radius:10px;padding:10px 12px;">
-            <div style="font-size:10px;color:#6b46c1;text-transform:uppercase;">Container Waiting</div>
+            <div id="mekRvKpiContainerLabel" style="font-size:10px;color:#6b46c1;text-transform:uppercase;">Container Waiting</div>
             <div id="mekRvKpiContainer" style="font-size:20px;font-weight:800;color:#6b46c1;">—</div>
+          </div>
+          <div id="mekRvCardDirectOpen" style="display:none;background:#ebf4ff;border:1px solid #c3dafe;border-radius:10px;padding:10px 12px;">
+            <div style="font-size:10px;color:#434190;text-transform:uppercase;">Open DO/SO Direct</div>
+            <div id="mekRvKpiDirectOpen" style="font-size:20px;font-weight:800;color:#434190;">—</div>
           </div>
           <div style="background:#fff5f5;border:1px solid #fed7d7;border-radius:10px;padding:10px 12px;">
             <div style="font-size:10px;color:#c53030;text-transform:uppercase;">Longest Waiting</div>
@@ -5602,7 +5606,7 @@
             <div id="mekRvKpiShortage" style="font-size:20px;font-weight:800;color:#9b2c2c;">—</div>
           </div>
         </div>
-        <div style="font-size:10px;color:#a0aec0;margin:-8px 0 12px;">* Reserved, Container Waiting, Longest Waiting &amp; SKU Kurang Stock mengikuti filter di bawah — Total Stock, Available &amp; Reserved % selalu total keseluruhan.</div>
+        <div style="font-size:10px;color:#a0aec0;margin:-8px 0 12px;">* Semua kartu mengikuti filter tipe (ALL/EKSPOR/DIRECT/dst) di atas. Total Stock, Available &amp; Reserved % juga ikut filter SKU/Nama — No.SO/Tujuan/Plant/Aging/Closed cuma berlaku buat kartu Reserved, Container Waiting/Open DO-SO Direct, Longest Waiting &amp; SKU Kurang Stock.</div>
 
         <!-- Peta + List — side by side pas landscape, ke bawah pas potrait -->
         <div class="mekrv-split">
@@ -5686,8 +5690,10 @@
           <i class="fas fa-spinner fa-spin" style="font-size:24px;"></i>
         </div>
 
-        <!-- Ringkasan status container (Belum/Proses/Keluar, sama vocab kaya tab Summary) — ngikutin filter yang aktif -->
-        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:12px 14px;margin-top:12px;">
+        <!-- Ringkasan status container (Belum/Proses/Keluar, sama vocab kaya tab Summary) — ngikutin filter yang aktif.
+             Disembunyikan pas filter tipe DIRECT doang aktif (lihat _mekRvRenderStatusBreakdown) karena DIRECT gak
+             pakai konsep "container", jadi vocab-nya gak nyambung buat data direct. -->
+        <div id="mekRvStatusContainerCard" style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:12px 14px;margin-top:12px;">
           <div style="font-size:11px;font-weight:800;color:#718096;text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px;">Status Container Reserved</div>
           <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
             <div style="background:#fff5f5;border:1px solid #fed7d7;border-radius:10px;padding:10px 8px;text-align:center;">
