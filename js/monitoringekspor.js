@@ -2126,10 +2126,27 @@ function mekRvShowAvailableBreakdown() {
     x.available = Math.max(0, x.karton - x.reserved);
     return x;
   }).filter(function(x){ return x.karton > 0; })
-    .sort(function(a,b){ return a.available - b.available; })
+    .sort(function(a,b){
+      if (a.available !== b.available) return a.available - b.available; // available paling kecil duluan
+      return b.karton - a.karton; // seri di 0 → total stock paling gede duluan (dampaknya lebih kerasa)
+    })
     .slice(0, 10);
-  var items = list.map(function(x){ return { left: x.sku, leftSub: x.nama, right: x.available.toLocaleString('id-ID') + ' Carton', rightColor: x.available <= 0 ? '#c53030' : '#276749' }; });
-  _mekRvOpenGenericModal('Top 10 SKU — Available Paling Kritis', 'Stock available paling kecil (ikut filter SKU/Nama & tipe aktif)', _mekRvBuildListRows(items));
+  // Approksimasi ini kasar (lihat _mekRvGetFilterAwareReserveInfo): begitu 1 SKU
+  // punya reservasi aktif dari tipe non-EKSPOR (RDC/MDC/MT/DIRECT), SATU BIN
+  // penuhnya langsung dianggap reserved semua (bukan dihitung persis per-qty),
+  // jadi wajar kalau banyak yang kena available=0 sekaligus pas lagi rame
+  // reservasi non-ekspor — bukan berarti stock-nya beneran abis semua. Total
+  // stock-nya ikut ditampilin di bawah nama biar keliatan mana yang dampaknya
+  // paling gede (stock gede tapi ke-lock semua).
+  var items = list.map(function(x){
+    return {
+      left: x.sku,
+      leftSub: (x.nama || '-') + ' · stock ' + x.karton.toLocaleString('id-ID'),
+      right: x.available.toLocaleString('id-ID') + ' Carton',
+      rightColor: x.available <= 0 ? '#c53030' : '#276749'
+    };
+  });
+  _mekRvOpenGenericModal('Top 10 SKU — Available Paling Kritis', 'Available terkecil duluan (seri 0 → total stock terbesar duluan). Approksimasi kasar per-SKU untuk RDC/MDC/MT/DIRECT, bukan angka pasti.', _mekRvBuildListRows(items));
 }
 
 // "Reserved %" → kontribusi tiap tipe ke total reserved (bukan ke total stock,
