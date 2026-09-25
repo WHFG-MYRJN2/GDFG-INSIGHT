@@ -2027,13 +2027,36 @@ function mekRvShowReservedBreakdown() {
     '</div>';
     body.innerHTML = html;
   }
-  var modal = document.getElementById('mekRvReservedBreakdownModal');
-  if (modal) modal.style.display = 'flex';
+  _mekModalOpen('mekRvReservedBreakdownModal');
 }
 
 function mekRvCloseReservedBreakdown() {
-  var modal = document.getElementById('mekRvReservedBreakdownModal');
-  if (modal) modal.style.display = 'none';
+  _mekModalClose('mekRvReservedBreakdownModal');
+}
+
+// ── Buka/tutup modal popup pakai transisi fade + geser dikit (bukan langsung
+// nongol/ilang) — overlay & kartu di dalamnya udah dikasih CSS transition
+// lewat inline style di HTML-nya, di sini cuma toggle opacity/transform-nya
+// + ngatur timing display:none-nya (nunggu transisi kelar dulu baru
+// disembunyiin, biar animasinya kepakai pas nutup juga).
+function _mekModalOpen(id) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  var card = el.firstElementChild;
+  el.style.display = 'flex';
+  el.style.opacity = '0';
+  if (card) { card.style.opacity = '0'; card.style.transform = 'translateY(10px) scale(.97)'; }
+  void el.offsetWidth; // force reflow biar transisinya beneran ke-trigger
+  el.style.opacity = '1';
+  if (card) { card.style.opacity = '1'; card.style.transform = 'translateY(0) scale(1)'; }
+}
+function _mekModalClose(id) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  var card = el.firstElementChild;
+  el.style.opacity = '0';
+  if (card) { card.style.opacity = '0'; card.style.transform = 'translateY(10px) scale(.97)'; }
+  setTimeout(function(){ el.style.display = 'none'; }, 180);
 }
 
 // ── Modal generik buat rincian kartu2 lain (Total Stock/Available/Reserved %/
@@ -2046,12 +2069,10 @@ function _mekRvOpenGenericModal(title, sub, bodyHtml) {
   if (t) t.textContent = title;
   if (s) s.textContent = sub || '';
   if (b) b.innerHTML = bodyHtml;
-  var modal = document.getElementById('mekRvGenericModal');
-  if (modal) modal.style.display = 'flex';
+  _mekModalOpen('mekRvGenericModal');
 }
 function mekRvCloseGenericModal() {
-  var modal = document.getElementById('mekRvGenericModal');
-  if (modal) modal.style.display = 'none';
+  _mekModalClose('mekRvGenericModal');
 }
 // items: [{left, leftSub, right, rightColor, wrap}] — wrap:true buat "right"
 // yang teksnya panjang (mis. rincian kekurangan stock), biar gak kepotong.
