@@ -1766,6 +1766,7 @@ function _mekRvRebuildBinAgg() {
 // ── Filter list "Reserved Stock Monitoring" — sama pola kaya Kesiapan Stock. ──
 var _mekRvRowsRaw = [];
 var _mekRvCellsRaw = [];
+var _mekRvLastFilteredRows = []; // rows abis kena filter — dipakai ulang sama mekRvToggleDetail
 
 function _mekRvApplyRowFilter() {
   var raw = _mekRvRowsRaw || [];
@@ -1803,6 +1804,8 @@ function _mekRvApplyRowFilter() {
   });
   _mekRvRenderRowsList(rows, !!(skuF || noSoF || tujuanF || plantF || agingF || !isAllTipe));
   _mekRvUpdateStockKpis(skuF);
+  _mekRvLastFilteredRows = rows; // disimpan buat mekRvToggleDetail (biar pas di-ON/OFF-in gak perlu nunggu filter berubah lagi)
+  _mekRvUpdateAvgWaitCard(rows);
 }
 
 // KPI "Total Stock" / "Available" / "Reserved %" — dulu statis dari summary
@@ -1929,6 +1932,70 @@ function _mekRvRenderStatusBreakdown(rows) {
   if (elB)  elB.textContent  = b.belum;
   if (elP)  elP.textContent  = b.proses;
   if (elK)  elK.textContent  = b.keluar;
+}
+
+// ── Toggle "Detail" ON/OFF Reserved View ──────────────────────────────────
+// ON  (default, sama kayak sebelumnya): 7 kartu KPI + peta + list "Reserved
+//     Stock Monitoring" + strip "Status Container Reserved".
+// OFF (ringkas): cuma 4 kartu utama (Total Stock/Available/Reserved/Reserved
+//     %) + peta (jadi full-width, list-nya disembunyiin) + kartu baru "Rata-
+//     rata Lama Waktu Stock Reserved" per tipe (gantiin posisi list/tabel).
+var _mekRvDetailOn = true;
+
+function mekRvToggleDetail(on) {
+  _mekRvDetailOn = !!on;
+  var cb = document.getElementById('mekRvDetailToggle');
+  if (cb && cb.checked !== _mekRvDetailOn) cb.checked = _mekRvDetailOn;
+  var track = document.getElementById('mekRvDetailToggleTrack');
+  var dot   = document.getElementById('mekRvDetailToggleDot');
+  if (track) track.style.background = _mekRvDetailOn ? '#2c5282' : '#cbd5e0';
+  if (dot)   dot.style.left = _mekRvDetailOn ? '18px' : '2px';
+
+  var extraCards  = document.getElementById('mekRvExtraCards');
+  var footnote    = document.getElementById('mekRvFootnote');
+  var splitList   = document.getElementById('mekRvSplitList');
+  var splitToggle = document.getElementById('mekRvSplitToggleWrap');
+  var avgCard     = document.getElementById('mekRvAvgWaitCard');
+  if (extraCards)  extraCards.style.display  = _mekRvDetailOn ? 'contents' : 'none';
+  if (footnote)    footnote.style.display    = _mekRvDetailOn ? '' : 'none';
+  if (splitList)   splitList.style.display   = _mekRvDetailOn ? '' : 'none';
+  if (splitToggle) splitToggle.style.display = _mekRvDetailOn ? '' : 'none';
+  if (avgCard)     avgCard.style.display     = _mekRvDetailOn ? 'none' : '';
+  if (!_mekRvDetailOn) _mekRvUpdateAvgWaitCard(_mekRvLastFilteredRows || []);
+}
+
+// Kartu "Rata-rata Lama Waktu Stock Reserved" (mode Detail OFF, gantiin posisi
+// list/tabel) — rata-rata waitHours (dikonversi ke hari) per tipe, dihitung
+// dari rows yang lagi ditampilkan (ngikutin filter yang aktif, sama kayak
+// kartu2 lain kayak _mekRvUpdateFilteredKpis). Cuma baris yang masih
+// outstanding (waitHours != null, alias belum closed) yang dihitung — baris
+// closed udah "selesai nunggu", gak relevan buat rata-rata. Tipe yang
+// ditampilin cuma 4 (MDC/Direct/RDC/Ekspor, sesuai referensi desain) — MT
+// belum ada kartunya di sini, gampang ditambahin nanti kalau perlu.
+var MEK_RV_AVG_WAIT_TYPES = [
+  { key:'mdc',    label:'MDC',    icon:'fa-truck',    color:'#2b6cb0' },
+  { key:'direct', label:'Direct', icon:'fa-box',       color:'#2f855a' },
+  { key:'rdc',    label:'RDC',    icon:'fa-warehouse', color:'#c05621' },
+  { key:'ekspor', label:'Ekspor', icon:'fa-ship',      color:'#6b46c1' }
+];
+function _mekRvUpdateAvgWaitCard(rows) {
+  var gridEl = document.getElementById('mekRvAvgWaitGrid');
+  if (!gridEl) return;
+  var sumH = {}, cnt = {};
+  (rows || []).forEach(function(r){
+    if (r.waitHours == null) return;
+    var t = r.sourceType || 'ekspor';
+    sumH[t] = (sumH[t]||0) + r.waitHours;
+    cnt[t]  = (cnt[t]||0) + 1;
+  });
+  gridEl.innerHTML = MEK_RV_AVG_WAIT_TYPES.map(function(t, i){
+    var avgDays = cnt[t.key] ? Math.round((sumH[t.key] / cnt[t.key]) / 24) : null;
+    return '<div style="flex:1 1 90px;min-width:80px;padding:0 12px;' + (i>0 ? 'border-left:1px solid #edf2f7;' : '') + '">'
+      + '<div style="font-size:15px;color:' + t.color + ';margin-bottom:4px;"><i class="fas ' + t.icon + '"></i> <span style="font-size:12px;font-weight:800;vertical-align:middle;">' + t.label + '</span></div>'
+      + '<div style="font-size:30px;font-weight:800;color:#1a202c;line-height:1.15;">' + (avgDays != null ? avgDays : '—') + '</div>'
+      + '<div style="font-size:10px;color:#a0aec0;text-transform:uppercase;letter-spacing:.3px;">Hari</div>'
+    + '</div>';
+  }).join('');
 }
 
 var _MEK_RV_STATUS_STYLE = {
