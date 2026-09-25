@@ -598,13 +598,15 @@ function mekLoadReservedView() {
   // jadi kalau serial (satu abis satu) loading-nya numpuk 2x round-trip GAS.
   _mekRvLoadGroupsThen(function(){});
 
-  // Ambil rows DIRECT paralel juga (bukan nunggu getMekReservedMap kelar dulu).
-  // includeClosed selalu true di sini — toggle "tampilkan yang closed" di UI
-  // memfilter di client (_mekRvApplyRowFilter), jadi datanya cukup ditarik sekali.
-  var mekRes = null, directRows = null, doneCount = 0;
+  // Ambil rows DIRECT & RDC/MDC/MT paralel juga (bukan nunggu getMekReservedMap
+  // kelar dulu). includeClosed selalu true di sini — toggle "tampilkan yang
+  // closed" di UI memfilter di client (_mekRvApplyRowFilter), jadi datanya
+  // cukup ditarik sekali. RDC/MDC/MT diambil dari spreadsheet LAIN (bukan
+  // CFG.sheetId) — lihat getMekReservedRdcMdcMtForView di Code.gs.
+  var mekRes = null, directRows = null, extRows = null, doneCount = 0;
   function tryRender() {
     doneCount++;
-    if (doneCount < 2) return;
+    if (doneCount < 3) return;
     done();
     if (!mekRes || !mekRes.success) {
       var listEl = document.getElementById('mekRvList');
@@ -613,6 +615,9 @@ function mekLoadReservedView() {
     }
     if (directRows && directRows.length) {
       mekRes.rows = (mekRes.rows || []).concat(directRows);
+    }
+    if (extRows && extRows.length) {
+      mekRes.rows = (mekRes.rows || []).concat(extRows);
     }
     _mekReservedData = mekRes;
     _mekRenderReservedView(mekRes);
@@ -633,6 +638,51 @@ function mekLoadReservedView() {
     directRows = [];
     tryRender();
   });
+
+  API.run('getMekReservedRdcMdcMtForView', {}, function(res) {
+    extRows = (res && res.success && res.rows) || [];
+    _mekRvShowExtDebugNote(res, null);
+    tryRender();
+  }, function(err) {
+    extRows = [];
+    _mekRvShowExtDebugNote(null, err);
+    tryRender();
+  });
+}
+
+// Nampilin catatan diagnostik singkat di atas list kalau data RDC/MDC/MT
+// gagal/kosong kebaca dari spreadsheet eksternal — biar keliatan langsung di
+// aplikasi kenapa gagalnya (nama sheet gak ketemu, sheet kosong, 0 mobil
+// ke-grouping, dll), tanpa harus buka editor Apps Script. Detail lengkapnya
+// (contoh baris mentah, dsb) tetep di-console.log biar bisa di-screenshot.
+function _mekRvShowExtDebugNote(res, err) {
+  var el = document.getElementById('mekRvExtDebugNote');
+  if (!el) return;
+  if (res && res.debug) console.log('[RDC/MDC/MT debug]', res.debug);
+
+  if (err) {
+    el.style.display = 'block';
+    el.innerHTML = '<b>RDC/MDC/MT gagal dimuat</b> — koneksi ke server bermasalah, coba refresh.';
+    return;
+  }
+  if (!res || !res.success) {
+    el.style.display = 'block';
+    el.innerHTML = '<b>RDC/MDC/MT gagal dimuat:</b> ' + _mekEsc((res && res.message) || 'unknown error');
+    return;
+  }
+  var debug = res.debug || {};
+  var labels = { rdc: 'RDC (LK RDC)', mdc: 'MDC', mt: 'MT' };
+  var problems = [];
+  ['rdc','mdc','mt'].forEach(function(k){
+    var d = debug[k];
+    if (!d) return;
+    if (d.error) problems.push(labels[k] + ': ' + d.error);
+  });
+  if (!problems.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = 'block';
+  el.innerHTML = '<b><i class="fas fa-triangle-exclamation"></i> RDC/MDC/MT bermasalah:</b><br>' +
+    problems.map(function(p){ return '• ' + _mekEsc(p); }).join('<br>') +
+    '<br><span style="color:#a0aec0;">(detail lengkap ada di console browser — F12 → Console)</span>';
 }
 
 function _mekReservedWaitTier(h) {
@@ -1729,13 +1779,21 @@ function _mekRvGetFilterAwareReserveInfo() {
   var isAllTipe = Object.keys(tipeSet).length === 0;
   var showEkspor = isAllTipe || !!tipeSet.ekspor;
   var approxSkuSet = {}, longWaitSkuSet = {};
+  // r.sku bisa berisi lebih dari 1 SKU digabung koma (truk DIRECT/RDC/MDC/MT
+  // yang lebih dari 1 SKU per mobil — lihat getMekReservedDirectForView &
+  // getMekReservedRdcMdcMtForView) — dipecah dulu biar tiap SKU-nya ketandain
+  // sendiri-sendiri, bukan cuma string gabungannya doang (yang gak akan
+  // pernah cocok sama c.sku per-bin di peta).
+  function markEachSku(set, skuStr) {
+    String(skuStr||'').split(',').forEach(function(s){ s = s.trim(); if (s) set[s] = true; });
+  }
   (_mekRvRowsRaw || []).forEach(function(r){
     var t = r.sourceType || 'ekspor';
     var typeActive = isAllTipe || !!tipeSet[t];
     if (!typeActive) return;
-    if (r.tier === 'gt24') longWaitSkuSet[r.sku] = true;
+    if (r.tier === 'gt24') markEachSku(longWaitSkuSet, r.sku);
     if (t === 'ekspor') return; // ekspor udah akurat lewat reservedKarton, gak butuh pendekatan SKU
-    if (!r.closed) approxSkuSet[r.sku] = true;
+    if (!r.closed) markEachSku(approxSkuSet, r.sku);
   });
   return { showEkspor: showEkspor, approxSkuSet: approxSkuSet, longWaitSkuSet: longWaitSkuSet };
 }
@@ -1784,13 +1842,15 @@ function _mekRvApplyRowFilter() {
     if (noSoF && (r.noSo||'').toLowerCase().indexOf(noSoF) < 0) return false;
     if (tujuanF && (r.tujuan||'').toLowerCase().indexOf(tujuanF) < 0) return false;
     // Filter Plant ini vocab-nya khusus lokasi gudang EKSPOR (mis. "JAYANTI 2")
-    // — baris DIRECT sengaja gak punya field "plant" itu (dia pakai Plant SAP
-    // 1111/1112/1113 sendiri, beda konsep, lihat catatan di
-    // getMekReservedDirectForView). Makanya baris DIRECT dikecualikan dari
-    // filter ini biar gak ke-filter abis pas Plant defaultnya "JAYANTI 2"
-    // (sebelumnya ini yang bikin data DIRECT keliatan "gak kebaca" —
-    // r.plant kosong gak pernah cocok sama "JAYANTI 2").
-    if (r.sourceType !== 'direct') {
+    // — baris DIRECT/RDC/MDC/MT sengaja gak punya field "plant" itu (DIRECT
+    // pakai Plant SAP 1111/1112/1113 sendiri; RDC/MDC/MT dari spreadsheet lain
+    // yang sama sekali gak punya konsep plant ini — lihat catatan di
+    // getMekReservedDirectForView / getMekReservedRdcMdcMtForView). Makanya
+    // tipe-tipe itu dikecualikan dari filter ini biar gak ke-filter abis pas
+    // Plant defaultnya "JAYANTI 2" (sebelumnya ini yang bikin data DIRECT
+    // keliatan "gak kebaca" — r.plant kosong gak pernah cocok sama "JAYANTI 2";
+    // RDC/MDC/MT bakal kena bug yang sama kalau gak ikut dikecualikan).
+    if ((r.sourceType||'ekspor') === 'ekspor') {
       if (plantF === '__no_plant__') {
         if ((r.plant||'').trim()) return false;
       } else if (plantF && (r.plant||'').toLowerCase().indexOf(plantF) < 0) {
