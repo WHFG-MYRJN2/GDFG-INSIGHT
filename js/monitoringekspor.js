@@ -1825,6 +1825,7 @@ function _mekRvRebuildBinAgg() {
 var _mekRvRowsRaw = [];
 var _mekRvCellsRaw = [];
 var _mekRvLastFilteredRows = []; // rows abis kena filter — dipakai ulang sama mekRvToggleDetail
+var _mekRvStatusFilter = null; // null=semua, atau 'belum'/'proses'/'keluar' — diisi klik strip Status Container
 
 function _mekRvApplyRowFilter() {
   var raw = _mekRvRowsRaw || [];
@@ -1860,6 +1861,11 @@ function _mekRvApplyRowFilter() {
     if (agingF && r.tier !== agingF) return false;
     if (!isAllTipe && !tipeSet[r.sourceType||'ekspor']) return false;
     if (r.closed && !showClosed) return false;
+    if (_mekRvStatusFilter) {
+      var stChk = (r.containerStatus === 'daftar' || r.containerStatus === 'loading') ? 'proses'
+                : (r.containerStatus === 'keluar' ? 'keluar' : 'belum');
+      if (stChk !== _mekRvStatusFilter) return false;
+    }
     return true;
   });
   _mekRvRenderRowsList(rows, !!(skuF || noSoF || tujuanF || plantF || agingF || !isAllTipe));
@@ -1969,6 +1975,182 @@ function _mekRvUpdateFilteredKpis(rows) {
   if (elD)  elD.textContent  = directWaiting;
 }
 
+// ── Rincian kartu "Reserved" per tipe (RDC/MDC/Direct/Ekspor/MT) ─────────
+var MEK_RV_TYPE_LABELS = { rdc: 'RDC', mdc: 'MDC', direct: 'Direct', ekspor: 'Ekspor', mt: 'MT' };
+var MEK_RV_BREAKDOWN_ORDER = ['rdc', 'mdc', 'direct', 'ekspor', 'mt'];
+
+// Sumbernya sama persis kayak kartu "Reserved" (totalQty di _mekRvUpdateFilteredKpis)
+// — _mekRvLastFilteredRows, jadi angka per-tipe di sini kalau dijumlah bakal pas
+// sama angka di kartu-nya, dan ikut filter yang lagi aktif (tipe/SKU/No.SO/dst).
+function mekRvShowReservedBreakdown() {
+  var rows = _mekRvLastFilteredRows || [];
+  var sums = {};
+  rows.forEach(function(r) {
+    var t = r.sourceType || 'ekspor';
+    sums[t] = (sums[t] || 0) + (r.qtyReserved || 0);
+  });
+  var total = 0;
+  Object.keys(sums).forEach(function(k) { total += sums[k]; });
+
+  var body = document.getElementById('mekRvReservedBreakdownBody');
+  if (body) {
+    var html = '';
+    MEK_RV_BREAKDOWN_ORDER.forEach(function(t) {
+      var v = sums[t] || 0;
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 12px;border-radius:8px;background:#f7fafc;border:1px solid #e2e8f0;margin-bottom:6px;">' +
+        '<div style="font-size:12px;font-weight:700;color:#4a5568;">' + MEK_RV_TYPE_LABELS[t] + '</div>' +
+        '<div style="font-size:14px;font-weight:800;color:#c05621;">' + v.toLocaleString('id-ID') + ' Carton</div>' +
+      '</div>';
+    });
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 12px;border-radius:8px;background:#fffaf0;border:1px solid #feebc8;margin-top:8px;">' +
+      '<div style="font-size:12px;font-weight:800;color:#c05621;">TOTAL</div>' +
+      '<div style="font-size:14px;font-weight:800;color:#c05621;">' + total.toLocaleString('id-ID') + ' Carton</div>' +
+    '</div>';
+    body.innerHTML = html;
+  }
+  var modal = document.getElementById('mekRvReservedBreakdownModal');
+  if (modal) modal.style.display = 'flex';
+}
+
+function mekRvCloseReservedBreakdown() {
+  var modal = document.getElementById('mekRvReservedBreakdownModal');
+  if (modal) modal.style.display = 'none';
+}
+
+// ── Modal generik buat rincian kartu2 lain (Total Stock/Available/Reserved %/
+// Container Waiting/Longest Waiting/SKU Kurang Stock/Rata2 Waktu per tipe) —
+// satu modal dipakai bareng, isinya diganti-ganti sesuai kartu yang diklik.
+function _mekRvOpenGenericModal(title, sub, bodyHtml) {
+  var t = document.getElementById('mekRvGenericModalTitle');
+  var s = document.getElementById('mekRvGenericModalSub');
+  var b = document.getElementById('mekRvGenericModalBody');
+  if (t) t.textContent = title;
+  if (s) s.textContent = sub || '';
+  if (b) b.innerHTML = bodyHtml;
+  var modal = document.getElementById('mekRvGenericModal');
+  if (modal) modal.style.display = 'flex';
+}
+function mekRvCloseGenericModal() {
+  var modal = document.getElementById('mekRvGenericModal');
+  if (modal) modal.style.display = 'none';
+}
+// items: [{left, leftSub, right, rightColor, wrap}] — wrap:true buat "right"
+// yang teksnya panjang (mis. rincian kekurangan stock), biar gak kepotong.
+function _mekRvBuildListRows(items) {
+  if (!items || !items.length) return '<div style="text-align:center;padding:20px;color:#a0aec0;font-size:12px;">Tidak ada data</div>';
+  return items.map(function(it) {
+    return '<div style="display:flex;justify-content:space-between;align-items:' + (it.wrap ? 'flex-start' : 'center') + ';gap:10px;padding:8px 10px;border-radius:8px;background:#f7fafc;border:1px solid #e2e8f0;margin-bottom:6px;">'
+      + '<div style="min-width:0;flex:1 1 auto;">'
+        + '<div style="font-size:12px;font-weight:800;color:#2d3748;">' + _mekEsc(it.left || '-') + '</div>'
+        + (it.leftSub ? '<div style="font-size:10px;color:#a0aec0;' + (it.wrap ? '' : 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px;') + '">' + _mekEsc(it.leftSub) + '</div>' : '')
+      + '</div>'
+      + '<div style="font-size:12px;font-weight:800;' + (it.wrap ? 'white-space:normal;text-align:right;max-width:170px;' : 'white-space:nowrap;') + 'color:' + (it.rightColor || '#2d3748') + ';">' + (it.right || '') + '</div>'
+    + '</div>';
+  }).join('');
+}
+
+// "Total Stock" → top 10 SKU stock fisik terbesar (ikut filter SKU/Nama aktif,
+// sumbernya sama kayak _mekRvUpdateStockKpis).
+function mekRvShowTotalStockBreakdown() {
+  var skuF = ((document.getElementById('mekRvFilterSku')||{}).value||'').toLowerCase().trim();
+  var agg = {};
+  (_mekRvCellsRaw || []).forEach(function(c) {
+    if (skuF && (c.sku||'').toLowerCase().indexOf(skuF) < 0 && (c.nama||'').toLowerCase().indexOf(skuF) < 0) return;
+    var k = c.sku || '-';
+    if (!agg[k]) agg[k] = { sku: k, nama: c.nama, karton: 0 };
+    agg[k].karton += c.karton || 0;
+  });
+  var list = Object.keys(agg).map(function(k){ return agg[k]; }).sort(function(a,b){ return b.karton - a.karton; }).slice(0, 10);
+  var items = list.map(function(x){ return { left: x.sku, leftSub: x.nama, right: x.karton.toLocaleString('id-ID') + ' Carton' }; });
+  _mekRvOpenGenericModal('Top 10 SKU — Total Stock', 'Stock fisik terbesar (ikut filter SKU/Nama aktif)', _mekRvBuildListRows(items));
+}
+
+// "Available" → top 10 SKU dengan available paling kritis (paling kecil),
+// pakai pendekatan reserved per-tipe yang sama kayak _mekRvUpdateStockKpis.
+function mekRvShowAvailableBreakdown() {
+  var skuF = ((document.getElementById('mekRvFilterSku')||{}).value||'').toLowerCase().trim();
+  var info = _mekRvGetFilterAwareReserveInfo();
+  var agg = {};
+  (_mekRvCellsRaw || []).forEach(function(c) {
+    if (skuF && (c.sku||'').toLowerCase().indexOf(skuF) < 0 && (c.nama||'').toLowerCase().indexOf(skuF) < 0) return;
+    var karton = c.karton || 0;
+    var reserved = info.showEkspor ? Math.min(c.reservedKarton || 0, karton) : 0;
+    if (info.approxSkuSet[c.sku]) reserved = karton;
+    var k = c.sku || '-';
+    if (!agg[k]) agg[k] = { sku: k, nama: c.nama, karton: 0, reserved: 0 };
+    agg[k].karton    += karton;
+    agg[k].reserved  += reserved;
+  });
+  var list = Object.keys(agg).map(function(k){
+    var x = agg[k];
+    x.available = Math.max(0, x.karton - x.reserved);
+    return x;
+  }).filter(function(x){ return x.karton > 0; })
+    .sort(function(a,b){ return a.available - b.available; })
+    .slice(0, 10);
+  var items = list.map(function(x){ return { left: x.sku, leftSub: x.nama, right: x.available.toLocaleString('id-ID') + ' Carton', rightColor: x.available <= 0 ? '#c53030' : '#276749' }; });
+  _mekRvOpenGenericModal('Top 10 SKU — Available Paling Kritis', 'Stock available paling kecil (ikut filter SKU/Nama & tipe aktif)', _mekRvBuildListRows(items));
+}
+
+// "Reserved %" → kontribusi tiap tipe ke total reserved (bukan ke total stock,
+// karena stock fisik gak dipecah per tipe reservasi).
+function mekRvShowReservedPctBreakdown() {
+  var rows = _mekRvLastFilteredRows || [];
+  var sums = {};
+  rows.forEach(function(r) { var t = r.sourceType || 'ekspor'; sums[t] = (sums[t]||0) + (r.qtyReserved||0); });
+  var total = 0; Object.keys(sums).forEach(function(k){ total += sums[k]; });
+  var items = MEK_RV_BREAKDOWN_ORDER.map(function(t) {
+    var v = sums[t] || 0;
+    var pct = total > 0 ? (v / total * 100) : 0;
+    return { left: MEK_RV_TYPE_LABELS[t], leftSub: v.toLocaleString('id-ID') + ' Carton', right: pct.toFixed(1) + '%' };
+  });
+  _mekRvOpenGenericModal('Reserved % — Kontribusi per Tipe', 'Porsi tiap tipe dari total reserved (ikut filter aktif)', _mekRvBuildListRows(items));
+}
+
+// "Container Waiting" / "Open DO/SO Direct" → breakdown JUMLAH truk/DO yang
+// masih outstanding (waitHours != null) per tipe.
+function mekRvShowContainerWaitingBreakdown() {
+  var rows = _mekRvLastFilteredRows || [];
+  var counts = {};
+  rows.forEach(function(r) { if (r.waitHours == null) return; var t = r.sourceType || 'ekspor'; counts[t] = (counts[t]||0) + 1; });
+  var items = MEK_RV_BREAKDOWN_ORDER.map(function(t) { return { left: MEK_RV_TYPE_LABELS[t], right: String(counts[t] || 0) }; });
+  var tf = _mekRvTipeFilterInfo();
+  _mekRvOpenGenericModal(tf.directOnly ? 'Open DO/SO Direct per Tipe' : 'Container Waiting per Tipe', 'Jumlah truk/DO yang masih outstanding (ikut filter aktif)', _mekRvBuildListRows(items));
+}
+
+// "Longest Waiting" → top 10 item yang paling lama nunggu.
+function mekRvShowLongestWaitingBreakdown() {
+  var rows = (_mekRvLastFilteredRows || []).filter(function(r){ return r.waitHours != null; })
+    .sort(function(a,b){ return (b.waitHours||0) - (a.waitHours||0); })
+    .slice(0, 10);
+  var items = rows.map(function(r) {
+    return {
+      left: r.sku || '-',
+      leftSub: (MEK_RV_TYPE_LABELS[r.sourceType||'ekspor'] || '') + ' · ' + (r.nama || '-'),
+      right: _mekReservedFmtHours(r.waitHours),
+      rightColor: r.tier === 'gt24' ? '#c53030' : '#c05621'
+    };
+  });
+  _mekRvOpenGenericModal('Top 10 — Longest Waiting', 'Item yang paling lama nunggu (ikut filter aktif)', _mekRvBuildListRows(items));
+}
+
+// "SKU Kurang Stock" → daftar SKU-nya langsung (dedupe per SKU).
+function mekRvShowShortageBreakdown() {
+  var rows = _mekRvLastFilteredRows || [];
+  var seen = {};
+  var items = [];
+  rows.forEach(function(r) {
+    if (r.closed || r.stockCukup !== false) return;
+    if (seen[r.sku]) return;
+    seen[r.sku] = true;
+    var kurangTx = r.stockTersedia <= 0
+      ? 'Stock kosong (butuh ' + (r.stockButuh||0).toLocaleString('id-ID') + ')'
+      : 'Kurang ' + Math.abs(r.stockSelisih||0).toLocaleString('id-ID') + ' (ada ' + (r.stockTersedia||0).toLocaleString('id-ID') + '/butuh ' + (r.stockButuh||0).toLocaleString('id-ID') + ')';
+    items.push({ left: r.sku || '-', leftSub: r.nama || '-', right: kurangTx, rightColor: '#c53030', wrap: true });
+  });
+  _mekRvOpenGenericModal('SKU Kurang Stock', 'Detail kekurangan per SKU (ikut filter aktif)', _mekRvBuildListRows(items));
+}
+
 // Strip "Status Container" (Belum/Proses/Keluar) di bawah tabel — sama persis
 // vocab-nya kaya KPI di tab Summary (Capaian Planning): belum = belum ada truk
 // sama sekali, proses = truk sudah daftar/lagi loading, keluar = sudah kirim.
@@ -1992,6 +2174,30 @@ function _mekRvRenderStatusBreakdown(rows) {
   if (elB)  elB.textContent  = b.belum;
   if (elP)  elP.textContent  = b.proses;
   if (elK)  elK.textContent  = b.keluar;
+
+  // Ring highlight di box yang lagi aktif jadi filter (lihat mekRvFilterByStatus).
+  var boxB = document.getElementById('mekRvStatusBoxBelum');
+  var boxP = document.getElementById('mekRvStatusBoxProses');
+  var boxK = document.getElementById('mekRvStatusBoxKeluar');
+  var ring = '0 0 0 2px #2c5282 inset';
+  if (boxB) boxB.style.boxShadow = _mekRvStatusFilter === 'belum'  ? ring : 'none';
+  if (boxP) boxP.style.boxShadow = _mekRvStatusFilter === 'proses' ? ring : 'none';
+  if (boxK) boxK.style.boxShadow = _mekRvStatusFilter === 'keluar' ? ring : 'none';
+}
+
+// Klik salah satu box strip "Status Container Reserved" → filter list di bawah
+// biar cuma nunjukkin baris dengan status itu. Klik box yang lagi aktif lagi
+// → balik nampilin semua (toggle off).
+function mekRvFilterByStatus(status) {
+  _mekRvStatusFilter = (_mekRvStatusFilter === status) ? null : status;
+  // Baris "keluar" (closed) sengaja disembunyiin dari list kecuali toggle
+  // "tampilkan closed" nyala — kalau gak dinyalain otomatis, klik box "Keluar"
+  // bakal keliatan kosong padahal datanya ada, jadi nyalain toggle-nya sekalian.
+  if (_mekRvStatusFilter === 'keluar') {
+    var cb = document.getElementById('mekRvShowClosedToggle');
+    if (cb && !cb.checked) cb.checked = true;
+  }
+  _mekRvApplyRowFilter();
 }
 
 // ── Toggle "Detail" ON/OFF Reserved View ──────────────────────────────────
@@ -2050,12 +2256,23 @@ function _mekRvUpdateAvgWaitCard(rows) {
   });
   gridEl.innerHTML = MEK_RV_AVG_WAIT_TYPES.map(function(t, i){
     var avgDays = cnt[t.key] ? Math.round((sumH[t.key] / cnt[t.key]) / 24) : null;
-    return '<div style="flex:1 1 90px;min-width:80px;padding:0 12px;' + (i>0 ? 'border-left:1px solid #edf2f7;' : '') + '">'
+    return '<div onclick="mekRvShowAvgWaitDetail(\'' + t.key + '\')" style="flex:1 1 90px;min-width:80px;padding:0 12px;cursor:pointer;' + (i>0 ? 'border-left:1px solid #edf2f7;' : '') + '" title="Klik buat lihat rincian ' + t.label + '">'
       + '<div style="font-size:15px;color:' + t.color + ';margin-bottom:4px;"><i class="fas ' + t.icon + '"></i> <span style="font-size:12px;font-weight:800;vertical-align:middle;">' + t.label + '</span></div>'
       + '<div style="font-size:30px;font-weight:800;color:#1a202c;line-height:1.15;">' + (avgDays != null ? avgDays : '—') + '</div>'
       + '<div style="font-size:10px;color:#a0aec0;text-transform:uppercase;letter-spacing:.3px;">Hari</div>'
     + '</div>';
   }).join('');
+}
+
+function mekRvShowAvgWaitDetail(typeKey) {
+  var rows = (_mekRvLastFilteredRows || []).filter(function(r){ return (r.sourceType||'ekspor') === typeKey && r.waitHours != null; })
+    .sort(function(a,b){ return (b.waitHours||0) - (a.waitHours||0); });
+  var items = rows.map(function(r){
+    var days = Math.round((r.waitHours||0) / 24);
+    return { left: r.sku || '-', leftSub: r.nama || '-', right: days + ' hari' };
+  });
+  var label = (MEK_RV_TYPE_LABELS && MEK_RV_TYPE_LABELS[typeKey]) || typeKey;
+  _mekRvOpenGenericModal('Detail Waktu Tunggu — ' + label, 'Item yang lagi mengisi rata-rata ' + label + ' (ikut filter aktif)', _mekRvBuildListRows(items));
 }
 
 var _MEK_RV_STATUS_STYLE = {
@@ -2083,7 +2300,20 @@ function _mekRvRenderRowsList(rows, filterActive) {
   }
   emptyEl.style.display = 'none';
 
+  // Baris "no. mobil" (groupId) — 1 baris sekarang 1 SKU (bukan digabung lagi),
+  // TAPI baris2 dari mobil yang sama tetep ditampilin nempel: kolom yang
+  // level-nya per-mobil (Tgl/Status/Waiting Time, & No.SO khusus DIRECT karena
+  // isinya nomor MRP = identitas truk) di-rowspan dari baris pertama grup itu,
+  // sekalian dikasih garis pemisah + selang-seling warna latar PER GRUP (bukan
+  // per baris) biar batas antar mobil keliatan jelas.
+  var groupCounter = -1, lastGroupKey = null;
   var rowsHtml = rows.map(function(r){
+    var gSize  = r.groupId ? (r.groupSize || 1) : 1;
+    var gIndex = r.groupId ? (r.groupIndex || 0) : 0;
+    var gKey   = r.groupId || null;
+    if (gKey !== lastGroupKey) { groupCounter++; lastGroupKey = gKey; }
+    var zebra = groupCounter % 2 === 1;
+
     var isLong = r.tier === 'gt24';
     var stSt = _MEK_RV_STATUS_STYLE[r.containerStatus] || _MEK_RV_STATUS_STYLE.belum;
     var qtyCell = r.closed
@@ -2112,21 +2342,37 @@ function _mekRvRenderRowsList(rows, filterActive) {
         : 'Kurang ' + Math.abs(r.stockSelisih||0).toLocaleString('id-ID') + ' (ada ' + (r.stockTersedia||0).toLocaleString('id-ID') + '/butuh ' + (r.stockButuh||0).toLocaleString('id-ID') + ')';
       shortageBadge = '<div style="font-size:9px;font-weight:700;color:#c53030;margin-top:2px;white-space:normal;"><i class="fas fa-triangle-exclamation"></i> ' + kurangTx + '</div>';
     }
-    return '<tr' + (r.closed ? ' style="opacity:.7;"' : '') + '>'
+
+    // Cell yang level-nya per-mobil: cuma dirender di baris pertama grup
+    // (gIndex===0) dengan rowspan=gSize; baris2 lain dalam grup itu di-skip
+    // (browser otomatis "nyambungin" dari baris pertama via rowspan).
+    function spanCell(html, extraStyle) {
+      if (gSize > 1 && gIndex > 0) return ''; // udah ke-cover rowspan dari baris pertama grup
+      var rs = gSize > 1 ? ' rowspan="' + gSize + '"' : '';
+      return '<td' + rs + ' style="padding:8px 10px;border-bottom:1px solid #edf2f7;vertical-align:top;' + (extraStyle||'') + '">' + html + '</td>';
+    }
+
+    var groupBorder = (gSize > 1 && gIndex === 0) ? 'border-top:2px solid #cbd5e0;' : '';
+    var trStyle = (r.closed ? 'opacity:.7;' : '') + (zebra ? 'background:#f8fafc;' : '') + groupBorder;
+
+    var noSoHtml = '<td style="padding:8px 10px;border-bottom:1px solid #edf2f7;font-size:11px;color:#2d3748;white-space:nowrap;">' + _mekEsc(r.noSo||'-') + '</td>';
+    if (r.noSoIsGroupLevel) noSoHtml = spanCell(_mekEsc(r.noSo||'-'), 'font-size:11px;color:#2d3748;white-space:nowrap;');
+
+    return '<tr' + (trStyle ? ' style="' + trStyle + '"' : '') + '>'
       + '<td style="padding:8px 10px;border-bottom:1px solid #edf2f7;">'
         + '<div style="font-weight:800;font-size:12px;color:#2d3748;">' + _mekEsc(r.sku||'-') + '</div>'
         + '<div style="font-size:10px;color:#a0aec0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px;">' + _mekEsc(r.nama||'-') + '</div>'
         + shortageBadge
       + '</td>'
-      + '<td style="padding:8px 10px;border-bottom:1px solid #edf2f7;font-size:11px;color:#2d3748;white-space:nowrap;">' + _mekEsc(r.noSo||'-') + '</td>'
-      + '<td style="padding:8px 10px;border-bottom:1px solid #edf2f7;font-size:11px;color:#2d3748;white-space:nowrap;">' + (r.tanggal ? _mekEsc(_mekFmtTglDisplay(r.tanggal)) : '-') + '</td>'
+      + noSoHtml
+      + spanCell(r.tanggal ? _mekEsc(_mekFmtTglDisplay(r.tanggal)) : '-', 'font-size:11px;color:#2d3748;white-space:nowrap;')
       + '<td style="padding:8px 10px;border-bottom:1px solid #edf2f7;font-size:11px;color:#2d3748;text-align:right;white-space:nowrap;">' + qtyCell + '</td>'
-      + '<td style="padding:8px 10px;border-bottom:1px solid #edf2f7;text-align:center;white-space:nowrap;">'
-        + '<span style="padding:3px 9px;border-radius:12px;font-size:10px;font-weight:700;background:' + stSt.bg + ';color:' + stSt.fg + ';">' + _mekEsc(r.containerStatusLabel||'Belum') + '</span>'
-        + contDetail
-      + '</td>'
-      + '<td style="padding:8px 10px;border-bottom:1px solid #edf2f7;font-size:11px;font-weight:700;white-space:nowrap;color:' + (r.closed?'#a0aec0':(isLong?'#c53030':'#c05621')) + ';">' + waitCell + '</td>'
-      + '<td style="padding:8px 10px;border-bottom:1px solid #edf2f7;font-size:11px;color:#2d3748;white-space:nowrap;">' + _mekEsc(r.tujuan||'-') + '</td>'
+      + spanCell(
+          '<span style="padding:3px 9px;border-radius:12px;font-size:10px;font-weight:700;background:' + stSt.bg + ';color:' + stSt.fg + ';">' + _mekEsc(r.containerStatusLabel||'Belum') + '</span>' + contDetail,
+          'text-align:center;white-space:nowrap;'
+        )
+      + spanCell(waitCell, 'font-size:11px;font-weight:700;white-space:nowrap;color:' + (r.closed?'#a0aec0':(isLong?'#c53030':'#c05621')) + ';')
+      + spanCell(_mekEsc(r.tujuan||'-'), 'font-size:11px;color:#2d3748;white-space:nowrap;')
     + '</tr>';
   }).join('');
 
