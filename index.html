@@ -5566,7 +5566,7 @@
           <input type="checkbox" id="mekRvShowClosedToggle" onchange="_mekRvApplyRowFilter()" style="width:14px;height:14px;cursor:pointer;">
           Tampilkan yang closed
         </label>
-        <button onclick="document.getElementById('mekRvFilterSku').value='';document.getElementById('mekRvFilterNoSo').value='';document.getElementById('mekRvFilterTujuan').value='';document.getElementById('mekRvFilterPlant').value='';document.getElementById('mekRvFilterAging').value='';document.getElementById('mekRvShowClosedToggle').checked=false;_mekRvApplyRowFilter();"
+        <button onclick="document.getElementById('mekRvFilterSku').value='';document.getElementById('mekRvFilterNoSo').value='';document.getElementById('mekRvFilterTujuan').value='';document.getElementById('mekRvFilterPlant').value='';document.getElementById('mekRvFilterAging').value='';document.getElementById('mekRvShowClosedToggle').checked=false;_mekRvStatusFilter=null;_mekRvApplyRowFilter();"
           style="padding:6px 12px;border-radius:8px;border:1px solid #e2e8f0;background:#fff;font-size:12px;font-weight:600;cursor:pointer;color:#718096;">
           <i class="fas fa-times"></i> Reset
         </button>
@@ -5593,40 +5593,40 @@
 
         <!-- KPI cards -->
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:14px;">
-          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;">
-            <div style="font-size:10px;color:#718096;text-transform:uppercase;">Total Stock</div>
+          <div onclick="mekRvShowTotalStockBreakdown()" style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;cursor:pointer;" title="Klik buat lihat top 10 SKU">
+            <div style="font-size:10px;color:#718096;text-transform:uppercase;">Total Stock <i class="fas fa-circle-info" style="opacity:.6;"></i></div>
             <div id="mekRvKpiTotal" style="font-size:20px;font-weight:800;color:#2d3748;">—</div>
           </div>
-          <div style="background:#f0fff4;border:1px solid #c6f6d5;border-radius:10px;padding:10px 12px;">
-            <div style="font-size:10px;color:#276749;text-transform:uppercase;">Available</div>
+          <div onclick="mekRvShowAvailableBreakdown()" style="background:#f0fff4;border:1px solid #c6f6d5;border-radius:10px;padding:10px 12px;cursor:pointer;" title="Klik buat lihat top 10 SKU paling kritis">
+            <div style="font-size:10px;color:#276749;text-transform:uppercase;">Available <i class="fas fa-circle-info" style="opacity:.6;"></i></div>
             <div id="mekRvKpiAvailable" style="font-size:20px;font-weight:800;color:#276749;">—</div>
           </div>
-          <div style="background:#fffaf0;border:1px solid #feebc8;border-radius:10px;padding:10px 12px;">
-            <div style="font-size:10px;color:#c05621;text-transform:uppercase;">Reserved</div>
+          <div onclick="mekRvShowReservedBreakdown()" style="background:#fffaf0;border:1px solid #feebc8;border-radius:10px;padding:10px 12px;cursor:pointer;" title="Klik buat lihat rincian per tipe">
+            <div style="font-size:10px;color:#c05621;text-transform:uppercase;">Reserved <i class="fas fa-circle-info" style="opacity:.6;"></i></div>
             <div id="mekRvKpiReserved" style="font-size:20px;font-weight:800;color:#c05621;">—</div>
           </div>
-          <div style="background:#ebf8ff;border:1px solid #bee3f8;border-radius:10px;padding:10px 12px;">
-            <div style="font-size:10px;color:#2c5282;text-transform:uppercase;">Reserved %</div>
+          <div onclick="mekRvShowReservedPctBreakdown()" style="background:#ebf8ff;border:1px solid #bee3f8;border-radius:10px;padding:10px 12px;cursor:pointer;" title="Klik buat lihat kontribusi per tipe">
+            <div style="font-size:10px;color:#2c5282;text-transform:uppercase;">Reserved % <i class="fas fa-circle-info" style="opacity:.6;"></i></div>
             <div id="mekRvKpiPct" style="font-size:20px;font-weight:800;color:#2c5282;">—</div>
           </div>
           <!-- Kartu "tambahan" (di luar 4 kartu utama) — disembunyikan SEKALIGUS pas
                Detail OFF (lihat mekRvToggleDetail). display:contents biar gak ganggu
                grid (kartu2 di dalamnya tetap jadi item grid langsung, bukan nested). -->
           <div id="mekRvExtraCards" style="display:none;">
-          <div style="background:#faf5ff;border:1px solid #e9d8fd;border-radius:10px;padding:10px 12px;">
-            <div id="mekRvKpiContainerLabel" style="font-size:10px;color:#6b46c1;text-transform:uppercase;">Container Waiting</div>
+          <div onclick="mekRvShowContainerWaitingBreakdown()" style="background:#faf5ff;border:1px solid #e9d8fd;border-radius:10px;padding:10px 12px;cursor:pointer;" title="Klik buat lihat rincian per tipe">
+            <div id="mekRvKpiContainerLabel" style="font-size:10px;color:#6b46c1;text-transform:uppercase;">Container Waiting <i class="fas fa-circle-info" style="opacity:.6;"></i></div>
             <div id="mekRvKpiContainer" style="font-size:20px;font-weight:800;color:#6b46c1;">—</div>
           </div>
-          <div id="mekRvCardDirectOpen" style="display:none;background:#ebf4ff;border:1px solid #c3dafe;border-radius:10px;padding:10px 12px;">
-            <div style="font-size:10px;color:#434190;text-transform:uppercase;">Open DO/SO Direct</div>
+          <div id="mekRvCardDirectOpen" onclick="mekRvShowContainerWaitingBreakdown()" style="display:none;background:#ebf4ff;border:1px solid #c3dafe;border-radius:10px;padding:10px 12px;cursor:pointer;" title="Klik buat lihat rincian per tipe">
+            <div style="font-size:10px;color:#434190;text-transform:uppercase;">Open DO/SO Direct <i class="fas fa-circle-info" style="opacity:.6;"></i></div>
             <div id="mekRvKpiDirectOpen" style="font-size:20px;font-weight:800;color:#434190;">—</div>
           </div>
-          <div style="background:#fff5f5;border:1px solid #fed7d7;border-radius:10px;padding:10px 12px;">
-            <div style="font-size:10px;color:#c53030;text-transform:uppercase;">Longest Waiting</div>
+          <div onclick="mekRvShowLongestWaitingBreakdown()" style="background:#fff5f5;border:1px solid #fed7d7;border-radius:10px;padding:10px 12px;cursor:pointer;" title="Klik buat lihat top 10">
+            <div style="font-size:10px;color:#c53030;text-transform:uppercase;">Longest Waiting <i class="fas fa-circle-info" style="opacity:.6;"></i></div>
             <div id="mekRvKpiLongest" style="font-size:16px;font-weight:800;color:#c53030;">—</div>
           </div>
-          <div style="background:#fff5f5;border:1px solid #feb2b2;border-radius:10px;padding:10px 12px;">
-            <div style="font-size:10px;color:#9b2c2c;text-transform:uppercase;"><i class="fas fa-triangle-exclamation"></i> SKU Kurang Stock</div>
+          <div onclick="mekRvShowShortageBreakdown()" style="background:#fff5f5;border:1px solid #feb2b2;border-radius:10px;padding:10px 12px;cursor:pointer;" title="Klik buat lihat daftar SKU">
+            <div style="font-size:10px;color:#9b2c2c;text-transform:uppercase;"><i class="fas fa-triangle-exclamation"></i> SKU Kurang Stock <i class="fas fa-circle-info" style="opacity:.6;"></i></div>
             <div id="mekRvKpiShortage" style="font-size:20px;font-weight:800;color:#9b2c2c;">—</div>
           </div>
           </div><!-- /mekRvExtraCards -->
@@ -5738,15 +5738,15 @@
         <div id="mekRvStatusContainerCard" style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:12px 14px;margin-top:12px;">
           <div style="font-size:11px;font-weight:800;color:#718096;text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px;">Status Container Reserved</div>
           <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
-            <div style="background:#fff5f5;border:1px solid #fed7d7;border-radius:10px;padding:10px 8px;text-align:center;">
+            <div id="mekRvStatusBoxBelum" onclick="mekRvFilterByStatus('belum')" style="background:#fff5f5;border:1px solid #fed7d7;border-radius:10px;padding:10px 8px;text-align:center;cursor:pointer;" title="Klik buat filter list di bawah">
               <div id="mekRvStatusBelum" style="font-size:20px;font-weight:800;color:#c53030;">—</div>
               <div style="font-size:10px;color:#c53030;text-transform:uppercase;margin-top:2px;">Belum</div>
             </div>
-            <div style="background:#fffaf0;border:1px solid #feebc8;border-radius:10px;padding:10px 8px;text-align:center;">
+            <div id="mekRvStatusBoxProses" onclick="mekRvFilterByStatus('proses')" style="background:#fffaf0;border:1px solid #feebc8;border-radius:10px;padding:10px 8px;text-align:center;cursor:pointer;" title="Klik buat filter list di bawah">
               <div id="mekRvStatusProses" style="font-size:20px;font-weight:800;color:#c05621;">—</div>
               <div style="font-size:10px;color:#c05621;text-transform:uppercase;margin-top:2px;">Proses</div>
             </div>
-            <div style="background:#f0fff4;border:1px solid #c6f6d5;border-radius:10px;padding:10px 8px;text-align:center;">
+            <div id="mekRvStatusBoxKeluar" onclick="mekRvFilterByStatus('keluar')" style="background:#f0fff4;border:1px solid #c6f6d5;border-radius:10px;padding:10px 8px;text-align:center;cursor:pointer;" title="Klik buat filter list di bawah">
               <div id="mekRvStatusKeluar" style="font-size:20px;font-weight:800;color:#276749;">—</div>
               <div style="font-size:10px;color:#276749;text-transform:uppercase;margin-top:2px;">Keluar</div>
             </div>
@@ -5756,6 +5756,33 @@
         </div><!-- /mekrv-split -->
       </div>
     </div><!-- /mekReservedPane -->
+
+    <!-- ════ MODAL RINCIAN RESERVED PER TIPE ════ -->
+    <div id="mekRvReservedBreakdownModal" style="display:none;position:fixed;inset:0;background:rgba(15,32,39,.55);z-index:3000;align-items:center;justify-content:center;padding:20px;">
+      <div style="background:#fff;border-radius:12px;max-width:340px;width:100%;max-height:88vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.3);">
+        <div style="padding:14px 18px;background:linear-gradient(90deg,#c05621,#dd6b20);color:#fff;display:flex;align-items:center;gap:10px;border-radius:12px 12px 0 0;">
+          <div style="font-size:13px;font-weight:800;">Rincian Reserved per Tipe</div>
+          <button onclick="mekRvCloseReservedBreakdown()" style="margin-left:auto;padding:5px 10px;border-radius:7px;border:1px solid rgba(255,255,255,.4);background:none;color:#fff;font-size:13px;cursor:pointer;" title="Tutup"><i class="fas fa-times"></i></button>
+        </div>
+        <div style="font-size:10px;color:#a0aec0;padding:10px 18px 0;">* Ngikutin filter yang lagi aktif di atas (tipe/SKU/dst).</div>
+        <div id="mekRvReservedBreakdownBody" style="padding:14px 18px;"></div>
+      </div>
+    </div>
+
+    <!-- ════ MODAL GENERIK — rincian kartu2 lain (Total Stock/Available/Reserved %/
+         Container Waiting/Longest Waiting/SKU Kurang Stock/Rata2 Waktu per tipe) ════ -->
+    <div id="mekRvGenericModal" style="display:none;position:fixed;inset:0;background:rgba(15,32,39,.55);z-index:3000;align-items:center;justify-content:center;padding:20px;">
+      <div style="background:#fff;border-radius:12px;max-width:420px;width:100%;max-height:88vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.3);">
+        <div style="padding:14px 18px;background:linear-gradient(90deg,#1a3a5c,#2b6cb0);color:#fff;display:flex;align-items:center;gap:10px;border-radius:12px 12px 0 0;">
+          <div style="min-width:0;">
+            <div id="mekRvGenericModalTitle" style="font-size:13px;font-weight:800;">-</div>
+            <div id="mekRvGenericModalSub" style="font-size:10px;opacity:.85;"></div>
+          </div>
+          <button onclick="mekRvCloseGenericModal()" style="margin-left:auto;flex-shrink:0;padding:5px 10px;border-radius:7px;border:1px solid rgba(255,255,255,.4);background:none;color:#fff;font-size:13px;cursor:pointer;" title="Tutup"><i class="fas fa-times"></i></button>
+        </div>
+        <div id="mekRvGenericModalBody" style="padding:14px 18px;"></div>
+      </div>
+    </div>
 
 
 
