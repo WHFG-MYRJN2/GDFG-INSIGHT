@@ -5505,9 +5505,16 @@
             <label style="display:flex;align-items:center;gap:7px;cursor:pointer;user-select:none;font-size:12px;font-weight:700;color:#4a5568;">
               Detail
               <span style="position:relative;display:inline-block;width:38px;height:21px;">
-                <input type="checkbox" id="mekRvDetailToggle" checked onchange="mekRvToggleDetail(this.checked)" style="opacity:0;width:0;height:0;">
-                <span id="mekRvDetailToggleTrack" style="position:absolute;inset:0;background:#2c5282;border-radius:21px;transition:.15s;cursor:pointer;" onclick="var cb=document.getElementById('mekRvDetailToggle');cb.checked=!cb.checked;mekRvToggleDetail(cb.checked);"></span>
-                <span id="mekRvDetailToggleDot" style="position:absolute;left:18px;top:2px;width:17px;height:17px;background:#fff;border-radius:50%;transition:.15s;pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,.3);"></span>
+                <!-- Checkbox ini yang jadi sumber kebenaran state-nya — track/dot di
+                     bawah cuma visual, gak punya onclick sendiri (dulu track punya
+                     onclick manual sendiri yang toggle cb.checked LAGI di atas toggle
+                     otomatis dari klik di dalam <label>, jadi kepencet-nya kebalik
+                     dua kali alias keliatan kayak gak ngefek). Klik di mana aja di
+                     dalam <label> (termasuk track/dot) otomatis toggle checkbox ini
+                     bawaan browser, terus onchange yang jalanin mekRvToggleDetail. -->
+                <input type="checkbox" id="mekRvDetailToggle" onchange="mekRvToggleDetail(this.checked)" style="position:absolute;inset:0;margin:0;opacity:0;cursor:pointer;">
+                <span id="mekRvDetailToggleTrack" style="position:absolute;inset:0;background:#cbd5e0;border-radius:21px;transition:.15s;pointer-events:none;"></span>
+                <span id="mekRvDetailToggleDot" style="position:absolute;left:2px;top:2px;width:17px;height:17px;background:#fff;border-radius:50%;transition:.15s;pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,.3);"></span>
               </span>
             </label>
             <button onclick="mekLoadReservedView()" style="padding:7px 14px;border-radius:8px;border:1px solid #2c5282;background:#2c5282;color:#fff;font-size:12px;font-weight:700;cursor:pointer;">
@@ -5605,7 +5612,7 @@
           <!-- Kartu "tambahan" (di luar 4 kartu utama) — disembunyikan SEKALIGUS pas
                Detail OFF (lihat mekRvToggleDetail). display:contents biar gak ganggu
                grid (kartu2 di dalamnya tetap jadi item grid langsung, bukan nested). -->
-          <div id="mekRvExtraCards" style="display:contents;">
+          <div id="mekRvExtraCards" style="display:none;">
           <div style="background:#faf5ff;border:1px solid #e9d8fd;border-radius:10px;padding:10px 12px;">
             <div id="mekRvKpiContainerLabel" style="font-size:10px;color:#6b46c1;text-transform:uppercase;">Container Waiting</div>
             <div id="mekRvKpiContainer" style="font-size:20px;font-weight:800;color:#6b46c1;">—</div>
@@ -5624,11 +5631,11 @@
           </div>
           </div><!-- /mekRvExtraCards -->
         </div>
-        <div id="mekRvFootnote" style="font-size:10px;color:#a0aec0;margin:-8px 0 12px;">* Semua kartu mengikuti filter tipe (ALL/EKSPOR/DIRECT/dst) di atas. Total Stock, Available &amp; Reserved % juga ikut filter SKU/Nama — No.SO/Tujuan/Plant/Aging/Closed cuma berlaku buat kartu Reserved, Container Waiting/Open DO-SO Direct, Longest Waiting &amp; SKU Kurang Stock.</div>
+        <div id="mekRvFootnote" style="display:none;font-size:10px;color:#a0aec0;margin:-8px 0 12px;">* Semua kartu mengikuti filter tipe (ALL/EKSPOR/DIRECT/dst) di atas. Total Stock, Available &amp; Reserved % juga ikut filter SKU/Nama — No.SO/Tujuan/Plant/Aging/Closed cuma berlaku buat kartu Reserved, Container Waiting/Open DO-SO Direct, Longest Waiting &amp; SKU Kurang Stock.</div>
 
         <!-- Kartu "Rata-rata Lama Waktu Stock Reserved" — cuma keliatan pas Detail OFF,
              gantiin posisi tabel/list yang disembunyikan (lihat mekRvToggleDetail). -->
-        <div id="mekRvAvgWaitCard" style="display:none;background:#fff;border:2px solid #fc8181;border-radius:14px;padding:16px 18px;margin:0 0 14px;">
+        <div id="mekRvAvgWaitCard" style="display:block;background:#fff;border:2px solid #fc8181;border-radius:14px;padding:16px 18px;margin:0 0 14px;">
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
             <div style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:800;color:#1a3a5c;letter-spacing:.3px;">
               <i class="fas fa-clock" style="color:#c53030;"></i> RATA-RATA LAMA WAKTU STOCK RESERVED
@@ -5704,13 +5711,13 @@
         </div>
         </div><!-- /mekrv-split-map -->
 
-        <div id="mekRvSplitToggleWrap" class="mekrv-split-toggle">
+        <div id="mekRvSplitToggleWrap" class="mekrv-split-toggle" style="display:none;">
           <button id="mekRvExpandBtn" onclick="mekRvToggleExpand()" title="Lebarkan tabel">
             <i class="fas fa-chevron-left"></i>
           </button>
         </div>
 
-        <div id="mekRvSplitList" class="mekrv-split-list">
+        <div id="mekRvSplitList" class="mekrv-split-list" style="display:none;">
         <div style="font-size:12px;font-weight:800;color:#718096;text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px;">Reserved Stock Monitoring</div>
         <div id="mekRvList"></div>
         <div id="mekRvEmpty" style="display:none;text-align:center;padding:40px;color:#a0aec0;">
