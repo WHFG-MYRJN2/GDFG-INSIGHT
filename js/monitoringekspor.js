@@ -1940,7 +1940,7 @@ function _mekRvRenderStatusBreakdown(rows) {
 // OFF (ringkas): cuma 4 kartu utama (Total Stock/Available/Reserved/Reserved
 //     %) + peta (jadi full-width, list-nya disembunyiin) + kartu baru "Rata-
 //     rata Lama Waktu Stock Reserved" per tipe (gantiin posisi list/tabel).
-var _mekRvDetailOn = true;
+var _mekRvDetailOn = false; // default OFF — tampilan ringkas (4 kartu + peta + rata-rata waktu)
 
 function mekRvToggleDetail(on) {
   _mekRvDetailOn = !!on;
