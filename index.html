@@ -5498,9 +5498,22 @@
             <div style="font-size:15px;font-weight:800;color:#2d3748;"><i class="fas fa-cube"></i> RESERVED VIEW</div>
             <div style="font-size:12px;color:#718096;">Stock yang sudah teralokasi ke planning ekspor yang belum terkirim — data sama seperti Kesiapan Stock</div>
           </div>
-          <button onclick="mekLoadReservedView()" style="padding:7px 14px;border-radius:8px;border:1px solid #2c5282;background:#2c5282;color:#fff;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">
-            <i class="fas fa-sync"></i> Refresh
-          </button>
+          <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+            <!-- Toggle Detail ON/OFF — ON = tampilan lengkap (7 kartu + peta + tabel,
+                 kayak sebelumnya). OFF = ringkas, cuma 4 kartu utama + peta + kartu
+                 rata-rata lama waktu reserved per tipe (lihat mekRvToggleDetail). -->
+            <label style="display:flex;align-items:center;gap:7px;cursor:pointer;user-select:none;font-size:12px;font-weight:700;color:#4a5568;">
+              Detail
+              <span style="position:relative;display:inline-block;width:38px;height:21px;">
+                <input type="checkbox" id="mekRvDetailToggle" checked onchange="mekRvToggleDetail(this.checked)" style="opacity:0;width:0;height:0;">
+                <span id="mekRvDetailToggleTrack" style="position:absolute;inset:0;background:#2c5282;border-radius:21px;transition:.15s;cursor:pointer;" onclick="var cb=document.getElementById('mekRvDetailToggle');cb.checked=!cb.checked;mekRvToggleDetail(cb.checked);"></span>
+                <span id="mekRvDetailToggleDot" style="position:absolute;left:18px;top:2px;width:17px;height:17px;background:#fff;border-radius:50%;transition:.15s;pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,.3);"></span>
+              </span>
+            </label>
+            <button onclick="mekLoadReservedView()" style="padding:7px 14px;border-radius:8px;border:1px solid #2c5282;background:#2c5282;color:#fff;font-size:12px;font-weight:700;cursor:pointer;">
+              <i class="fas fa-sync"></i> Refresh
+            </button>
+          </div>
         </div>
       </div>
 
@@ -5589,6 +5602,10 @@
             <div style="font-size:10px;color:#2c5282;text-transform:uppercase;">Reserved %</div>
             <div id="mekRvKpiPct" style="font-size:20px;font-weight:800;color:#2c5282;">—</div>
           </div>
+          <!-- Kartu "tambahan" (di luar 4 kartu utama) — disembunyikan SEKALIGUS pas
+               Detail OFF (lihat mekRvToggleDetail). display:contents biar gak ganggu
+               grid (kartu2 di dalamnya tetap jadi item grid langsung, bukan nested). -->
+          <div id="mekRvExtraCards" style="display:contents;">
           <div style="background:#faf5ff;border:1px solid #e9d8fd;border-radius:10px;padding:10px 12px;">
             <div id="mekRvKpiContainerLabel" style="font-size:10px;color:#6b46c1;text-transform:uppercase;">Container Waiting</div>
             <div id="mekRvKpiContainer" style="font-size:20px;font-weight:800;color:#6b46c1;">—</div>
@@ -5605,8 +5622,22 @@
             <div style="font-size:10px;color:#9b2c2c;text-transform:uppercase;"><i class="fas fa-triangle-exclamation"></i> SKU Kurang Stock</div>
             <div id="mekRvKpiShortage" style="font-size:20px;font-weight:800;color:#9b2c2c;">—</div>
           </div>
+          </div><!-- /mekRvExtraCards -->
         </div>
-        <div style="font-size:10px;color:#a0aec0;margin:-8px 0 12px;">* Semua kartu mengikuti filter tipe (ALL/EKSPOR/DIRECT/dst) di atas. Total Stock, Available &amp; Reserved % juga ikut filter SKU/Nama — No.SO/Tujuan/Plant/Aging/Closed cuma berlaku buat kartu Reserved, Container Waiting/Open DO-SO Direct, Longest Waiting &amp; SKU Kurang Stock.</div>
+        <div id="mekRvFootnote" style="font-size:10px;color:#a0aec0;margin:-8px 0 12px;">* Semua kartu mengikuti filter tipe (ALL/EKSPOR/DIRECT/dst) di atas. Total Stock, Available &amp; Reserved % juga ikut filter SKU/Nama — No.SO/Tujuan/Plant/Aging/Closed cuma berlaku buat kartu Reserved, Container Waiting/Open DO-SO Direct, Longest Waiting &amp; SKU Kurang Stock.</div>
+
+        <!-- Kartu "Rata-rata Lama Waktu Stock Reserved" — cuma keliatan pas Detail OFF,
+             gantiin posisi tabel/list yang disembunyikan (lihat mekRvToggleDetail). -->
+        <div id="mekRvAvgWaitCard" style="display:none;background:#fff;border:2px solid #fc8181;border-radius:14px;padding:16px 18px;margin:0 0 14px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
+            <div style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:800;color:#1a3a5c;letter-spacing:.3px;">
+              <i class="fas fa-clock" style="color:#c53030;"></i> RATA-RATA LAMA WAKTU STOCK RESERVED
+              <i class="fas fa-circle-info" title="Rata-rata dihitung dari baris reservasi yang masih outstanding (belum closed), per tipe — ngikutin filter yang aktif." style="color:#cbd5e0;font-size:11px;cursor:help;"></i>
+            </div>
+            <div style="font-size:10px;color:#a0aec0;">Satuan: Hari</div>
+          </div>
+          <div id="mekRvAvgWaitGrid" style="display:flex;flex-wrap:wrap;text-align:center;"></div>
+        </div>
 
         <!-- Peta + List — side by side pas landscape, ke bawah pas potrait -->
         <div class="mekrv-split">
@@ -5673,13 +5704,13 @@
         </div>
         </div><!-- /mekrv-split-map -->
 
-        <div class="mekrv-split-toggle">
+        <div id="mekRvSplitToggleWrap" class="mekrv-split-toggle">
           <button id="mekRvExpandBtn" onclick="mekRvToggleExpand()" title="Lebarkan tabel">
             <i class="fas fa-chevron-left"></i>
           </button>
         </div>
 
-        <div class="mekrv-split-list">
+        <div id="mekRvSplitList" class="mekrv-split-list">
         <div style="font-size:12px;font-weight:800;color:#718096;text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px;">Reserved Stock Monitoring</div>
         <div id="mekRvList"></div>
         <div id="mekRvEmpty" style="display:none;text-align:center;padding:40px;color:#a0aec0;">
