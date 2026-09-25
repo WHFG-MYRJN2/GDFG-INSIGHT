@@ -5758,8 +5758,8 @@
     </div><!-- /mekReservedPane -->
 
     <!-- ════ MODAL RINCIAN RESERVED PER TIPE ════ -->
-    <div id="mekRvReservedBreakdownModal" style="display:none;position:fixed;inset:0;background:rgba(15,32,39,.55);z-index:3000;align-items:center;justify-content:center;padding:20px;">
-      <div style="background:#fff;border-radius:12px;max-width:340px;width:100%;max-height:88vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.3);">
+    <div id="mekRvReservedBreakdownModal" onclick="if(event.target===this) mekRvCloseReservedBreakdown()" style="display:none;position:fixed;inset:0;background:rgba(15,32,39,.55);z-index:3000;align-items:center;justify-content:center;padding:20px;opacity:0;transition:opacity .18s ease;">
+      <div style="background:#fff;border-radius:12px;max-width:340px;width:100%;max-height:88vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.3);transform:translateY(10px) scale(.97);opacity:0;transition:transform .18s ease,opacity .18s ease;">
         <div style="padding:14px 18px;background:linear-gradient(90deg,#c05621,#dd6b20);color:#fff;display:flex;align-items:center;gap:10px;border-radius:12px 12px 0 0;">
           <div style="font-size:13px;font-weight:800;">Rincian Reserved per Tipe</div>
           <button onclick="mekRvCloseReservedBreakdown()" style="margin-left:auto;padding:5px 10px;border-radius:7px;border:1px solid rgba(255,255,255,.4);background:none;color:#fff;font-size:13px;cursor:pointer;" title="Tutup"><i class="fas fa-times"></i></button>
@@ -5771,8 +5771,8 @@
 
     <!-- ════ MODAL GENERIK — rincian kartu2 lain (Total Stock/Available/Reserved %/
          Container Waiting/Longest Waiting/SKU Kurang Stock/Rata2 Waktu per tipe) ════ -->
-    <div id="mekRvGenericModal" style="display:none;position:fixed;inset:0;background:rgba(15,32,39,.55);z-index:3000;align-items:center;justify-content:center;padding:20px;">
-      <div style="background:#fff;border-radius:12px;max-width:420px;width:100%;max-height:88vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.3);">
+    <div id="mekRvGenericModal" onclick="if(event.target===this) mekRvCloseGenericModal()" style="display:none;position:fixed;inset:0;background:rgba(15,32,39,.55);z-index:3000;align-items:center;justify-content:center;padding:20px;opacity:0;transition:opacity .18s ease;">
+      <div style="background:#fff;border-radius:12px;max-width:420px;width:100%;max-height:88vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.3);transform:translateY(10px) scale(.97);opacity:0;transition:transform .18s ease,opacity .18s ease;">
         <div style="padding:14px 18px;background:linear-gradient(90deg,#1a3a5c,#2b6cb0);color:#fff;display:flex;align-items:center;gap:10px;border-radius:12px 12px 0 0;">
           <div style="min-width:0;">
             <div id="mekRvGenericModalTitle" style="font-size:13px;font-weight:800;">-</div>
