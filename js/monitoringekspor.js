@@ -1931,24 +1931,43 @@ function _mekRvTipeFilterInfo() {
   return { directOnly: directOnly, showDirectCard: showDirectCard };
 }
 
+// Rows sekarang 1 baris = 1 SKU, tapi banyak stat di Reserved View itu
+// level-nya per MOBIL (jumlah truk masih outstanding, status Belum/Proses/
+// Keluar, rata-rata lama nunggu) — kalau dihitung langsung dari rows mentah,
+// 1 mobil isi 5 SKU bakal kehitung 5x. Dedupe dulu pakai groupId (row tanpa
+// groupId, mis. EKSPOR, dianggap grupnya sendiri2 — gak didedupe).
+function _mekRvDedupeByGroup(rows) {
+  var seen = {}, out = [];
+  (rows || []).forEach(function(r) {
+    if (r.groupId) {
+      if (seen[r.groupId]) return;
+      seen[r.groupId] = true;
+    }
+    out.push(r);
+  });
+  return out;
+}
+
 // Recalculate KPI "Reserved" / "Container Waiting" / "Longest Waiting" dari rows
 // yang sedang ditampilkan (kena filter kalau filter aktif). "Total Stock" /
 // "Available" / "Reserved %" dihitung terpisah, lihat _mekRvUpdateStockKpis.
 function _mekRvUpdateFilteredKpis(rows) {
   var totalQty = 0;
-  rows.forEach(function(r){ totalQty += (r.qtyReserved||0); });
+  rows.forEach(function(r){ totalQty += (r.qtyReserved||0); }); // qty tetep dijumlah dari SEMUA baris (per SKU)
+
+  var groupedRows = _mekRvDedupeByGroup(rows); // buat itungan JUMLAH MOBIL, bukan jumlah baris/SKU
 
   var tf = _mekRvTipeFilterInfo();
-  // "Open DO/SO Direct": baris DIRECT yang masih outstanding (belum closed —
+  // "Open DO/SO Direct": mobil DIRECT yang masih outstanding (belum closed —
   // sama kriteria waitHours!=null kayak "container waiting"-nya EKSPOR).
-  var directWaiting = rows.filter(function(r){ return r.sourceType === 'direct' && r.waitHours != null; }).length;
+  var directWaiting = groupedRows.filter(function(r){ return r.sourceType === 'direct' && r.waitHours != null; }).length;
   // "Container Waiting" (kartu utama): kalau directOnly, isinya = directWaiting
   // juga (toh rows-nya udah kefilter DIRECT semua) tapi labelnya di-swap jadi
   // "Open DO/SO Direct". Selain itu, DIRECT dikecualikan dari hitungan biar
   // gak dobel sama kartu terpisah pas showDirectCard aktif.
   var containerWaiting = tf.directOnly
     ? directWaiting
-    : rows.filter(function(r){ return r.sourceType !== 'direct' && r.waitHours != null; }).length;
+    : groupedRows.filter(function(r){ return r.sourceType !== 'direct' && r.waitHours != null; }).length;
 
   var longestHours = rows.reduce(function(m,r){ return (r.waitHours!=null && r.waitHours>m) ? r.waitHours : m; }, 0);
   var longestLabel = '-';
@@ -2110,7 +2129,7 @@ function mekRvShowReservedPctBreakdown() {
 // "Container Waiting" / "Open DO/SO Direct" → breakdown JUMLAH truk/DO yang
 // masih outstanding (waitHours != null) per tipe.
 function mekRvShowContainerWaitingBreakdown() {
-  var rows = _mekRvLastFilteredRows || [];
+  var rows = _mekRvDedupeByGroup(_mekRvLastFilteredRows || []); // itungan MOBIL, bukan SKU
   var counts = {};
   rows.forEach(function(r) { if (r.waitHours == null) return; var t = r.sourceType || 'ekspor'; counts[t] = (counts[t]||0) + 1; });
   var items = MEK_RV_BREAKDOWN_ORDER.map(function(t) { return { left: MEK_RV_TYPE_LABELS[t], right: String(counts[t] || 0) }; });
@@ -2118,20 +2137,23 @@ function mekRvShowContainerWaitingBreakdown() {
   _mekRvOpenGenericModal(tf.directOnly ? 'Open DO/SO Direct per Tipe' : 'Container Waiting per Tipe', 'Jumlah truk/DO yang masih outstanding (ikut filter aktif)', _mekRvBuildListRows(items));
 }
 
-// "Longest Waiting" → top 10 item yang paling lama nunggu.
+// "Longest Waiting" → top 10 MOBIL yang paling lama nunggu (dedupe dulu biar
+// 1 mobil isi banyak SKU gak numpuk 5 baris sendiri-sendiri di top 10).
 function mekRvShowLongestWaitingBreakdown() {
-  var rows = (_mekRvLastFilteredRows || []).filter(function(r){ return r.waitHours != null; })
+  var rows = _mekRvDedupeByGroup(_mekRvLastFilteredRows || []).filter(function(r){ return r.waitHours != null; })
     .sort(function(a,b){ return (b.waitHours||0) - (a.waitHours||0); })
     .slice(0, 10);
   var items = rows.map(function(r) {
+    var skuLabel = r.sku || '-';
+    if (r.groupSize > 1) skuLabel += ' (+' + (r.groupSize - 1) + ' SKU lain)';
     return {
-      left: r.sku || '-',
+      left: skuLabel,
       leftSub: (MEK_RV_TYPE_LABELS[r.sourceType||'ekspor'] || '') + ' · ' + (r.nama || '-'),
       right: _mekReservedFmtHours(r.waitHours),
       rightColor: r.tier === 'gt24' ? '#c53030' : '#c05621'
     };
   });
-  _mekRvOpenGenericModal('Top 10 — Longest Waiting', 'Item yang paling lama nunggu (ikut filter aktif)', _mekRvBuildListRows(items));
+  _mekRvOpenGenericModal('Top 10 — Longest Waiting', 'Per mobil/DO, bukan per SKU (ikut filter aktif)', _mekRvBuildListRows(items));
 }
 
 // "SKU Kurang Stock" → daftar SKU-nya langsung (dedupe per SKU).
@@ -2163,7 +2185,7 @@ function _mekRvRenderStatusBreakdown(rows) {
   if (tf.directOnly) return; // gak usah dihitung, toh lagi disembunyiin
 
   var b = { belum: 0, proses: 0, keluar: 0 };
-  rows.forEach(function(r){
+  _mekRvDedupeByGroup(rows).forEach(function(r){
     var st = (r.containerStatus === 'daftar' || r.containerStatus === 'loading') ? 'proses'
            : (r.containerStatus === 'keluar' ? 'keluar' : 'belum');
     b[st]++;
@@ -2248,7 +2270,9 @@ function _mekRvUpdateAvgWaitCard(rows) {
   var gridEl = document.getElementById('mekRvAvgWaitGrid');
   if (!gridEl) return;
   var sumH = {}, cnt = {};
-  (rows || []).forEach(function(r){
+  // Dedupe per mobil dulu — rata-rata harus per MOBIL, bukan per baris/SKU
+  // (mobil isi 5 SKU jangan sampe narik rata-ratanya seolah 5 mobil nunggu).
+  _mekRvDedupeByGroup(rows || []).forEach(function(r){
     if (r.waitHours == null) return;
     var t = r.sourceType || 'ekspor';
     sumH[t] = (sumH[t]||0) + r.waitHours;
