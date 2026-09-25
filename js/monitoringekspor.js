@@ -1869,37 +1869,35 @@ function _mekRvApplyRowFilter() {
     return true;
   });
   _mekRvRenderRowsList(rows, !!(skuF || noSoF || tujuanF || plantF || agingF || !isAllTipe));
-  _mekRvUpdateStockKpis(skuF);
+  _mekRvUpdateStockKpis(skuF, rows);
   _mekRvLastFilteredRows = rows; // disimpan buat mekRvToggleDetail (biar pas di-ON/OFF-in gak perlu nunggu filter berubah lagi)
   _mekRvUpdateAvgWaitCard(rows);
 }
 
-// KPI "Total Stock" / "Available" / "Reserved %" — dulu statis dari summary
-// server (level stock fisik gudang EKSPOR doang, gak pernah ikut filter apa
-// pun), beda sama kartu "Reserved"/"Container Waiting"/"Longest Waiting"/"SKU
-// Kurang Stock" yang emang udah dihitung ulang dari rows terfilter
-// (_mekRvUpdateFilteredKpis). Sekarang dihitung ULANG dari _mekRvCellsRaw
-// (bin fisik) tiap kali filter berubah, biar semua kartu konsisten ikut
-// filter — pakai logic pendekatan tipe yang SAMA kayak yang mewarnai peta
-// (_mekRvGetFilterAwareReserveInfo), jadi angka di kartu selalu nyambung sama
-// warna yang keliatan di peta.
-// CATATAN: yang bisa diterapkan ke level stock fisik (per-bin) cuma filter
-// SKU/NAMA & tipe (ALL/EKSPOR/DIRECT/dst) — No.SO/Tujuan/Plant/Aging/Closed
-// itu atribut per-baris RESERVASI, gak ada padanannya di level stock fisik
-// per-bin, jadi 3 kartu ini sengaja gak berubah kalau cuma filter2 itu doang
-// yang diisi (sama kayak kenapa Plant filter dikecualikan dari baris DIRECT).
-function _mekRvUpdateStockKpis(skuF) {
+// KPI "Total Stock" / "Available" / "Reserved %" — Total Stock dihitung dari
+// _mekRvCellsRaw (bin fisik, ikut filter SKU/Nama), tapi Available & Reserved
+// % SEKARANG diturunkan dari angka PASTI di kartu "Reserved" (jumlah qty
+// reservasi beneran dari record SO/DO — bukan pendekatan per-bin lagi),
+// biar 3 kartu ini SELALU balance: Total Stock = Available + Reserved.
+// Dulu Available dihitung dari pendekatan per-bin (_mekRvGetFilterAwareReserveInfo,
+// yang buat DIRECT/RDC/MDC/MT nge-mark SATU BIN penuh sebagai reserved begitu
+// SKU-nya punya reservasi aktif, karena tipe2 itu emang gak punya data lokasi
+// bin) — akurat buat pewarnaan peta (approksimasi visual emang wajar di situ),
+// tapi bikin Available keitung lebih kecil dari "Total Stock − kartu Reserved"
+// dan kartu2-nya keliatan gak nyambung. Sekarang Available murni Total Stock
+// dikurangi qty reservasi PASTI (rows yang sama persis kayak yang ngisi kartu
+// Reserved di _mekRvUpdateFilteredKpis), biar hitungannya selalu konsisten.
+// CATATAN: Total Stock cuma ikut filter SKU/Nama & tipe (fisik gak punya
+// No.SO/Tujuan/Plant/Aging) — sama kayak sebelumnya, gak berubah.
+function _mekRvUpdateStockKpis(skuF, rows) {
   if (skuF === undefined) skuF = ((document.getElementById('mekRvFilterSku')||{}).value||'').toLowerCase().trim();
-  var info = _mekRvGetFilterAwareReserveInfo();
-  var totalStock = 0, totalReserved = 0;
+  var totalStock = 0;
   (_mekRvCellsRaw || []).forEach(function(c){
     if (skuF && (c.sku||'').toLowerCase().indexOf(skuF) < 0 && (c.nama||'').toLowerCase().indexOf(skuF) < 0) return;
-    var karton = c.karton || 0;
-    var reserved = info.showEkspor ? Math.min(c.reservedKarton || 0, karton) : 0;
-    if (info.approxSkuSet[c.sku]) reserved = karton; // pendekatan per-SKU, sama kayak _mekRvRebuildBinAgg
-    totalStock    += karton;
-    totalReserved += reserved;
+    totalStock += c.karton || 0;
   });
+  var totalReserved = 0;
+  (rows || []).forEach(function(r){ totalReserved += r.qtyReserved || 0; }); // sama persis kayak totalQty di _mekRvUpdateFilteredKpis
   var available = Math.max(0, totalStock - totalReserved);
   var pct = totalStock > 0 ? (totalReserved / totalStock * 100) : 0;
   var elT = document.getElementById('mekRvKpiTotal');
