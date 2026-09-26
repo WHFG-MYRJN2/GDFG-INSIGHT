@@ -2119,23 +2119,19 @@ function mekRvShowAvailableBreakdown() {
     agg[k].karton    += karton;
     agg[k].reserved  += reserved;
   });
+  // Ditampilin yang available TERTINGGI duluan (bukan paling kritis lagi) —
+  // soalnya pendekatan per-bin ini kasar (lihat _mekRvGetFilterAwareReserveInfo):
+  // begitu 1 SKU punya reservasi aktif dari tipe non-EKSPOR (RDC/MDC/MT/DIRECT),
+  // SATU BIN penuhnya langsung dianggap reserved semua, jadi kalau disortir dari
+  // yang paling kecil, gampang ketutup SKU yang available=0 doang & gak
+  // informatif (banyak yang seri 0, bukan beneran habis stock-nya).
   var list = Object.keys(agg).map(function(k){
     var x = agg[k];
     x.available = Math.max(0, x.karton - x.reserved);
     return x;
   }).filter(function(x){ return x.karton > 0; })
-    .sort(function(a,b){
-      if (a.available !== b.available) return a.available - b.available; // available paling kecil duluan
-      return b.karton - a.karton; // seri di 0 → total stock paling gede duluan (dampaknya lebih kerasa)
-    })
+    .sort(function(a,b){ return b.available - a.available; }) // available paling gede duluan
     .slice(0, 10);
-  // Approksimasi ini kasar (lihat _mekRvGetFilterAwareReserveInfo): begitu 1 SKU
-  // punya reservasi aktif dari tipe non-EKSPOR (RDC/MDC/MT/DIRECT), SATU BIN
-  // penuhnya langsung dianggap reserved semua (bukan dihitung persis per-qty),
-  // jadi wajar kalau banyak yang kena available=0 sekaligus pas lagi rame
-  // reservasi non-ekspor — bukan berarti stock-nya beneran abis semua. Total
-  // stock-nya ikut ditampilin di bawah nama biar keliatan mana yang dampaknya
-  // paling gede (stock gede tapi ke-lock semua).
   var items = list.map(function(x){
     return {
       left: x.sku,
@@ -2144,7 +2140,7 @@ function mekRvShowAvailableBreakdown() {
       rightColor: x.available <= 0 ? '#c53030' : '#276749'
     };
   });
-  _mekRvOpenGenericModal('Top 10 SKU — Available Paling Kritis', 'Available terkecil duluan (seri 0 → total stock terbesar duluan). Approksimasi kasar per-SKU untuk RDC/MDC/MT/DIRECT, bukan angka pasti.', _mekRvBuildListRows(items));
+  _mekRvOpenGenericModal('Top 10 SKU — Available Tertinggi', 'Available terbesar duluan. Approksimasi kasar per-SKU untuk RDC/MDC/MT/DIRECT (bukan angka pasti) — beda sama kartu Available di atas yang udah eksak.', _mekRvBuildListRows(items));
 }
 
 // "Reserved %" → kontribusi tiap tipe ke total reserved (bukan ke total stock,
