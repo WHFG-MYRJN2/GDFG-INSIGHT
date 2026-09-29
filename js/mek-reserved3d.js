@@ -1,7 +1,7 @@
 // ══════════════════════════════════════════════════════════════
 // RESERVED VIEW — Peta 3D Rotate (Monitoring Ekspor)
 // Modul ES (dipanggil dari monitoringekspor.js yang non-module lewat
-// window.mekReserved3DRender(cells, longWaitBins, groups)).
+// window.mekReserved3DRender(cells, longWaitSkus, groups)).
 //
 // v3: PORT 1:1 dari sistem "3D Rotate" asli app BinLoc (fungsi
 // _p3dInitRotateView / _p3dBuildRotateScene / _p3dSetupInteraction / dkk
@@ -602,7 +602,7 @@ function _setupInteraction(canvas) {
 
 // ── Bangun ulang scene (rak + kubus + bin T + jalur + outline) dari data
 // yang lagi aktif — dipanggil tiap kali data reservasi di-refresh. ──
-function _buildScene(cells, longWaitBins, groups) {
+function _buildScene(cells, longWaitSkus, groups) {
   var THREE_ = THREE;
   while (_scene.children.length) _scene.remove(_scene.children[0]);
   _scene.add(new THREE.AmbientLight(0xffffff, 0.8));
@@ -620,7 +620,11 @@ function _buildScene(cells, longWaitBins, groups) {
   // ── Bangun binRaw/binAgg/binSlots dari cells — logikanya sama persis
   // dengan _mekAktual3dBuildBinMap di monitoringekspor.js: 1 baris stock
   // dipecah proporsional jadi bagian reserved (oranye/merah) & available
-  // (hijau) berdasar jumlah slot fisik (pallet+pecahan) baris itu. ──
+  // (hijau) berdasar jumlah slot fisik (pallet+pecahan) baris itu. Status
+  // long-wait dicek PER SKU (longWaitSkus[c.sku]) — SAMA PERSIS dengan 3D
+  // Aktual — biar bin yang isinya campuran beberapa SKU gak digeneralisir
+  // (dulu dicek per-bin, jadi 1 SKU long-wait bikin SELURUH bin ikut merah,
+  // walau SKU lain di bin yang sama masih reservasi biasa). ──
   _binRawRef = {}; _binAggRef = {}; _binCapRef = {};
   var binSlots = {}; // binCode -> [{units,color}]
   (cells || []).forEach(function(c) {
@@ -641,7 +645,7 @@ function _buildScene(cells, longWaitBins, groups) {
     if (reservedUnits > units) reservedUnits = units;
     if (reservedUnits < 0) reservedUnits = 0;
     var availableUnits = units - reservedUnits;
-    var isLongWait = !!(longWaitBins && longWaitBins[bin]);
+    var isLongWait = !!(longWaitSkus && longWaitSkus[c.sku]);
     if (!binSlots[bin]) binSlots[bin] = [];
     if (reservedUnits > 0)  binSlots[bin].push({ units: reservedUnits,  color: isLongWait ? COLOR_LONGWAIT : COLOR_WAITING });
     if (availableUnits > 0) binSlots[bin].push({ units: availableUnits, color: COLOR_AVAILABLE });
@@ -1094,11 +1098,18 @@ function _buildScene(cells, longWaitBins, groups) {
 
 // cells:         [{binLoc, sku, nama, karton, reservedKarton, availableKarton,
 //                  palletNum, pecahanCount, prodate, tipe, ...}] dari getMekReservedMap
-// longWaitBins:  {binLoc: true} — lokasi yang punya reservasi nunggu >24 jam
+// longWaitSkus:  {sku: true} — SKU yang reservasinya udah nunggu >24 jam.
+//                PER SKU (bukan per-bin lagi) — SAMA PERSIS sumbernya dengan
+//                3D Aktual (_mekAktual3dBuildBinMap di monitoringekspor.js
+//                pakai info.longWaitSkuSet[c.sku] juga), biar 1 bin yang
+//                isinya campuran beberapa SKU gak "ke-generalisir" — cuma
+//                porsi SKU yang beneran long-wait yang kegambar merah,
+//                SKU lain di bin yang sama tetap oranye kalau memang masih
+//                reservasi biasa.
 // groups:        [{bin, rowFrom, rowTo, level, depth}] dari getMekBinCap3D
 // planningBySku: {sku: [{noSo,tanggal,tujuan,tier}]} — planning outstanding per SKU,
 //                dipakai popup bin buat nunjukin SO/tanggal (bisa lebih dari 1 per SKU)
-window.mekReserved3DRender = function(cells, longWaitBins, groups, planningBySku) {
+window.mekReserved3DRender = function(cells, longWaitSkus, groups, planningBySku) {
   _initScene();
   if (!_scene) return;
   _planningBySku = planningBySku || {};
@@ -1112,7 +1123,7 @@ window.mekReserved3DRender = function(cells, longWaitBins, groups, planningBySku
     return;
   }
 
-  var ok = _buildScene(cells, longWaitBins, groups);
+  var ok = _buildScene(cells, longWaitSkus, groups);
   if (loadingEl) loadingEl.style.display = ok ? 'none' : 'flex';
   if (!ok) {
     if (loadingEl) loadingEl.innerHTML = '<span style="font-size:11px;color:#a0aec0;">Belum ada data LEVEL/DEPTH di BIN_CAP kolom I-L</span>';
