@@ -2808,20 +2808,23 @@
 
       <!-- TOGGLE CHART/TABEL -->
       <div class="summary-toggle">
-        <button class="toggle-btn active" id="btnToggleHorizontal" onclick="switchView('horizontal')">
+        <button class="toggle-btn active" id="btnToggleHorizontal" onclick="mekLeaveInOutView();switchView('horizontal')">
           <i class="fas fa-bars"></i> Chart
         </button>
-        <button class="toggle-btn" id="btnToggleTable" onclick="switchView('table')">
+        <button class="toggle-btn" id="btnToggleTable" onclick="mekLeaveInOutView();switchView('table')">
           <i class="fas fa-table"></i> Tabel
         </button>
-        <button class="toggle-btn" id="btnToggleChart" onclick="switchView('chart')" style="display:none;">
+        <button class="toggle-btn" id="btnToggleChart" onclick="mekLeaveInOutView();switchView('chart')" style="display:none;">
           <i class="fas fa-chart-bar"></i> Vertikal
         </button>
-        <button class="toggle-btn" id="btnTogglePie" onclick="switchView('pie')">
+        <button class="toggle-btn" id="btnTogglePie" onclick="mekLeaveInOutView();switchView('pie')">
           <i class="fas fa-chart-pie"></i> Persentase by Divisi
         </button>
-        <button class="toggle-btn" id="btnToggleTrend" onclick="switchView('trend')">
+        <button class="toggle-btn" id="btnToggleTrend" onclick="mekLeaveInOutView();switchView('trend')">
           <i class="fas fa-chart-line"></i> Trend
+        </button>
+        <button class="toggle-btn" id="btnToggleInOut" onclick="mekSwitchToInOut()">
+          <i class="fas fa-right-left"></i> In-Out Stock
         </button>
 
       </div>
@@ -2935,6 +2938,51 @@
               <span>Pilih rentang tanggal lalu klik Tampilkan</span>
             </div>
             <canvas id="trendLineChart" style="display:none;"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- VIEW: IN-OUT STOCK -->
+      <div id="viewInOut" style="display:none;padding:4px 0;">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 4px 14px 4px;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <label style="font-size:11px;font-weight:700;color:#718096;">Dari</label>
+            <input type="date" id="inOutFrom" style="font-size:12px;padding:5px 8px;border:1.5px solid #e2e8f0;border-radius:7px;color:#2d3748;">
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <label style="font-size:11px;font-weight:700;color:#718096;">s/d</label>
+            <input type="date" id="inOutTo" style="font-size:12px;padding:5px 8px;border:1.5px solid #e2e8f0;border-radius:7px;color:#2d3748;">
+          </div>
+          <button onclick="loadInOutChart()" style="padding:6px 16px;font-size:12px;font-weight:700;border:none;border-radius:8px;background:linear-gradient(135deg,#0f2027,#2c5364);color:#fff;cursor:pointer;">
+            <i class="fas fa-search"></i> Tampilkan
+          </button>
+        </div>
+
+        <div style="display:flex;gap:10px;flex-wrap:wrap;padding:0 4px 14px 4px;">
+          <div class="chart-card" style="flex:1 1 150px;padding:12px 16px;">
+            <div style="font-size:11px;font-weight:700;color:#276749;text-transform:uppercase;letter-spacing:.3px;"><i class="fas fa-arrow-down"></i> Total Masuk</div>
+            <div id="inOutTotalMasuk" style="font-size:22px;font-weight:800;color:#1a202c;">-</div>
+            <div style="font-size:10px;color:#a0aec0;">Karton — Hasil Produksi</div>
+          </div>
+          <div class="chart-card" style="flex:1 1 150px;padding:12px 16px;">
+            <div style="font-size:11px;font-weight:700;color:#c05621;text-transform:uppercase;letter-spacing:.3px;"><i class="fas fa-arrow-up"></i> Total Keluar</div>
+            <div id="inOutTotalKeluar" style="font-size:22px;font-weight:800;color:#1a202c;">-</div>
+            <div style="font-size:10px;color:#a0aec0;">Karton — Realisasi Pengiriman</div>
+          </div>
+          <div class="chart-card" style="flex:1 1 150px;padding:12px 16px;">
+            <div style="font-size:11px;font-weight:700;color:#2b6cb0;text-transform:uppercase;letter-spacing:.3px;"><i class="fas fa-scale-balanced"></i> Selisih</div>
+            <div id="inOutTotalSelisih" style="font-size:22px;font-weight:800;color:#1a202c;">-</div>
+            <div style="font-size:10px;color:#a0aec0;">Masuk − Keluar</div>
+          </div>
+        </div>
+
+        <div class="chart-card" style="padding:16px 20px;">
+          <div id="inOutChartWrap" style="position:relative;height:340px;">
+            <div id="inOutEmpty" style="display:flex;align-items:center;justify-content:center;height:100%;color:#a0aec0;font-size:13px;flex-direction:column;gap:8px;">
+              <i class="fas fa-right-left" style="font-size:32px;opacity:.2;"></i>
+              <span>Pilih rentang tanggal lalu klik Tampilkan</span>
+            </div>
+            <canvas id="inOutBarChart" style="display:none;"></canvas>
           </div>
         </div>
       </div>
@@ -3117,6 +3165,7 @@
         <button class="real-tab" onclick="switchRealTab('inputReal',this)"><i class="fas fa-edit"></i> Input Realisasi</button>
         <button class="real-tab" onclick="switchRealTab('directReal',this)"><i class="fas fa-route"></i> Input Planning Direct</button>
         <button class="real-tab" onclick="switchRealTab('mdcReal',this)"><i class="fas fa-truck"></i> Input Planning MDC</button>
+        <button class="real-tab" onclick="switchRealTab('hasilProduksiReal',this)"><i class="fas fa-industry"></i> Input Hasil Produksi</button>
       </div>
 
       <!-- ===== TAB INPUT ===== -->
@@ -3586,6 +3635,58 @@
           </div>
         </div>
       </div><!-- end mdcReal -->
+
+      <!-- ===== INPUT HASIL PRODUKSI TAB ===== -->
+      <div id="hasilProduksiReal" class="real-pane">
+
+        <!-- Tanggal Produksi -->
+        <div style="display:flex;align-items:center;gap:10px;padding:2px 0 12px 0;flex-wrap:wrap;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <label style="font-size:11px;font-weight:800;color:#718096;text-transform:uppercase;letter-spacing:.5px;">Tanggal Produksi</label>
+            <input type="date" id="hpTanggal" onchange="loadHasilProduksiByTanggal()" style="font-size:13px;padding:6px 10px;border:1.5px solid #e2e8f0;border-radius:8px;color:#2d3748;outline:none;">
+          </div>
+          <span style="font-size:11px;color:#a0aec0;"><i class="fas fa-info-circle"></i> Hasil produksi biasanya diinput H+1 (sehari setelah tanggal produksi) — tanggal bisa diubah bebas sesuai kebutuhan.</span>
+        </div>
+
+        <!-- Tabel Input -->
+        <div class="input-table-card">
+          <div class="input-table-header">
+            <span class="input-table-title">
+              <i class="fas fa-industry"></i> Hasil Produksi
+              <span id="hpRowCount" style="background:rgba(255,255,255,.2);padding:2px 10px;border-radius:20px;font-size:11px;margin-left:8px;">0 baris</span>
+            </span>
+            <div class="input-table-actions">
+              <button class="btn-tbl" onclick="addHasilProduksiRows(10)"><i class="fas fa-plus"></i> +10 Baris</button>
+              <button class="btn-tbl" onclick="pasteModeHasilProduksi()"><i class="fas fa-paste"></i> Paste Excel</button>
+              <button class="btn-tbl danger" onclick="clearHasilProduksiTable()"><i class="fas fa-trash"></i> Clear</button>
+              <button class="btn-tbl success" id="btnSaveHp" onclick="saveHasilProduksi()"><i class="fas fa-save"></i> Save</button>
+            </div>
+          </div>
+          <div style="max-height:460px;overflow:auto;">
+            <table class="input-tbl" id="hpTable">
+              <thead>
+                <tr>
+                  <th class="row-no">#</th>
+                  <th>MATERIAL CODE</th>
+                  <th>MATERIAL NAME</th>
+                  <th style="text-align:center;background:#faf5ff;color:#6b46c1;">DIVISI</th>
+                  <th style="text-align:right;background:#f0fdf4;color:#166534;">QTY PRODUKSI (KRT)</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="hpTbody"></tbody>
+              <tfoot>
+                <tr>
+                  <td colspan="4" style="text-align:right;font-weight:700;padding:8px 10px;">TOTAL</td>
+                  <td style="text-align:right;font-weight:800;color:#166534;padding:8px 10px;font-family:monospace;" id="hpTotalQty">0</td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+
+      </div><!-- end hasilProduksiReal -->
 
       <!-- ===== PLANNING TAB ===== -->
       <div id="planningReal" class="real-pane">
