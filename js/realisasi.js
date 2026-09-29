@@ -279,8 +279,7 @@ function initRealForm(){
     // Ambil data tersimpan (sheet HASIL_PRODUKSI) utk 1 gudang+tanggal dari
     // server, taruh ke cache lokal, lalu render (kalau gudangnya masih aktif)
     function _hpFetchFromServer(gudang, tgl){
-      google.script.run
-        .withSuccessHandler(function(res){
+      API.run('getHasilProduksiByTanggal', { tanggal: tgl, gudang: gudang }, function(res){
           _hpFetchedGudang[gudang] = true;
           var rows = (res && res.success && res.rows) ? res.rows : [];
           // rows: [code, nama, bb, receipt, issued, eb, std, jml(diabaikan, dihitung ulang di klien), divisi, plant]
@@ -288,9 +287,7 @@ function initRealForm(){
             return { code:r[0]||'', name:r[1]||'', bal:r[2]||'', rec:r[3]||'', issued:r[4]||'', ending:r[5]||'', std:r[6]||'', divisi:r[8]||'', plant:r[9]||'' };
           });
           if(gudang === _hpGudang) _hpRenderFromCache(gudang);
-        })
-        .withFailureHandler(function(){ showToast('❌ Gagal memuat data Hasil Produksi', 'error'); })
-        .getHasilProduksiByTanggal(tgl, gudang);
+        }, function(){ showToast('❌ Gagal memuat data Hasil Produksi', 'error'); });
     }
 
     function _hpUpdateRowCount(){
@@ -509,8 +506,7 @@ function initRealForm(){
         if(btn){ btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Save'; }
       }
 
-      google.script.run
-        .withSuccessHandler(function(res){
+      API.run('saveHasilProduksiData', { tanggal: tgl, gudang: _hpGudang, rows: rows }, function(res){
           resetBtn();
           if(res && res.success){
             showToast('✅ '+res.message, 'success');
@@ -520,9 +516,7 @@ function initRealForm(){
           } else {
             showToast('❌ '+(res&&res.message||'Gagal menyimpan'), 'error');
           }
-        })
-        .withFailureHandler(function(){ resetBtn(); showToast('❌ Gagal menyimpan', 'error'); })
-        .saveHasilProduksiData(tgl, _hpGudang, rows);
+        }, function(){ resetBtn(); showToast('❌ Gagal menyimpan', 'error'); });
     }
 
     // =============================================
