@@ -847,6 +847,131 @@ function _applyChartZoom() {
       });
     }
 
+    // =============================================
+    // IN-OUT STOCK — Barang Masuk (Hasil Produksi) vs
+    // Barang Keluar (Realisasi Total Karton harian)
+    // =============================================
+    var _inOutInstance = null;
+
+    // Dipanggil oleh tombol toggle "In-Out Stock" — mandiri, gak
+    // gantung ke switchView() (view lain masih tetap lewat switchView
+    // biasa, tapi dipanggilin mekLeaveInOutView() dulu di onclick-nya
+    // di index.html biar view ini ikut ke-hide).
+    function mekSwitchToInOut(){
+      ['viewChart','viewHorizontal','viewTable','viewPie','viewTrend'].forEach(function(id){
+        var el = document.getElementById(id);
+        if(el) el.style.display = 'none';
+      });
+      var toggleWrap = document.querySelector('#summary .summary-toggle');
+      if(toggleWrap) toggleWrap.querySelectorAll('.toggle-btn').forEach(function(b){ b.classList.remove('active'); });
+      var btn = document.getElementById('btnToggleInOut');
+      if(btn) btn.classList.add('active');
+      currentView = 'inout';
+      var vio = document.getElementById('viewInOut');
+      if(vio) vio.style.display = 'block';
+      initInOutView();
+    }
+
+    function mekLeaveInOutView(){
+      var vio = document.getElementById('viewInOut');
+      if(vio) vio.style.display = 'none';
+      var btn = document.getElementById('btnToggleInOut');
+      if(btn) btn.classList.remove('active');
+    }
+
+    function initInOutView(){
+      function fmtD(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+      var fromEl = document.getElementById('inOutFrom');
+      var toEl   = document.getElementById('inOutTo');
+      if(fromEl && !fromEl.value){
+        var d0 = new Date(); d0.setDate(d0.getDate()-13); // default 14 hari terakhir
+        fromEl.value = fmtD(d0);
+      }
+      if(toEl && !toEl.value) toEl.value = fmtD(new Date());
+      loadInOutChart();
+    }
+
+    function loadInOutChart(){
+      var from = (document.getElementById('inOutFrom')||{}).value || '';
+      var to   = (document.getElementById('inOutTo')  ||{}).value || '';
+      if(!from||!to){ showToast('⚠️ Pilih rentang tanggal',''); return; }
+
+      document.getElementById('inOutEmpty').style.display = 'none';
+      document.getElementById('inOutBarChart').style.display = 'none';
+      document.getElementById('inOutChartWrap').insertAdjacentHTML('beforeend',
+        '<div id="inOutLoading" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#a0aec0;font-size:13px;"><i class="fas fa-spinner fa-spin"></i> Memuat...</div>');
+
+      API.run('getInOutStockData', {from: from, to: to}, function(res){
+        var loader = document.getElementById('inOutLoading');
+        if(loader) loader.remove();
+        if(!res||!res.success||!res.data||!res.data.length){
+          document.getElementById('inOutEmpty').style.display='flex';
+          document.getElementById('inOutEmpty').querySelector('span').textContent='Tidak ada data pada rentang tanggal ini';
+          document.getElementById('inOutTotalMasuk').textContent='-';
+          document.getElementById('inOutTotalKeluar').textContent='-';
+          document.getElementById('inOutTotalSelisih').textContent='-';
+          if(_inOutInstance){ _inOutInstance.destroy(); _inOutInstance=null; }
+          return;
+        }
+        _renderInOutChart(res.data);
+      });
+    }
+
+    function _renderInOutChart(data){
+      var labels = data.map(function(r){
+        var p = String(r.tanggal).split('-'); return p.length===3 ? p[2]+'/'+p[1] : r.tanggal;
+      });
+      var masukArr  = data.map(function(r){ return r.masuk  || 0; });
+      var keluarArr = data.map(function(r){ return r.keluar || 0; });
+
+      var totMasuk  = masukArr.reduce(function(a,b){ return a+b; }, 0);
+      var totKeluar = keluarArr.reduce(function(a,b){ return a+b; }, 0);
+      var selisih   = totMasuk - totKeluar;
+
+      document.getElementById('inOutTotalMasuk').textContent  = totMasuk.toLocaleString('id-ID');
+      document.getElementById('inOutTotalKeluar').textContent = totKeluar.toLocaleString('id-ID');
+      var elSel = document.getElementById('inOutTotalSelisih');
+      elSel.textContent = (selisih>=0?'+':'') + selisih.toLocaleString('id-ID');
+      elSel.style.color = selisih >= 0 ? '#276749' : '#c53030';
+
+      var canvas = document.getElementById('inOutBarChart');
+      canvas.style.display = 'block';
+      if(_inOutInstance){ _inOutInstance.destroy(); _inOutInstance=null; }
+
+      _inOutInstance = new Chart(canvas.getContext('2d'), {
+        type:'bar',
+        data:{
+          labels: labels,
+          datasets:[
+            { label:'Barang Masuk (Hasil Produksi)',  data: masukArr,  backgroundColor:'#68d391', borderRadius:4, maxBarThickness:28 },
+            { label:'Barang Keluar (Realisasi Kirim)', data: keluarArr, backgroundColor:'#f6ad55', borderRadius:4, maxBarThickness:28 }
+          ]
+        },
+        options:{
+          responsive:true, maintainAspectRatio:false,
+          interaction:{mode:'index', intersect:false},
+          plugins:{
+            datalabels:{display:false},
+            legend:{display:true, position:'bottom', labels:{font:{size:11}, boxWidth:12}},
+            tooltip:{
+              callbacks:{
+                label:function(c){ return ' '+c.dataset.label+': '+c.parsed.y.toLocaleString('id-ID')+' krt'; }
+              }
+            }
+          },
+          scales:{
+            x:{ grid:{color:'rgba(0,0,0,.05)'}, ticks:{font:{size:11}, color:'#718096'} },
+            y:{
+              beginAtZero:true,
+              grid:{color:'rgba(0,0,0,.06)'},
+              ticks:{ font:{size:11}, color:'#718096', callback:function(v){ return v.toLocaleString('id-ID'); } }
+            }
+          },
+          animation:{duration:600, easing:'easeOutQuart'}
+        }
+      });
+    }
+
         setInterval(function(){ if(typeof google!=='undefined'&&google.script) refreshData(); }, 180000);
 
 
