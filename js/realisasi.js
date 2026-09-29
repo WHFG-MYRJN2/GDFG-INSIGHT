@@ -171,6 +171,184 @@ function initRealForm(){
         applyMdcRange(); // generate kolom tanggal + init 30 baris
         _bindMdcEvents();
       }
+      if(tab === 'hasilProduksiReal' && !_hpInited){
+        _hpInited = true;
+        initHasilProduksi();
+      }
+    }
+
+    // =============================================
+    // INPUT HASIL PRODUKSI (sheet HASIL_PRODUKSI)
+    // Diisi H+1 — tanggal defaultnya kemarin, tapi bebas diubah.
+    // =============================================
+    var _hpInited = false;
+    var hpRows = []; // [{code, nama, divisi, qty}, ...]
+
+    function _hpEmptyRow(){ return { code:'', nama:'', divisi:'', qty:'' }; }
+
+    function initHasilProduksi(){
+      var tglEl = document.getElementById('hpTanggal');
+      if(tglEl && !tglEl.value){
+        var y = new Date(); y.setDate(y.getDate()-1); // default: kemarin (H+1 dari hari ini)
+        tglEl.value = y.toISOString().slice(0,10);
+      }
+      if(hpRows.length === 0) addHasilProduksiRows(10);
+      loadHasilProduksiByTanggal();
+    }
+
+    function loadHasilProduksiByTanggal(){
+      var tgl = document.getElementById('hpTanggal').value;
+      if(!tgl) return;
+      google.script.run
+        .withSuccessHandler(function(res){
+          if(res && res.success && res.rows && res.rows.length){
+            hpRows = res.rows.map(function(r){
+              return { code:r[0]||'', nama:r[1]||'', qty:r[2]||'', divisi:r[3]||'' };
+            });
+            if(hpRows.length < 10){
+              for(var i=hpRows.length; i<10; i++) hpRows.push(_hpEmptyRow());
+            }
+          } else {
+            hpRows = [];
+            addHasilProduksiRows(10);
+            return;
+          }
+          renderHasilProduksiTable();
+        })
+        .withFailureHandler(function(){ showToast('❌ Gagal memuat data Hasil Produksi', 'error'); })
+        .getHasilProduksiByTanggal(tgl);
+    }
+
+    function addHasilProduksiRows(n){
+      for(var i=0; i<n; i++) hpRows.push(_hpEmptyRow());
+      renderHasilProduksiTable();
+    }
+
+    function clearHasilProduksiTable(){
+      if(!confirm('Kosongkan semua baris di tabel ini?')) return;
+      hpRows = [];
+      addHasilProduksiRows(10);
+    }
+
+    function removeHpRow(idx){
+      hpRows.splice(idx, 1);
+      if(hpRows.length === 0) hpRows.push(_hpEmptyRow());
+      renderHasilProduksiTable();
+    }
+
+    function _hpUpdateCell(idx, field, val){
+      if(!hpRows[idx]) return;
+      hpRows[idx][field] = field === 'qty' ? (Number(String(val).replace(/\./g,'').replace(/,/g,'.'))||0) : String(val).trim();
+      _hpUpdateTotal();
+    }
+
+    function _hpUpdateTotal(){
+      var total = hpRows.reduce(function(s,r){ return s + (Number(r.qty)||0); }, 0);
+      var el = document.getElementById('hpTotalQty');
+      if(el) el.textContent = total.toLocaleString('id-ID');
+      var cnt = document.getElementById('hpRowCount');
+      if(cnt) cnt.textContent = hpRows.length + ' baris';
+    }
+
+    function pasteModeHasilProduksi(){
+      var txt = prompt('Paste data dari Excel di sini (kolom: Material Code [TAB] Material Name [TAB] Qty Produksi [TAB] Divisi). Baris lama akan ditimpa mulai dari baris pertama.');
+      if(!txt) return;
+      var lines = txt.split(/\r\n|\r|\n/).filter(function(l){ return l.trim() !== ''; });
+      if(!lines.length) return;
+      var parsed = lines.map(function(line){
+        var c = line.split('\t');
+        return {
+          code:  (c[0]||'').trim(),
+          nama:  (c[1]||'').trim(),
+          qty:   Number(String(c[2]||'0').replace(/\./g,'').replace(/,/g,'.'))||0,
+          divisi:(c[3]||'').trim().toUpperCase()
+        };
+      });
+      hpRows = parsed;
+      if(hpRows.length < 10){
+        for(var i=hpRows.length; i<10; i++) hpRows.push(_hpEmptyRow());
+      }
+      renderHasilProduksiTable();
+      showToast('✅ '+parsed.length+' baris ditempel dari Excel', 'success');
+    }
+
+    function renderHasilProduksiTable(){
+      var tbody = document.getElementById('hpTbody');
+      if(!tbody) return;
+      var divOpts = ['','WAFER','BISKUIT'];
+      tbody.innerHTML = hpRows.map(function(r, i){
+        var selectHtml = '<select onchange="_hpUpdateCell('+i+',\'divisi\',this.value)" style="width:100%;border:none;background:transparent;font-size:12px;font-weight:700;color:#6b46c1;outline:none;">'
+          + divOpts.map(function(d){ return '<option value="'+d+'"'+(r.divisi===d?' selected':'')+'>'+(d||'—')+'</option>'; }).join('')
+          + '</select>';
+        return '<tr>'
+          + '<td class="row-no">'+(i+1)+'</td>'
+          + '<td contenteditable="true" oninput="_hpUpdateCell('+i+',\'code\',this.textContent)" onpaste="return _hpCellPaste(event,'+i+',0)">'+_mekEscHp(r.code)+'</td>'
+          + '<td contenteditable="true" oninput="_hpUpdateCell('+i+',\'nama\',this.textContent)" onpaste="return _hpCellPaste(event,'+i+',1)">'+_mekEscHp(r.nama)+'</td>'
+          + '<td style="text-align:center;background:#faf5ff;">'+selectHtml+'</td>'
+          + '<td class="td-num" contenteditable="true" style="background:#f0fdf4;" oninput="_hpUpdateCell('+i+',\'qty\',this.textContent)" onpaste="return _hpCellPaste(event,'+i+',2)">'+(r.qty||'')+'</td>'
+          + '<td class="td-del" onclick="removeHpRow('+i+')"><i class="fas fa-times"></i></td>'
+          + '</tr>';
+      }).join('');
+      _hpUpdateTotal();
+    }
+
+    // Escape sederhana buat isi contenteditable
+    function _mekEscHp(s){
+      return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    // Paste langsung ke dalam cell (mode ala-Excel): kalau yang di-paste
+    // banyak baris/kolom, sebar otomatis mulai dari cell yang di-klik.
+    function _hpCellPaste(ev, rowIdx, colIdx){
+      var txt = (ev.clipboardData || window.clipboardData).getData('text');
+      if(!txt || txt.indexOf('\t') < 0 && txt.indexOf('\n') < 0){
+        return true; // paste teks biasa, biarkan browser handle
+      }
+      ev.preventDefault();
+      var lines = txt.split(/\r\n|\r|\n/).filter(function(l){ return l !== ''; });
+      var fields = ['code','nama','qty'];
+      lines.forEach(function(line, li){
+        var cells = line.split('\t');
+        var targetRow = rowIdx + li;
+        while(hpRows.length <= targetRow) hpRows.push(_hpEmptyRow());
+        cells.forEach(function(val, ci){
+          var fIdx = colIdx + ci;
+          if(fIdx > 2) return; // divisi diisi lewat dropdown, bukan paste
+          var field = fields[fIdx];
+          if(!field) return;
+          hpRows[targetRow][field] = field === 'qty' ? (Number(String(val).replace(/\./g,'').replace(/,/g,'.'))||0) : val.trim();
+        });
+      });
+      renderHasilProduksiTable();
+      return false;
+    }
+
+    function saveHasilProduksi(){
+      var tgl = document.getElementById('hpTanggal').value;
+      if(!tgl){ showToast('⚠️ Tanggal produksi wajib diisi', 'error'); return; }
+      var validRows = hpRows.filter(function(r){ return (r.code&&r.code.trim()) || (r.nama&&r.nama.trim()); });
+      if(!validRows.length){ showToast('⚠️ Belum ada data untuk disimpan', 'error'); return; }
+
+      var rows = validRows.map(function(r){ return [r.code, r.nama, Number(r.qty)||0, r.divisi]; });
+
+      var btn = document.getElementById('btnSaveHp');
+      if(btn){ btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menyimpan...'; }
+      function resetBtn(){
+        if(btn){ btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Save'; }
+      }
+
+      google.script.run
+        .withSuccessHandler(function(res){
+          resetBtn();
+          if(res && res.success){
+            showToast('✅ '+res.message, 'success');
+            loadHasilProduksiByTanggal();
+          } else {
+            showToast('❌ '+(res&&res.message||'Gagal menyimpan'), 'error');
+          }
+        })
+        .withFailureHandler(function(){ resetBtn(); showToast('❌ Gagal menyimpan', 'error'); })
+        .saveHasilProduksiData(tgl, rows);
     }
 
     function switchRealView(view){ /* deprecated */ }
