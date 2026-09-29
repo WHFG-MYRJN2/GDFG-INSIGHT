@@ -761,8 +761,15 @@ function mekRvRenderCurrentMode() {
   else if (_mekRvMode === 'aktual')   _mekRvRenderAktual();
   else if (_mekRvMode === 'aktual3d') _mekRvRenderAktual3D();
   else if (typeof window.mekReserved3DRender === 'function') {
-    var longWaitBins = {};
-    Object.keys(_mekRvBinAgg).forEach(function(k){ if (_mekRvBinAgg[k].hasLongWait) longWaitBins[k] = true; });
+    // Status "long-wait" (>24 jam) dikirim PER SKU (_mekRvLongWaitSkus, sudah
+    // dibangun di _mekRvRebuildBinAgg) — SAMA PERSIS sumbernya dengan 3D
+    // Aktual (_mekAktual3dBuildBinMap pakai info.longWaitSkuSet[c.sku] juga).
+    // Sebelumnya di sini status ini diratakan dulu ke level BIN (kalau ADA
+    // SALAH SATU sku long-wait di 1 bin, seluruh bin ditandai long-wait),
+    // jadi kalau 1 bin isinya campuran beberapa SKU, SKU yang sebenarnya
+    // masih reservasi biasa ikut kegambar merah di 3D Rotate padahal di 3D
+    // Aktual tetap oranye. Sekarang dikirim per-SKU biar 2 peta ini konsisten.
+    var longWaitSkus = _mekRvLongWaitSkus || {};
     // Planning outstanding per SKU (bisa lebih dari 1 SO/tanggal per SKU) — dipakai
     // popup bin di 3D Rotate buat nunjukin SO/tanggal-nya, bukan cuma prodate stock.
     var planningBySku = {};
@@ -774,7 +781,7 @@ function mekRvRenderCurrentMode() {
     // — sama cache-nya (_mekRvGroups) dipakai bareng sama mode "3D Aktual",
     // jadi kalau udah ke-load duluan gak nge-fetch dua kali.
     _mekRvLoadGroupsThen(function(){
-      window.mekReserved3DRender(_mekReservedData.cells || [], longWaitBins, _mekRvGroups || [], planningBySku);
+      window.mekReserved3DRender(_mekReservedData.cells || [], longWaitSkus, _mekRvGroups || [], planningBySku);
     });
   }
 }
