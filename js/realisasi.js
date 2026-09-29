@@ -179,20 +179,21 @@ function initRealForm(){
 
     // =============================================
     // INPUT HASIL PRODUKSI (sheet HASIL_PRODUKSI)
-    // Sama persis dengan tabel Input Data di halaman Kapasitas:
-    //  - grid engine "SISTEM TABEL OK" (_STOKInit) — arrow-nav, Tab/Enter,
-    //    drag-select, drag-fill, Ctrl+C/paste ala Excel, undo/redo
-    //  - dipisah per gudang (GDI2/GDIN/EKSPOR/GDFG)
-    //  - Material Code auto-lookup Nama/Divisi/STD Pallet dari sheet STD
-    //  - JML PALLET dihitung otomatis dari QTY PRODUKSI ÷ STD PALLET
+    // PLEK KETIPLEK SAMA dengan tabel Input Data di halaman Kapasitas
+    // (js/input.js): struktur kolom + kolom spacer kosong, cara paste dari
+    // Excel (native — klik sel lalu Ctrl+V, tanpa perlu tombol apa pun),
+    // cara select-blok + copy (Ctrl+C), cara hapus (Delete), navigasi
+    // panah, dan rumus JML PALLET = ceil(BEG. BALANCE ÷ STD PALLET) —
+    // semuanya sama persis, supaya Excel yang formatnya sama bisa langsung
+    // di-paste ke tabel ini juga tanpa perlu ubah apa pun.
+    // Kolom: MATERIAL CODE, MATERIAL NAME, BEG. BALANCE, RECEIPT, ISSUED,
+    // ENDING BALANCE, STD PALLET, JML PALLET, DIVISI, PLANT. Qty Produksi
+    // diisi lewat kolom RECEIPT (barang masuk). ENDING BALANCE diisi
+    // langsung (bukan dihitung otomatis), sama seperti Input Data.
     // Diisi H+1 — tanggal defaultnya kemarin, tapi bebas diubah.
     // =============================================
-    var _hpInited   = false;
-    var _hpStdMap   = {};   // sku -> {nama, std, divisi, plant}, dari sheet STD
-    var _hpStdReady = false;
-    var _hpGudang   = 'GDI2';
-    var HP_COLS_ORDER = ['code','nama','divisi','qty','std','jml'];
-    var HP_AUTO_COLS  = { jml:true }; // JML PALLET = auto-hitung, gak bisa diketik manual
+    var _hpInited = false;
+    var _hpGudang = 'GDI2';
 
     function initHasilProduksi(){
       var tglEl = document.getElementById('hpTanggal');
@@ -200,26 +201,9 @@ function initRealForm(){
         var y = new Date(); y.setDate(y.getDate()-1); // default: kemarin (H+1 dari hari ini)
         tglEl.value = y.toISOString().slice(0,10);
       }
+      _preloadStdCache();
       _hpBindEvents();
-      _hpLoadStdMap(function(){ loadHasilProduksiByTanggal(); });
-    }
-
-    function _hpLoadStdMap(cb){
-      if(_hpStdReady){ if(cb) cb(); return; }
-      google.script.run
-        .withSuccessHandler(function(res){
-          _hpStdMap = {};
-          if(res && res.success && res.data){
-            res.data.forEach(function(r){
-              if(!r.sku) return;
-              _hpStdMap[String(r.sku).trim()] = { nama:r.nama||'', std:Number(r.std)||0, divisi:r.divisi||'', plant:r.plant||'' };
-            });
-          }
-          _hpStdReady = true;
-          if(cb) cb();
-        })
-        .withFailureHandler(function(){ _hpStdReady = true; if(cb) cb(); })
-        .getStandarPalet();
+      loadHasilProduksiByTanggal();
     }
 
     function setHpGudang(gudang, btn){
@@ -232,95 +216,135 @@ function initRealForm(){
       loadHasilProduksiByTanggal();
     }
 
-    function _hpBindEvents(){
-      var tbl = document.getElementById('hpTable');
-      if(!tbl || tbl._stokBound) return;
-      // SISTEM TABEL OK — engine yang sama dengan Input Data / Opname / FIFO
-      _STOKInit({
-        tblId:'hpTable', tbodyId:'hpTbody', cols:HP_COLS_ORDER, autoCols:HP_AUTO_COLS, selClass:'hp-sel',
-        appendRowFn:function(){ _appendHpRow({}); },
-        onAfterPaste:function(tr){ _hpCalcRow(tr); _hpUpdateTotal(); },
-        onDelete:function(tr){ _hpCalcRow(tr); _hpUpdateTotal(); }
-      });
+    function _hpUpdateRowCount(){
+      var n = document.querySelectorAll('#hpTbody tr').length;
+      var el = document.getElementById('hpRowCount');
+      if(el) el.textContent = n + ' baris';
     }
 
-    function _appendHpRow(vals){
-      var v = vals||{};
-      var tbody = document.getElementById('hpTbody');
-      var tr = document.createElement('tr');
-      var no = document.createElement('td');
-      no.className = 'row-no stok-rn';
-      tr.appendChild(no);
-      HP_COLS_ORDER.forEach(function(k){
-        var td = document.createElement('td');
-        td.dataset.col = k;
-        var isAuto = !!HP_AUTO_COLS[k];
-        var isNum  = (k === 'qty' || k === 'std' || k === 'jml');
-        td.className = isNum ? 'td-num' : '';
-        if(k === 'divisi') td.style.background = '#faf5ff';
-        if(k === 'qty')    td.style.background = '#f0fdf4';
-        if(k === 'std')    td.style.background = '#fffbeb';
-        if(k === 'jml'){ td.style.background = '#f7fafc'; td.style.color = '#718096'; td.style.fontWeight = '600'; }
-        if(v[k]) td.textContent = v[k];
-        if(!isAuto){
-          td.contentEditable = 'true';
-          td.spellcheck = false;
-        }
-        if(k === 'qty' || k === 'std'){
-          td.addEventListener('input', function(){ _hpCalcRow(tr); _hpUpdateTotal(); });
-        }
-        if(k === 'code'){
-          td.addEventListener('blur', function(){ _hpLookupCode(tr); });
-        }
-        tr.appendChild(td);
+    function _hpUpdateRowNumbers(){
+      var rows = document.querySelectorAll('#hpTbody tr');
+      rows.forEach(function(tr, i){
+        var no = tr.querySelector('.row-no');
+        if(no) no.textContent = i + 1;
       });
-      var del = document.createElement('td');
-      del.className = 'td-del';
-      del.innerHTML = '<i class="fas fa-times"></i>';
-      del.onclick = function(){ removeHpRow(tr); };
-      tr.appendChild(del);
-      tbody.appendChild(tr);
-      _hpCalcRow(tr);
-      _hpRenumber();
-    }
-
-    // Material Code diketik/di-blur → auto-isi Nama/Divisi/STD Pallet dari
-    // sheet STD, TAPI cuma kalau selnya masih kosong (gak nimpa data yang
-    // udah ada / udah diisi manual sebelumnya).
-    function _hpLookupCode(tr){
-      var codeTd = tr.querySelector('[data-col="code"]');
-      var sku = (codeTd.textContent||'').trim();
-      if(!sku || !_hpStdMap[sku]) return;
-      var info = _hpStdMap[sku];
-      var namaTd   = tr.querySelector('[data-col="nama"]');
-      var divisiTd = tr.querySelector('[data-col="divisi"]');
-      var stdTd    = tr.querySelector('[data-col="std"]');
-      if(namaTd   && !namaTd.textContent.trim())   namaTd.textContent   = info.nama;
-      if(divisiTd && !divisiTd.textContent.trim()) divisiTd.textContent = info.divisi;
-      if(stdTd    && !stdTd.textContent.trim()     && info.std) stdTd.textContent = info.std;
-      _hpCalcRow(tr);
+      _hpUpdateRowCount();
       _hpUpdateTotal();
     }
 
-    // JML PALLET = ceil(QTY PRODUKSI / STD PALLET)
-    function _hpCalcRow(tr){
-      var qtyTd = tr.querySelector('[data-col="qty"]');
-      var stdTd = tr.querySelector('[data-col="std"]');
-      var jmlTd = tr.querySelector('[data-col="jml"]');
-      if(!jmlTd) return;
-      var qty = Number(String((qtyTd&&qtyTd.textContent)||'0').replace(/\./g,'').replace(/,/g,'.')) || 0;
-      var std = Number(String((stdTd&&stdTd.textContent)||'0').replace(/\./g,'').replace(/,/g,'.')) || 0;
-      jmlTd.textContent = std > 0 ? Math.ceil(qty/std) : 0;
+    // Bangun 1 baris — struktur & urutan kolom SAMA PERSIS dengan
+    // addRowToTable() di Input Data (termasuk kolom spacer kosong), supaya
+    // posisi kolom paste dari Excel selalu jatuh di tempat yang benar.
+    function addHpRowToTable(code, name, bal, rec, issued, ending, std, div, plt){
+      code    = code    || '';
+      name    = name    || '';
+      bal     = bal     || '';
+      rec     = rec     || '';
+      issued  = issued  || '';
+      ending  = ending  || '';
+      std     = std     || '';
+      var tbody = document.getElementById('hpTbody');
+      var tr    = document.createElement('tr');
+      var idx   = tbody.rows.length + 1;
+
+      // JML PALLET = ceil(BEG. BALANCE / STD PALLET) — sama seperti Input Data
+      var jml = '';
+      if(std !== '' && bal !== '' && !isNaN(Number(std)) && !isNaN(Number(bal)) && Number(std) > 0){
+        jml = Math.ceil(Number(bal) / Number(std));
+      }
+
+      tr.innerHTML =
+        '<td class="row-no">'+idx+'</td>'
+        + '<td contenteditable="true" class="td-hp-code">'+code+'</td>'
+        + '<td class="td-spacer" contenteditable="true"></td>'
+        + '<td contenteditable="true">'+name+'</td>'
+        + '<td class="td-spacer" contenteditable="true"></td>'
+        + '<td class="td-spacer" contenteditable="true"></td>'
+        + '<td class="td-spacer" contenteditable="true"></td>'
+        + '<td contenteditable="true" class="td-num td-hp-bb">'+bal+'</td>'
+        + '<td contenteditable="true" class="td-num">'+rec+'</td>'
+        + '<td contenteditable="true" class="td-num">'+issued+'</td>'
+        + '<td contenteditable="true" class="td-num td-hp-eb">'+ending+'</td>'
+        + '<td contenteditable="true" class="td-num td-hp-std" style="background:#fffbeb;color:#92400e;">'+std+'</td>'
+        + '<td class="td-num td-hp-jml" style="background:#f0fdf4;color:#166534;font-weight:700;">'+jml+'</td>'
+        + '<td contenteditable="true" class="td-hp-divisi" style="background:#faf5ff;color:#6b46c1;font-weight:700;text-align:center;min-width:80px;">'+(div||'')+'</td>'
+        + '<td contenteditable="true" class="td-hp-plant" style="background:#ebf8ff;color:#2b6cb0;font-weight:700;text-align:center;min-width:70px;">'+(plt||'')+'</td>'
+        + '<td class="td-del" onclick="removeHpRow(this)" title="Hapus baris"><i class="fas fa-times"></i></td>';
+
+      tbody.appendChild(tr);
+      _hpUpdateRowNumbers();
+      _bindHpRowEvents(tr);
+      return tr;
     }
 
-    function _hpRenumber(){
-      var trs = document.querySelectorAll('#hpTbody tr');
-      trs.forEach(function(tr, i){
-        var no = tr.querySelector('.row-no');
-        if(no) no.textContent = i+1;
+    // Bind event per-baris: auto-lookup STD/DIVISI/PLANT saat Material Code
+    // blur, auto-hitung JML PALLET saat Beg. Balance atau STD berubah —
+    // sama persis logic-nya dengan _bindGudangRowEvents() di Input Data
+    // (pakai cache _stdLookupMap yang sama, dari js/input.js).
+    function _bindHpRowEvents(tr){
+      var codeTd = tr.querySelector('.td-hp-code');
+      var stdTd  = tr.querySelector('.td-hp-std');
+      var divTd  = tr.querySelector('.td-hp-divisi');
+      var pltTd  = tr.querySelector('.td-hp-plant');
+
+      function calcJml(){ _calcJmlPalletHp(tr); }
+
+      if(codeTd) codeTd.addEventListener('blur', function(){
+        var sku = _stripSkuZeros(this.innerText.trim());
+        if(!sku) return;
+        if(this.innerText.trim() !== sku) this.innerText = sku;
+
+        var cached = _stdLookupMap[sku];
+        if(cached !== undefined){
+          if(cached && cached.std > 0 && stdTd && stdTd.innerText.trim() === '') stdTd.innerText = cached.std;
+          if(cached && cached.divisi && divTd && divTd.innerText.trim() === '') divTd.innerText = cached.divisi;
+          if(cached && cached.plant  && pltTd && pltTd.innerText.trim() === '') pltTd.innerText = cached.plant;
+          calcJml();
+          return;
+        }
+        google.script.run
+          .withSuccessHandler(function(res){
+            if(res && res.success){
+              res.data.forEach(function(d){
+                _stdLookupMap[d.sku] = {std: Number(d.std)||0, divisi: d.divisi||'', plant: d.plant||''};
+              });
+              var c = _stdLookupMap[sku];
+              if(c){
+                if(c.std  > 0 && stdTd && stdTd.innerText.trim() === '') stdTd.innerText = c.std;
+                if(c.divisi && divTd && divTd.innerText.trim() === '') divTd.innerText = c.divisi;
+                if(c.plant  && pltTd && pltTd.innerText.trim() === '') pltTd.innerText = c.plant;
+                calcJml();
+              }
+            }
+          })
+          .getStandarPalet();
       });
-      var cnt = document.getElementById('hpRowCount');
-      if(cnt) cnt.textContent = trs.length + ' baris';
+
+      var bbTd = tr.querySelector('.td-hp-bb');
+      var numTds = Array.from(tr.querySelectorAll('td[contenteditable="true"].td-num'));
+      numTds.forEach(function(ntd){
+        ntd.addEventListener('blur', function(){
+          _evalGudangFormula(this);
+          calcJml();
+        });
+      });
+      if(stdTd) stdTd.addEventListener('input', calcJml);
+      if(stdTd) stdTd.addEventListener('blur', function(){ _evalGudangFormula(this); calcJml(); });
+      if(bbTd)  bbTd.addEventListener('input', calcJml);
+      if(bbTd)  bbTd.addEventListener('blur',  function(){ _evalGudangFormula(this); calcJml(); });
+    }
+
+    // JML PALLET = ceil(BEG. BALANCE / STD PALLET) — sama persis dengan
+    // _calcJmlPallet() di Input Data.
+    function _calcJmlPalletHp(tr){
+      var stdTd = tr.querySelector('.td-hp-std');
+      var bbTd  = tr.querySelector('.td-hp-bb');
+      var jmlTd = tr.querySelector('.td-hp-jml');
+      if(!stdTd || !bbTd || !jmlTd) return;
+      var std = _rdcParseNum(stdTd.innerText);
+      var bb  = _rdcParseNum(bbTd.innerText);
+      jmlTd.innerText = (std>0 && bb>=0) ? Math.ceil(bb/std) : '';
+      _hpUpdateTotal();
     }
 
     function loadHasilProduksiByTanggal(){
@@ -331,12 +355,12 @@ function initRealForm(){
           var tbody = document.getElementById('hpTbody');
           tbody.innerHTML = '';
           var rows = (res && res.success && res.rows) ? res.rows : [];
-          // rows: [code, nama, divisi, qty, std, jml]
+          // rows: [code, nama, bb, receipt, issued, eb, std, jml(diabaikan, dihitung ulang di klien), divisi, plant]
           rows.forEach(function(r){
-            _appendHpRow({ code:r[0]||'', nama:r[1]||'', divisi:r[2]||'', qty:r[3]||'', std:r[4]||'', jml:r[5]||'' });
+            addHpRowToTable(r[0]||'', r[1]||'', r[2]||'', r[3]||'', r[4]||'', r[5]||'', r[6]||'', r[8]||'', r[9]||'');
           });
           if(rows.length < 10){
-            for(var i=rows.length; i<10; i++) _appendHpRow({});
+            for(var i=rows.length; i<10; i++) addHpRowToTable('','','','','','','','','');
           }
           _hpUpdateTotal();
         })
@@ -345,45 +369,42 @@ function initRealForm(){
     }
 
     function addHasilProduksiRows(n){
-      for(var i=0; i<n; i++) _appendHpRow({});
+      for(var i=0; i<n; i++) addHpRowToTable('','','','','','','','','');
     }
 
     function clearHasilProduksiTable(){
       if(!confirm('Kosongkan semua baris di tabel ini?')) return;
       document.getElementById('hpTbody').innerHTML = '';
       addHasilProduksiRows(10);
-      _hpUpdateTotal();
     }
 
-    function removeHpRow(tr){
-      var tbody = document.getElementById('hpTbody');
-      if(tbody.querySelectorAll('tr').length <= 1){ tr.remove(); addHasilProduksiRows(1); }
-      else tr.remove();
-      _hpRenumber();
-      _hpUpdateTotal();
+    function removeHpRow(el){
+      var tr = (el && el.closest) ? el.closest('tr') : el;
+      if(tr) tr.remove();
+      _hpUpdateRowNumbers();
     }
 
-    // Sama kayak Input Data: paste ala-Excel jalan native lewat Ctrl+V
-    // begitu salah satu sel di-klik (di-handle _STOKInit). Tombol ini cuma
-    // bantu fokus ke sel pertama biar gampang.
     function pasteModeHasilProduksi(){
-      var firstTd = document.querySelector('#hpTbody td[data-col="code"]');
-      if(firstTd) firstTd.focus();
-      showToast('📋 Klik sel tujuan lalu Ctrl+V untuk paste dari Excel (bisa banyak baris & kolom sekaligus)', '');
+      showToast('💡 Klik sel di tabel lalu paste (Ctrl+V) dari Excel', '');
     }
 
     function _hpUpdateTotal(){
-      function sumCol(col){
-        var total = 0;
-        document.querySelectorAll('#hpTbody td[data-col="'+col+'"]').forEach(function(td){
-          total += Number(String(td.textContent||'').replace(/\./g,'').replace(/,/g,'.').trim()) || 0;
-        });
-        return total;
-      }
-      var elQty = document.getElementById('hpTotalQty');
-      if(elQty) elQty.textContent = sumCol('qty').toLocaleString('id-ID');
+      var totalReceipt = 0, totalEb = 0, totalJml = 0;
+      document.querySelectorAll('#hpTbody tr').forEach(function(tr){
+        // Urutan td-num contenteditable per baris: bb(0), receipt(1), issued(2), eb(3), std(4)
+        var numTds = tr.querySelectorAll('td[contenteditable="true"].td-num');
+        if(numTds[1]) totalReceipt += _rdcParseNum(numTds[1].textContent);
+        var ebTd  = tr.querySelector('.td-hp-eb');
+        var jmlTd = tr.querySelector('.td-hp-jml');
+        if(ebTd)  totalEb  += _rdcParseNum(ebTd.textContent);
+        if(jmlTd) totalJml += _rdcParseNum(jmlTd.textContent);
+      });
+      var elReceipt = document.getElementById('hpTotalReceipt');
+      if(elReceipt) elReceipt.textContent = totalReceipt.toLocaleString('id-ID');
+      var elEb = document.getElementById('hpTotalEb');
+      if(elEb) elEb.textContent = totalEb.toLocaleString('id-ID');
       var elJml = document.getElementById('hpTotalJml');
-      if(elJml) elJml.textContent = sumCol('jml').toLocaleString('id-ID');
+      if(elJml) elJml.textContent = totalJml.toLocaleString('id-ID');
     }
 
     function saveHasilProduksi(){
@@ -392,13 +413,26 @@ function initRealForm(){
 
       var rows = [];
       document.querySelectorAll('#hpTbody tr').forEach(function(tr){
-        var get = function(k){ var td=tr.querySelector('[data-col="'+k+'"]'); return td ? td.textContent.trim() : ''; };
-        var code = get('code'), nama = get('nama');
-        if(!code && !nama) return;
-        var qty = Number(get('qty').replace(/\./g,'').replace(/,/g,'.')) || 0;
-        var std = Number(get('std').replace(/\./g,'').replace(/,/g,'.')) || 0;
-        var jml = Number(get('jml').replace(/\./g,'').replace(/,/g,'.')) || 0;
-        rows.push([code, nama, get('divisi'), qty, std, jml]);
+        var codeTd = tr.querySelector('.td-hp-code');
+        var nameTd = tr.children[3]; // kolom MATERIAL NAME (index 3, sama seperti Input Data)
+        var code = codeTd ? codeTd.textContent.trim() : '';
+        var name = nameTd ? nameTd.textContent.trim() : '';
+        if(!code && !name) return;
+        var bbTd   = tr.querySelector('.td-hp-bb');
+        var ebTd   = tr.querySelector('.td-hp-eb');
+        var stdTd  = tr.querySelector('.td-hp-std');
+        var jmlTd  = tr.querySelector('.td-hp-jml');
+        var divTd  = tr.querySelector('.td-hp-divisi');
+        var pltTd  = tr.querySelector('.td-hp-plant');
+        var numTds = Array.from(tr.querySelectorAll('td[contenteditable="true"].td-num'));
+        // urutan numTds: bb(0), receipt(1), issued(2), eb(3), std(4)
+        var bb      = _rdcParseNum(bbTd ? bbTd.textContent : '');
+        var receipt = numTds[1] ? _rdcParseNum(numTds[1].textContent) : 0;
+        var issued  = numTds[2] ? _rdcParseNum(numTds[2].textContent) : 0;
+        var eb      = _rdcParseNum(ebTd ? ebTd.textContent : '');
+        var std     = _rdcParseNum(stdTd ? stdTd.textContent : '');
+        var jml     = _rdcParseNum(jmlTd ? jmlTd.textContent : '');
+        rows.push([code, name, bb, receipt, issued, eb, std, jml, divTd?divTd.textContent.trim():'', pltTd?pltTd.textContent.trim():'']);
       });
       if(!rows.length){ showToast('⚠️ Belum ada data untuk disimpan', 'error'); return; }
 
@@ -421,6 +455,331 @@ function initRealForm(){
         .withFailureHandler(function(){ resetBtn(); showToast('❌ Gagal menyimpan', 'error'); })
         .saveHasilProduksiData(tgl, _hpGudang, rows);
     }
+
+    // =============================================
+    // HASIL PRODUKSI — Block Select, Copy, Paste dari Excel
+    // Port 1:1 dari mekanisme Input Data (fungsi _in* di js/input.js),
+    // supaya cara pakainya (drag-select, Ctrl+C, paste, panah, Delete)
+    // identik persis.
+    // =============================================
+    var _hpSel = {r1:-1,c1:-1,r2:-1,c2:-1};
+    var _hpDragging = false;
+
+    function _hpPaneActive(){
+      var p = document.getElementById('hasilProduksiReal');
+      return !!(p && p.classList.contains('active'));
+    }
+    function _hpTrIdx(tr){
+      return Array.from(document.getElementById('hpTbody').querySelectorAll('tr')).indexOf(tr);
+    }
+    function _hpCellIdx(td){ return td.cellIndex; }
+
+    function _hpClearSel(){
+      document.querySelectorAll('#hpTable .hp-sel').forEach(function(el){ el.classList.remove('hp-sel'); });
+      _hpSel = {r1:-1,c1:-1,r2:-1,c2:-1};
+    }
+
+    function _hpApplySel(){
+      document.querySelectorAll('#hpTable .hp-sel').forEach(function(el){ el.classList.remove('hp-sel'); });
+      if(_hpSel.r1 < 0) return;
+      var trs = Array.from(document.getElementById('hpTbody').querySelectorAll('tr'));
+      var r1=Math.min(_hpSel.r1,_hpSel.r2), r2=Math.max(_hpSel.r1,_hpSel.r2);
+      var c1=Math.min(_hpSel.c1,_hpSel.c2), c2=Math.max(_hpSel.c1,_hpSel.c2);
+      for(var r=r1;r<=r2;r++){
+        if(!trs[r]) continue;
+        for(var ci=c1;ci<=c2;ci++){
+          var td = trs[r].cells[ci];
+          if(td) td.classList.add('hp-sel');
+        }
+      }
+    }
+
+    function _hpCopyBlock(){
+      if(_hpSel.r1 < 0) return;
+      var trs = Array.from(document.getElementById('hpTbody').querySelectorAll('tr'));
+      var r1=Math.min(_hpSel.r1,_hpSel.r2), r2=Math.max(_hpSel.r1,_hpSel.r2);
+      var c1=Math.min(_hpSel.c1,_hpSel.c2), c2=Math.max(_hpSel.c1,_hpSel.c2);
+      var lines = [];
+      for(var r=r1;r<=r2;r++){
+        if(!trs[r]) continue;
+        var cells = [];
+        for(var ci=c1;ci<=c2;ci++){
+          var td = trs[r].cells[ci];
+          cells.push(td ? td.textContent.trim() : '');
+        }
+        lines.push(cells.join('\t'));
+      }
+      var text = lines.join('\n');
+      try{ navigator.clipboard.writeText(text).catch(function(){ _inFallbackCopy(text); }); }
+      catch(e){ _inFallbackCopy(text); }
+      showToast('📋 '+(r2-r1+1)+' baris disalin','success');
+    }
+
+    function _hpBindEvents(){
+      var tbl = document.getElementById('hpTable');
+      if(!tbl || tbl._hpBound) return;
+      tbl._hpBound = true;
+
+      tbl.addEventListener('mousedown', function(e){
+        if(e.target.tagName === 'BUTTON' || e.target.closest('.td-del')) return;
+        var td = e.target.closest('td');
+        if(!td) return;
+        var tr = td.closest('tr');
+        if(!tr || !tr.closest('#hpTbody')) return;
+
+        var ri = _hpTrIdx(tr);
+        var ci = _hpCellIdx(td);
+
+        if(e.shiftKey && _hpSel.r1 >= 0){
+          _hpSel.r2=ri; _hpSel.c2=ci; _hpApplySel();
+          e.preventDefault(); return;
+        }
+
+        var startX=e.clientX, startY=e.clientY;
+        var moved=false;
+        function onMove(ev){
+          if(Math.abs(ev.clientX-startX)>4||Math.abs(ev.clientY-startY)>4){
+            if(!moved){
+              moved=true;
+              _hpDragging=true;
+              _hpSel={r1:ri,c1:ci,r2:ri,c2:ci};
+              _hpApplySel();
+              if(document.activeElement && document.activeElement.contentEditable==='true'){
+                document.activeElement.blur();
+              }
+            }
+            var overTd=ev.target.closest('td');
+            if(overTd && overTd.closest('#hpTbody')){
+              var overTr=overTd.closest('tr');
+              _hpSel.r2=_hpTrIdx(overTr); _hpSel.c2=_hpCellIdx(overTd);
+              _hpApplySel();
+            }
+          }
+        }
+        function onUp(){
+          document.removeEventListener('mousemove',onMove);
+          document.removeEventListener('mouseup',onUp);
+          _hpDragging=false;
+        }
+        document.addEventListener('mousemove',onMove);
+        document.addEventListener('mouseup',onUp);
+      });
+
+      document.addEventListener('mousedown', function(e){
+        if(!_hpPaneActive()) return;
+        var tbl2=document.getElementById('hpTable');
+        if(tbl2 && !tbl2.contains(e.target)) _hpClearSel();
+      });
+
+      document.addEventListener('keydown', function(e){
+        if(!(e.ctrlKey||e.metaKey)) return;
+        if(!_hpPaneActive()) return;
+        if(e.key==='a'){
+          var tbl2=document.getElementById('hpTable');
+          var ae2=document.activeElement;
+          if(!tbl2||!tbl2.contains(ae2)) return;
+          if(ae2&&ae2.contentEditable==='true') return;
+          e.preventDefault();
+          var trs=document.getElementById('hpTbody').querySelectorAll('tr');
+          if(!trs.length) return;
+          var lastTr=trs[trs.length-1];
+          var lastCi=lastTr.cells.length-2;
+          _hpSel={r1:0,c1:1,r2:trs.length-1,c2:lastCi};
+          _hpApplySel();
+        }
+      });
+
+      tbl.addEventListener('keydown', function(e){
+        var ae = document.activeElement;
+        if(!ae || !ae.closest('#hpTbody')) return;
+        var td = ae.closest('td');
+        if(!td) return;
+        var tr = td.closest('tr');
+        var trs = Array.from(document.getElementById('hpTbody').querySelectorAll('tr'));
+        var ri = _hpTrIdx(tr);
+        var editTds = Array.from(tr.querySelectorAll('td[contenteditable="true"]'));
+        var eiIdx = editTds.indexOf(td);
+
+        var isArrow=['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].indexOf(e.key)>=0;
+        if(isArrow && !e.shiftKey){
+          e.preventDefault();
+          _hpClearSel();
+          var nri=ri, nei=eiIdx;
+          if(e.key==='ArrowUp')    nri=ri-1;
+          if(e.key==='ArrowDown')  nri=ri+1;
+          if(e.key==='ArrowLeft')  nei=eiIdx-1;
+          if(e.key==='ArrowRight') nei=eiIdx+1;
+          if(e.key==='ArrowUp'||e.key==='ArrowDown'){
+            nri=Math.max(0,Math.min(trs.length-1,nri));
+            var nextEditTds=Array.from(trs[nri].querySelectorAll('td[contenteditable="true"]'));
+            if(nextEditTds[eiIdx]) nextEditTds[eiIdx].focus();
+          } else {
+            nei=Math.max(0,Math.min(editTds.length-1,nei));
+            if(editTds[nei]) editTds[nei].focus();
+          }
+          return;
+        }
+
+        var isSpecial=e.key.length>1||e.ctrlKey||e.metaKey||e.altKey;
+        if(!isSpecial && td._hpOverwrite){
+          td.textContent=''; td._hpOverwrite=false;
+        }
+      });
+
+      tbl.addEventListener('focusin', function(e){
+        var td=e.target.closest('td[contenteditable="true"]');
+        if(td && td.closest('#hpTbody')){
+          td._hpOverwrite=true;
+          if(!_hpDragging) _hpClearSel();
+        }
+      });
+      tbl.addEventListener('input', function(e){
+        var td=e.target.closest('td');
+        if(td) td._hpOverwrite=false;
+      });
+
+      document.addEventListener('keydown', function(e){
+        if(!(e.ctrlKey||e.metaKey)||e.key!=='c') return;
+        if(!_hpPaneActive()) return;
+        if(_hpSel.r1<0) return;
+        var hasBrowserSel=window.getSelection()&&window.getSelection().toString().length>0;
+        if(hasBrowserSel) return;
+        e.preventDefault(); _hpCopyBlock();
+      });
+
+      document.addEventListener('keydown', function(e){
+        if(e.key !== 'Delete') return;
+        if(!_hpPaneActive()) return;
+        if(_hpSel.r1 >= 0){
+          e.preventDefault();
+          var trsAll = Array.from(document.getElementById('hpTbody').querySelectorAll('tr'));
+          var r1=Math.min(_hpSel.r1,_hpSel.r2), r2=Math.max(_hpSel.r1,_hpSel.r2);
+          var c1=Math.min(_hpSel.c1,_hpSel.c2), c2=Math.max(_hpSel.c1,_hpSel.c2);
+          for(var ri2=r1;ri2<=r2;ri2++){
+            if(!trsAll[ri2]) continue;
+            for(var ci2=c1;ci2<=c2;ci2++){
+              var tdDel = trsAll[ri2].cells[ci2];
+              if(tdDel && tdDel.contentEditable==='true') tdDel.textContent='';
+            }
+          }
+          trsAll.forEach(function(tr){ _calcJmlPalletHp(tr); });
+          return;
+        }
+        var ae = document.activeElement;
+        if(!ae || !ae.closest('#hpTbody')) return;
+        var tdAct = ae.closest('td[contenteditable="true"]');
+        if(tdAct){
+          e.preventDefault(); tdAct.textContent='';
+          var trAct=tdAct.closest('tr'); if(trAct) _calcJmlPalletHp(trAct);
+        }
+      });
+
+      tbl.addEventListener('keydown', function(e){
+        if(!e.shiftKey || ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].indexOf(e.key)<0) return;
+        var ae = document.activeElement;
+        if(!ae||!ae.closest('#hpTbody')) return;
+        var td=ae.closest('td'), tr=td&&td.closest('tr');
+        if(!td||!tr) return;
+        var ri=_hpTrIdx(tr), ci=_hpCellIdx(td);
+        if(_hpSel.r1<0){ _hpSel={r1:ri,c1:ci,r2:ri,c2:ci}; }
+        var nr=ri, nc=ci;
+        if(e.key==='ArrowUp')    nr=Math.max(0,ri-1);
+        if(e.key==='ArrowDown')  nr=Math.min(document.getElementById('hpTbody').rows.length-1,ri+1);
+        if(e.key==='ArrowLeft')  nc=Math.max(1,ci-1);
+        if(e.key==='ArrowRight') nc=ci+1;
+        _hpSel.r2=nr; _hpSel.c2=nc;
+        _hpApplySel();
+        var trs=Array.from(document.getElementById('hpTbody').querySelectorAll('tr'));
+        var nextTd = trs[nr] && trs[nr].cells[nc];
+        if(nextTd&&nextTd.contentEditable==='true'){
+          (function(t){ setTimeout(function(){ t.focus(); },0); })(nextTd);
+        }
+        e.preventDefault();
+      });
+
+      // Paste dari Excel langsung ke tabel Hasil Produksi
+      document.addEventListener('paste', function(e){
+        var active = document.activeElement;
+        if(!active || !active.closest('#hpTbody')) return;
+        e.preventDefault();
+        var paste    = (e.clipboardData || window.clipboardData).getData('text');
+        var rows     = paste.trim().split('\n');
+        var startRow = active.closest('tr') ? active.closest('tr').rowIndex - 1 : 0;
+        var startCol = active.cellIndex - 1; // -1 karena kolom 0 adalah no urut
+        var tbody    = document.getElementById('hpTbody');
+
+        rows.forEach(function(row, i){
+          var cols = row.split('\t');
+          if(startRow + i >= tbody.rows.length){
+            addHpRowToTable('','','','','','','','','');
+          }
+          var tr = tbody.rows[startRow + i];
+          if(!tr) return;
+          cols.forEach(function(cell, j){
+            var targetIdx = startCol + j + 1;
+            while(targetIdx < tr.cells.length - 1){
+              var td = tr.cells[targetIdx];
+              if(td && td.contentEditable === 'true') break;
+              targetIdx++;
+            }
+            if(targetIdx >= tr.cells.length - 1) return;
+            tr.cells[targetIdx].innerText = cell.trim();
+          });
+          _calcJmlPalletHp(tr);
+        });
+        _hpUpdateRowNumbers();
+        setTimeout(_applyStdToAllRowsHp, 100);
+      });
+    }
+
+    // Terapkan STD + DIVISI + PLANT dari cache ke semua baris + recalc
+    // JML PALLET — sama persis dengan _applyStdToAllRows() di Input Data.
+    function _applyStdToAllRowsHp(){
+      var tbody = document.getElementById('hpTbody');
+      if(!tbody) return;
+      var rows = Array.from(tbody.querySelectorAll('tr'));
+      var needFetch = false;
+
+      function applyToRow(tr){
+        var codeTd = tr.querySelector('.td-hp-code');
+        var stdTd  = tr.querySelector('.td-hp-std');
+        var divTd  = tr.querySelector('.td-hp-divisi');
+        var pltTd  = tr.querySelector('.td-hp-plant');
+        if(!codeTd) return;
+        var sku = _stripSkuZeros(codeTd.innerText.trim());
+        if(!sku) return;
+        if(codeTd.innerText.trim() !== sku) codeTd.innerText = sku;
+
+        var cached = _stdLookupMap[sku];
+        if(cached !== undefined){
+          var std    = typeof cached === 'object' ? cached.std    : (Number(cached)||0);
+          var divisi = typeof cached === 'object' ? cached.divisi : '';
+          var plant  = typeof cached === 'object' ? cached.plant  : '';
+          if(stdTd && !stdTd.innerText.trim() && std > 0) stdTd.innerText = std;
+          if(divTd && !divTd.innerText.trim() && divisi) divTd.innerText = divisi;
+          if(pltTd && !pltTd.innerText.trim() && plant)  pltTd.innerText = plant;
+        } else {
+          needFetch = true;
+        }
+        _calcJmlPalletHp(tr);
+      }
+
+      rows.forEach(applyToRow);
+
+      if(needFetch){
+        google.script.run
+          .withSuccessHandler(function(res){
+            if(res && res.success){
+              res.data.forEach(function(d){
+                _stdLookupMap[d.sku] = {std: Number(d.std)||0, divisi: d.divisi||'', plant: d.plant||''};
+              });
+            }
+            rows.forEach(applyToRow);
+          })
+          .getStandarPalet();
+      }
+    }
+
 
     function switchRealView(view){ /* deprecated */ }
 
