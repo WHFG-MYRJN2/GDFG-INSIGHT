@@ -195,6 +195,14 @@ function initRealForm(){
     var _hpInited = false;
     var _hpGudang = 'GDI2';
 
+    // Cache lokal per-gudang (sama seperti _gudangCache di Input Data) —
+    // supaya pindah tab GDI2/GDIN/EKSPOR/GDFG TIDAK saling menimpa/kehilangan
+    // data yang lagi diketik (belum di-Save). Setiap tab isinya independen;
+    // 1 tab baru diambil ulang dari server sekali saja (di-cache setelahnya),
+    // biar bisa isi semua tab dulu baru Save satu-satu kapan pun siap.
+    var _hpCache         = {}; // gudang -> array baris {code,name,bal,rec,issued,ending,std,divisi,plant}
+    var _hpFetchedGudang = {}; // gudang -> true kalau sudah pernah diambil dari server utk tanggal ini
+
     function initHasilProduksi(){
       var tglEl = document.getElementById('hpTanggal');
       if(tglEl && !tglEl.value){
@@ -208,12 +216,81 @@ function initRealForm(){
 
     function setHpGudang(gudang, btn){
       if(_hpGudang === gudang) return;
+      _hpSaveCurrentTabToCache(); // simpan dulu draft tab yg lagi aktif biar gak hilang
       _hpGudang = gudang;
       document.querySelectorAll('#hasilProduksiReal .gudang-tab').forEach(function(b){ b.classList.remove('active'); });
       if(btn) btn.classList.add('active');
       var lbl = document.getElementById('hpGudangAktif');
       if(lbl) lbl.textContent = gudang;
-      loadHasilProduksiByTanggal();
+
+      var tgl = document.getElementById('hpTanggal').value;
+      if(_hpFetchedGudang[gudang]){
+        _hpRenderFromCache(gudang); // udah pernah dibuka — pakai draft lokal (bisa aja lagi diisi, belum di-Save)
+      } else if(tgl){
+        _hpFetchFromServer(gudang, tgl); // pertama kali dibuka utk gudang ini di tanggal ini — ambil dari sheet
+      }
+    }
+
+    // Baca isi tabel yang lagi tampil, simpan ke cache gudang yang sedang aktif
+    function _hpSaveCurrentTabToCache(){
+      var data = [];
+      document.querySelectorAll('#hpTbody tr').forEach(function(tr){
+        var codeTd = tr.querySelector('.td-hp-code');
+        var nameTd = tr.children[3];
+        var code = codeTd ? codeTd.textContent.trim() : '';
+        var name = nameTd ? nameTd.textContent.trim() : '';
+        var bbTd  = tr.querySelector('.td-hp-bb');
+        var ebTd  = tr.querySelector('.td-hp-eb');
+        var stdTd = tr.querySelector('.td-hp-std');
+        var divTd = tr.querySelector('.td-hp-divisi');
+        var pltTd = tr.querySelector('.td-hp-plant');
+        var numTds = Array.from(tr.querySelectorAll('td[contenteditable="true"].td-num'));
+        // urutan numTds: bb(0), receipt(1), issued(2), eb(3), std(4)
+        data.push({
+          code  : code,
+          name  : name,
+          bal   : bbTd ? bbTd.textContent.trim() : '',
+          rec   : numTds[1] ? numTds[1].textContent.trim() : '',
+          issued: numTds[2] ? numTds[2].textContent.trim() : '',
+          ending: ebTd ? ebTd.textContent.trim() : '',
+          std   : stdTd ? stdTd.textContent.trim() : '',
+          divisi: divTd ? divTd.textContent.trim() : '',
+          plant : pltTd ? pltTd.textContent.trim() : ''
+        });
+      });
+      _hpCache[_hpGudang] = data;
+    }
+
+    // Render ulang tabel dari cache lokal (dipakai pas pindah tab ke gudang
+    // yang sudah pernah dibuka — biar draft yang lagi diisi gak hilang)
+    function _hpRenderFromCache(gudang){
+      var tbody = document.getElementById('hpTbody');
+      tbody.innerHTML = '';
+      var data = _hpCache[gudang] || [];
+      data.forEach(function(r){
+        addHpRowToTable(r.code||'', r.name||'', r.bal||'', r.rec||'', r.issued||'', r.ending||'', r.std||'', r.divisi||'', r.plant||'');
+      });
+      if(data.length < 10){
+        for(var i=data.length; i<10; i++) addHpRowToTable('','','','','','','','','');
+      }
+      _hpUpdateTotal();
+    }
+
+    // Ambil data tersimpan (sheet HASIL_PRODUKSI) utk 1 gudang+tanggal dari
+    // server, taruh ke cache lokal, lalu render (kalau gudangnya masih aktif)
+    function _hpFetchFromServer(gudang, tgl){
+      google.script.run
+        .withSuccessHandler(function(res){
+          _hpFetchedGudang[gudang] = true;
+          var rows = (res && res.success && res.rows) ? res.rows : [];
+          // rows: [code, nama, bb, receipt, issued, eb, std, jml(diabaikan, dihitung ulang di klien), divisi, plant]
+          _hpCache[gudang] = rows.map(function(r){
+            return { code:r[0]||'', name:r[1]||'', bal:r[2]||'', rec:r[3]||'', issued:r[4]||'', ending:r[5]||'', std:r[6]||'', divisi:r[8]||'', plant:r[9]||'' };
+          });
+          if(gudang === _hpGudang) _hpRenderFromCache(gudang);
+        })
+        .withFailureHandler(function(){ showToast('❌ Gagal memuat data Hasil Produksi', 'error'); })
+        .getHasilProduksiByTanggal(tgl, gudang);
     }
 
     function _hpUpdateRowCount(){
@@ -347,25 +424,15 @@ function initRealForm(){
       _hpUpdateTotal();
     }
 
+    // Dipanggil saat TANGGAL diganti (bukan saat pindah tab gudang) — ini
+    // artinya konteksnya tanggal lain, jadi cache lokal di-reset total, lalu
+    // tab gudang yang lagi aktif diambil ulang dari server.
     function loadHasilProduksiByTanggal(){
       var tgl = document.getElementById('hpTanggal').value;
       if(!tgl) return;
-      google.script.run
-        .withSuccessHandler(function(res){
-          var tbody = document.getElementById('hpTbody');
-          tbody.innerHTML = '';
-          var rows = (res && res.success && res.rows) ? res.rows : [];
-          // rows: [code, nama, bb, receipt, issued, eb, std, jml(diabaikan, dihitung ulang di klien), divisi, plant]
-          rows.forEach(function(r){
-            addHpRowToTable(r[0]||'', r[1]||'', r[2]||'', r[3]||'', r[4]||'', r[5]||'', r[6]||'', r[8]||'', r[9]||'');
-          });
-          if(rows.length < 10){
-            for(var i=rows.length; i<10; i++) addHpRowToTable('','','','','','','','','');
-          }
-          _hpUpdateTotal();
-        })
-        .withFailureHandler(function(){ showToast('❌ Gagal memuat data Hasil Produksi', 'error'); })
-        .getHasilProduksiByTanggal(tgl, _hpGudang);
+      _hpCache = {};
+      _hpFetchedGudang = {};
+      _hpFetchFromServer(_hpGudang, tgl);
     }
 
     function addHasilProduksiRows(n){
@@ -447,7 +514,9 @@ function initRealForm(){
           resetBtn();
           if(res && res.success){
             showToast('✅ '+res.message, 'success');
-            loadHasilProduksiByTanggal();
+            // Refresh cache & tampilan tab yang barusan di-Save SAJA — tab
+            // gudang lain yang masih ada draft belum di-Save tetap aman.
+            _hpFetchFromServer(_hpGudang, tgl);
           } else {
             showToast('❌ '+(res&&res.message||'Gagal menyimpan'), 'error');
           }
