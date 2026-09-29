@@ -2293,11 +2293,22 @@ function mekRvToggleDetail(on) {
 // ditampilin cuma 4 (MDC/Direct/RDC/Ekspor, sesuai referensi desain) — MT
 // belum ada kartunya di sini, gampang ditambahin nanti kalau perlu.
 var MEK_RV_AVG_WAIT_TYPES = [
-  { key:'mdc',    label:'MDC',    icon:'fa-truck',    color:'#2b6cb0' },
-  { key:'direct', label:'Direct', icon:'fa-box',       color:'#2f855a' },
-  { key:'rdc',    label:'RDC',    icon:'fa-warehouse', color:'#c05621' },
-  { key:'ekspor', label:'Ekspor', icon:'fa-ship',      color:'#6b46c1' }
+  { key:'mdc',       label:'MDC',       icon:'fa-truck',    color:'#2b6cb0' },
+  { key:'direct-so', label:'Direct SO', icon:'fa-box',       color:'#2f855a' },
+  { key:'direct-do', label:'Direct DO', icon:'fa-dolly',     color:'#276749' },
+  { key:'rdc',       label:'RDC',       icon:'fa-warehouse', color:'#c05621' },
+  { key:'ekspor',    label:'Ekspor',    icon:'fa-ship',      color:'#6b46c1' }
 ];
+// Direct dipecah SO vs DO biar gak rancu (dua proses beda, jangan digabung
+// rata-ratanya) — tipe lain masih pakai sourceType apa adanya.
+function _mekRvAvgWaitBucketKey(r) {
+  if ((r.sourceType || 'ekspor') === 'direct') {
+    if (r.containerStatusLabel === 'SO') return 'direct-so';
+    if (r.containerStatusLabel === 'DO') return 'direct-do';
+    return null; // status Direct lain (mis. Open) belum jelas SO/DO-nya, skip
+  }
+  return r.sourceType || 'ekspor';
+}
 function _mekRvUpdateAvgWaitCard(rows) {
   var gridEl = document.getElementById('mekRvAvgWaitGrid');
   if (!gridEl) return;
@@ -2306,7 +2317,8 @@ function _mekRvUpdateAvgWaitCard(rows) {
   // (mobil isi 5 SKU jangan sampe narik rata-ratanya seolah 5 mobil nunggu).
   _mekRvDedupeByGroup(rows || []).forEach(function(r){
     if (r.waitHours == null) return;
-    var t = r.sourceType || 'ekspor';
+    var t = _mekRvAvgWaitBucketKey(r);
+    if (!t) return;
     sumH[t] = (sumH[t]||0) + r.waitHours;
     cnt[t]  = (cnt[t]||0) + 1;
   });
@@ -2321,13 +2333,14 @@ function _mekRvUpdateAvgWaitCard(rows) {
 }
 
 function mekRvShowAvgWaitDetail(typeKey) {
-  var rows = (_mekRvLastFilteredRows || []).filter(function(r){ return (r.sourceType||'ekspor') === typeKey && r.waitHours != null; })
+  var rows = (_mekRvLastFilteredRows || []).filter(function(r){ return _mekRvAvgWaitBucketKey(r) === typeKey && r.waitHours != null; })
     .sort(function(a,b){ return (b.waitHours||0) - (a.waitHours||0); });
   var items = rows.map(function(r){
     var days = Math.round((r.waitHours||0) / 24);
     return { left: r.sku || '-', leftSub: r.nama || '-', right: days + ' hari' };
   });
-  var label = (MEK_RV_TYPE_LABELS && MEK_RV_TYPE_LABELS[typeKey]) || typeKey;
+  var typeEntry = MEK_RV_AVG_WAIT_TYPES.filter(function(t){ return t.key === typeKey; })[0];
+  var label = (typeEntry && typeEntry.label) || (MEK_RV_TYPE_LABELS && MEK_RV_TYPE_LABELS[typeKey]) || typeKey;
   _mekRvOpenGenericModal('Detail Waktu Tunggu — ' + label, 'Item yang lagi mengisi rata-rata ' + label + ' (ikut filter aktif)', _mekRvBuildListRows(items));
 }
 
