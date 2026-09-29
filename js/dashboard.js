@@ -773,6 +773,10 @@ function _applyChartZoom() {
       var isPct  = _trendSatuan==='persen';
       var cap    = _trendMetrik==='lokal'?CAP_LOKAL:_trendMetrik==='ekspor'?CAP_EKSPOR:CAP_TOTAL;
       var capLine= isPct?100:(cap);
+      // Garis Warning (85%) & Safe (70%) — sama persis ambangnya dengan
+      // Warehouse Health gauge di tab Analytics (WH_WARN_PCT/WH_SAFE_PCT)
+      var warnLine = isPct ? WH_WARN_PCT : (cap * WH_WARN_PCT/100);
+      var safeLine = isPct ? WH_SAFE_PCT : (cap * WH_SAFE_PCT/100);
 
       // Label judul
       var metrikLabel = _trendMetrik==='lokal'?'Pallet Lokal':_trendMetrik==='ekspor'?'Pallet Ekspor':'Total Pallet';
@@ -810,6 +814,26 @@ function _applyChartZoom() {
               pointRadius:0,
               fill:false,
               tension:0
+            },
+            {
+              label: 'Waspada '+(isPct?WH_WARN_PCT+'%':Math.round(warnLine).toLocaleString('id-ID')+' pallet'),
+              data: dates.map(function(){ return warnLine; }),
+              borderColor:'rgba(245,158,11,.75)',
+              borderWidth:2,
+              borderDash:[5,4],
+              pointRadius:0,
+              fill:false,
+              tension:0
+            },
+            {
+              label: 'Aman '+(isPct?WH_SAFE_PCT+'%':Math.round(safeLine).toLocaleString('id-ID')+' pallet'),
+              data: dates.map(function(){ return safeLine; }),
+              borderColor:'rgba(16,185,129,.65)',
+              borderWidth:2,
+              borderDash:[5,4],
+              pointRadius:0,
+              fill:false,
+              tension:0
             }
           ]
         },
@@ -822,7 +846,7 @@ function _applyChartZoom() {
             tooltip:{
               callbacks:{
                 label:function(ctx){
-                  if(ctx.datasetIndex===1) return ctx.dataset.label;
+                  if(ctx.datasetIndex>=1) return ctx.dataset.label; // 3 garis threshold: Kapasitas/Waspada/Aman
                   return ' '+ctx.parsed.y.toLocaleString('id-ID')+(isPct?'%':' pallet');
                 }
               }
@@ -969,6 +993,154 @@ function _applyChartZoom() {
           },
           animation:{duration:600, easing:'easeOutQuart'}
         }
+      });
+    }
+
+    // =============================================
+    // ANALYTICS — Warehouse Health meter + Forecast Stock
+    // Pakai kapasitas racking yang UDAH ADA (CAP_TOTAL=7096, lihat bagian
+    // TREND CHART di atas) — GDFG sengaja gak punya cap sendiri (dianggap
+    // buffer, tetap masuk ke Total 7.096). Warehouse Health = total stock
+    // saat ini (getTotalPallet) vs CAP_TOTAL. Forecast Stock diproyeksi dari
+    // rata-rata perubahan TOTAL PALLET harian (histori getHistoryKapasitas,
+    // BUKAN dari karton In-Out Stock — beda satuan, gak bisa dicampur:
+    // RECEIPT/TOTAL_KRT di In-Out Stock itu satuan KARTON, sedangkan
+    // kapasitas racking & Total Pallet itu satuan PALLET. STD PALLET beda2
+    // per SKU jadi karton gak bisa dikonversi ke pallet tanpa breakdown
+    // per-SKU harian — makanya proyeksinya pakai histori Total Pallet
+    // langsung, satuan udah pasti konsisten).
+    // =============================================
+    var WH_SAFE_PCT = 70, WH_WARN_PCT = 85; // ambang zona (%), sama dgn Trend chart
+
+    function initAnalyticsTab(){
+      _loadWarehouseHealth();
+      _loadForecastStock();
+    }
+
+    function _whZoneInfo(pct){
+      if(pct >= WH_WARN_PCT) return { key:'crit', label:'KRITIS', fillClass:'wh-fill-crit', badgeClass:'wh-badge-crit' };
+      if(pct >= WH_SAFE_PCT) return { key:'warn', label:'WASPADA', fillClass:'wh-fill-warn', badgeClass:'wh-badge-warn' };
+      return { key:'safe', label:'AMAN', fillClass:'wh-fill-safe', badgeClass:'wh-badge-safe' };
+    }
+
+    function _loadWarehouseHealth(){
+      API.withSuccessHandler(function(res){
+        if(!res || !res.success){
+          document.getElementById('whPercent').textContent = 'Error';
+          return;
+        }
+        var total = res.total || 0;
+        var pct   = (total / CAP_TOTAL) * 100;
+        var zone  = _whZoneInfo(pct);
+
+        document.getElementById('whPercent').textContent = pct.toFixed(1) + '%';
+        document.getElementById('whNote').textContent = total.toLocaleString('id-ID') + ' / ' + CAP_TOTAL.toLocaleString('id-ID') + ' pallet';
+
+        var badge = document.getElementById('whBadge');
+        badge.textContent = zone.label;
+        badge.className = 'chart-card-badge ' + zone.badgeClass;
+
+        var fill = document.getElementById('whFill');
+        fill.style.width = Math.min(pct, 100) + '%';
+        fill.className = 'wh-meter-fill ' + zone.fillClass;
+
+        var alertEl = document.getElementById('whAlert');
+        if(zone.key === 'crit'){
+          alertEl.className = 'wh-alert wh-alert-crit';
+          alertEl.innerHTML = '<i class="fas fa-triangle-exclamation"></i> <span>Stock ' + (pct>100?'melebihi':'mendekati') + ' kapasitas maksimum' + (pct>100?' (OVERLOAD)':'') + '. Segera percepat Good Issue / pengiriman, atau pertimbangkan stop sementara produksi.</span>';
+        } else if(zone.key === 'warn'){
+          alertEl.className = 'wh-alert wh-alert-warn';
+          alertEl.innerHTML = '<i class="fas fa-circle-exclamation"></i> <span>Stock mulai mendekati batas aman. Pantau terus kecepatan Good Issue vs Good Receive.</span>';
+        } else {
+          alertEl.className = 'wh-alert';
+          alertEl.innerHTML = '';
+        }
+      }).getTotalPallet();
+    }
+
+    function _loadForecastStock(){
+      // Ambil histori 14 hari terakhir buat hitung rata-rata perubahan
+      // Total Pallet harian (dari titik data histori paling lama ke paling
+      // baru di window ini, dibagi jumlah hari kalender di antaranya —
+      // biar tahan kalau ada tanggal yang gak diisi/bolong).
+      var to = new Date();
+      var from = new Date(to); from.setDate(from.getDate()-14);
+      function fmtD(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+
+      API.run('getHistoryKapasitas', {from: fmtD(from), to: fmtD(to), tipes: []}, function(res){
+        var box1 = document.getElementById('fcWarningEta');
+        var box2 = document.getElementById('fcCapacityEta');
+        var box3 = document.getElementById('fcAvgDelta');
+        var box4 = document.getElementById('fcCurrentStock');
+        var empty = document.getElementById('fcEmpty');
+        var trendBadge = document.getElementById('fcTrendBadge');
+
+        if(!res || !res.success || !res.data || !res.data.length){
+          empty.style.display = 'block';
+          [box1,box2,box3,box4].forEach(function(el){ el.textContent='-'; });
+          if(trendBadge) trendBadge.textContent = '-';
+          return;
+        }
+        empty.style.display = 'none';
+
+        // Group jadi total pallet per tanggal (logic sama persis dgn Trend chart)
+        var dayMap = {};
+        res.data.forEach(function(r){
+          var tgl = r.tanggal;
+          if(!dayMap[tgl]) dayMap[tgl] = 0;
+          var jml = r.std>0 ? Math.ceil(r.bb/r.std) : r.jmlPallet;
+          dayMap[tgl] += (jml||0);
+        });
+        var dates = Object.keys(dayMap).sort();
+
+        if(dates.length < 2){
+          empty.style.display = 'block';
+          empty.querySelector('span') && (empty.querySelector('span').textContent='Belum cukup data histori buat bikin proyeksi.');
+          [box1,box2,box3,box4].forEach(function(el){ el.textContent='-'; });
+          if(trendBadge) trendBadge.textContent = '-';
+          return;
+        }
+
+        var firstDate = dates[0], lastDate = dates[dates.length-1];
+        var firstTotal = dayMap[firstDate], lastTotal = dayMap[lastDate];
+        var spanDays = Math.max(1, Math.round((new Date(lastDate) - new Date(firstDate)) / 86400000));
+        var avgPerDay = (lastTotal - firstTotal) / spanDays;
+
+        // Stock "saat ini" pakai angka live (getTotalPallet), bukan histori
+        // terakhir — biar konsisten sama kartu Warehouse Health di atasnya.
+        API.withSuccessHandler(function(resTotal){
+          var current = (resTotal && resTotal.success) ? (resTotal.total||0) : lastTotal;
+          box4.textContent = current.toLocaleString('id-ID') + ' pallet';
+
+          var sign = avgPerDay > 0 ? '+' : '';
+          box3.textContent = sign + Math.round(avgPerDay).toLocaleString('id-ID') + ' pallet/hari';
+          box3.className = 'fc-box-value ' + (avgPerDay > 0 ? 'fc-warn' : (avgPerDay < 0 ? 'fc-ok' : ''));
+
+          function etaText(targetPct, el){
+            var target = CAP_TOTAL * (targetPct/100);
+            if(current >= target){
+              el.textContent = 'Sudah tercapai';
+              el.className = 'fc-box-value fc-crit';
+              return;
+            }
+            if(avgPerDay <= 0){
+              el.textContent = 'Stock stabil/menurun';
+              el.className = 'fc-box-value fc-ok';
+              return;
+            }
+            var daysLeft = Math.ceil((target - current) / avgPerDay);
+            var etaDate = new Date(); etaDate.setDate(etaDate.getDate() + daysLeft);
+            var etaStr = String(etaDate.getDate()).padStart(2,'0')+'/'+String(etaDate.getMonth()+1).padStart(2,'0');
+            el.textContent = daysLeft + ' Hari (' + etaStr + ')';
+            el.className = 'fc-box-value ' + (targetPct>=100 ? 'fc-crit' : 'fc-warn');
+          }
+          etaText(WH_WARN_PCT, box1);
+          etaText(100, box2);
+
+          if(trendBadge){
+            trendBadge.textContent = avgPerDay > 0 ? '📈 Naik' : (avgPerDay < 0 ? '📉 Turun' : '➡️ Stabil');
+          }
+        }).getTotalPallet();
       });
     }
 
