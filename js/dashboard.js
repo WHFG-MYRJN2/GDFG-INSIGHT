@@ -1024,7 +1024,7 @@ function _applyChartZoom() {
     }
 
     function _loadWarehouseHealth(){
-      API.withSuccessHandler(function(res){
+      API.run('getTotalPallet', {}, function(res){
         if(!res || !res.success){
           document.getElementById('whPercent').textContent = 'Error';
           return;
@@ -1055,7 +1055,7 @@ function _applyChartZoom() {
           alertEl.className = 'wh-alert';
           alertEl.innerHTML = '';
         }
-      }).getTotalPallet();
+      });
     }
 
     function _loadForecastStock(){
@@ -1108,7 +1108,7 @@ function _applyChartZoom() {
 
         // Stock "saat ini" pakai angka live (getTotalPallet), bukan histori
         // terakhir — biar konsisten sama kartu Warehouse Health di atasnya.
-        API.withSuccessHandler(function(resTotal){
+        API.run('getTotalPallet', {}, function(resTotal){
           var current = (resTotal && resTotal.success) ? (resTotal.total||0) : lastTotal;
           box4.textContent = current.toLocaleString('id-ID') + ' pallet';
 
@@ -1140,7 +1140,7 @@ function _applyChartZoom() {
           if(trendBadge){
             trendBadge.textContent = avgPerDay > 0 ? '📈 Naik' : (avgPerDay < 0 ? '📉 Turun' : '➡️ Stabil');
           }
-        }).getTotalPallet();
+        });
       });
     }
 
