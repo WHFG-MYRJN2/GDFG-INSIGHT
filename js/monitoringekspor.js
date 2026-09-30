@@ -788,8 +788,8 @@ function mekRvRenderCurrentMode() {
 
 function _mekRvCellTitle(agg, bin) {
   if (!agg) return bin + ': kosong';
-  var t = bin + ': ' + agg.totalKarton.toLocaleString('id-ID') + ' krt';
-  if (agg.totalReserved > 0) t += ' (reserved ' + agg.totalReserved.toLocaleString('id-ID') + ')';
+  var t = bin + ': ' + _mekN(agg.totalKarton) + ' krt';
+  if (agg.totalReserved > 0) t += ' (reserved ' + _mekN(agg.totalReserved) + ')';
   return t;
 }
 
@@ -830,14 +830,14 @@ function mekRvShowCellPopup(binCode) {
   } else {
     bodyEl.innerHTML = raw.map(function(r) {
       var bits = [];
-      if (r.reservedKarton > 0)  bits.push('<span style="color:#c05621;">Reserved ' + r.reservedKarton.toLocaleString('id-ID') + '</span>');
-      if (r.availableKarton > 0) bits.push('<span style="color:#276749;">Available ' + r.availableKarton.toLocaleString('id-ID') + '</span>');
+      if (r.reservedKarton > 0)  bits.push('<span style="color:#c05621;">Reserved ' + _mekN(r.reservedKarton) + '</span>');
+      if (r.availableKarton > 0) bits.push('<span style="color:#276749;">Available ' + _mekN(r.availableKarton) + '</span>');
       var pltBits = [];
       if (r.palletNum)    pltBits.push(r.palletNum + ' pallet');
       if (r.pecahanCount) pltBits.push(r.pecahanCount + ' pecahan');
       return '<div style="padding:8px 0;border-bottom:1px solid #e2e8f0;">'
         + '<div style="font-weight:800;font-size:12.5px;color:#2d3748;">' + _mekEsc(r.nama || r.sku || '-') + '</div>'
-        + '<div style="font-size:11px;color:#718096;margin-top:2px;">' + _mekEsc(r.sku || '') + ' · ' + (r.karton||0).toLocaleString('id-ID') + ' krt'
+        + '<div style="font-size:11px;color:#718096;margin-top:2px;">' + _mekEsc(r.sku || '') + ' · ' + _mekN(r.karton||0) + ' krt'
         + (r.prodate ? ' · prod. ' + _mekEsc(r.prodate) : '') + '</div>'
         + (pltBits.length ? '<div style="font-size:10px;color:#4a5568;margin-top:2px;">🔲 ' + pltBits.join(' + ') + '</div>' : '')
         + (bits.length ? '<div style="font-size:10px;margin-top:3px;">' + bits.join(' · ') + '</div>' : '')
@@ -1748,9 +1748,9 @@ function _mekAktual3dRenderRack(binLetter) {
 
 function _mekRenderReservedView(data) {
   var s = data.summary || {};
-  document.getElementById('mekRvKpiTotal').textContent     = (s.totalStock||0).toLocaleString('id-ID');
-  document.getElementById('mekRvKpiAvailable').textContent = (s.available||0).toLocaleString('id-ID');
-  document.getElementById('mekRvKpiReserved').textContent  = (s.reserved||0).toLocaleString('id-ID');
+  document.getElementById('mekRvKpiTotal').textContent     = _mekN(s.totalStock||0);
+  document.getElementById('mekRvKpiAvailable').textContent = _mekN(s.available||0);
+  document.getElementById('mekRvKpiReserved').textContent  = _mekN(s.reserved||0);
   document.getElementById('mekRvKpiPct').textContent       = (s.reservedPct!=null ? s.reservedPct.toFixed(1) : '0.0') + '%';
   document.getElementById('mekRvKpiContainer').textContent = (s.containerWaiting||0);
   document.getElementById('mekRvKpiLongest').textContent   = s.longestWaitingLabel || '-';
@@ -1921,14 +1921,14 @@ function _mekRvUpdateStockKpis(skuF, rows) {
     totalStock += c.karton || 0;
   });
   var totalReserved = 0;
-  (rows || []).forEach(function(r){ totalReserved += r.qtyReserved || 0; }); // sama persis kayak totalQty di _mekRvUpdateFilteredKpis
+  (rows || []).forEach(function(r){ totalReserved += Math.round(r.qtyReserved || 0); }); // sama persis kayak totalQty di _mekRvUpdateFilteredKpis
   var available = Math.max(0, totalStock - totalReserved);
   var pct = totalStock > 0 ? (totalReserved / totalStock * 100) : 0;
   var elT = document.getElementById('mekRvKpiTotal');
   var elA = document.getElementById('mekRvKpiAvailable');
   var elP = document.getElementById('mekRvKpiPct');
-  if (elT) elT.textContent = totalStock.toLocaleString('id-ID');
-  if (elA) elA.textContent = available.toLocaleString('id-ID');
+  if (elT) elT.textContent = _mekN(totalStock);
+  if (elA) elA.textContent = _mekN(available);
   if (elP) elP.textContent = pct.toFixed(1) + '%';
 }
 
@@ -1975,7 +1975,7 @@ function _mekRvDedupeByGroup(rows) {
 // "Available" / "Reserved %" dihitung terpisah, lihat _mekRvUpdateStockKpis.
 function _mekRvUpdateFilteredKpis(rows) {
   var totalQty = 0;
-  rows.forEach(function(r){ totalQty += (r.qtyReserved||0); }); // qty tetep dijumlah dari SEMUA baris (per SKU)
+  rows.forEach(function(r){ totalQty += Math.round(r.qtyReserved||0); }); // qty tetep dijumlah dari SEMUA baris (per SKU)
 
   var groupedRows = _mekRvDedupeByGroup(rows); // buat itungan JUMLAH MOBIL, bukan jumlah baris/SKU
 
@@ -2007,7 +2007,7 @@ function _mekRvUpdateFilteredKpis(rows) {
   var elS  = document.getElementById('mekRvKpiShortage');
   var cardD = document.getElementById('mekRvCardDirectOpen');
   var elD   = document.getElementById('mekRvKpiDirectOpen');
-  if (elR)  elR.textContent  = totalQty.toLocaleString('id-ID');
+  if (elR)  elR.textContent  = _mekN(totalQty);
   if (elCL) elCL.textContent = tf.directOnly ? 'Open DO/SO Direct' : 'Container Waiting';
   if (elC)  elC.textContent  = containerWaiting;
   if (elL)  elL.textContent  = longestLabel;
@@ -2028,7 +2028,7 @@ function mekRvShowReservedBreakdown() {
   var sums = {};
   rows.forEach(function(r) {
     var t = r.sourceType || 'ekspor';
-    sums[t] = (sums[t] || 0) + (r.qtyReserved || 0);
+    sums[t] = (sums[t] || 0) + Math.round(r.qtyReserved || 0);
   });
   var total = 0;
   Object.keys(sums).forEach(function(k) { total += sums[k]; });
@@ -2042,12 +2042,12 @@ function mekRvShowReservedBreakdown() {
       var v = sums[t] || 0;
       html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 12px;border-radius:8px;background:#f7fafc;border:1px solid #e2e8f0;margin-bottom:6px;">' +
         '<div style="font-size:12px;font-weight:700;color:#4a5568;">' + _mekEsc(MEK_RV_TYPE_LABELS[t] || String(t).toUpperCase()) + '</div>' +
-        '<div style="font-size:14px;font-weight:800;color:#c05621;">' + v.toLocaleString('id-ID') + ' Carton</div>' +
+        '<div style="font-size:14px;font-weight:800;color:#c05621;">' + _mekN(v) + ' Carton</div>' +
       '</div>';
     });
     html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 12px;border-radius:8px;background:#fffaf0;border:1px solid #feebc8;margin-top:8px;">' +
       '<div style="font-size:12px;font-weight:800;color:#c05621;">TOTAL</div>' +
-      '<div style="font-size:14px;font-weight:800;color:#c05621;">' + total.toLocaleString('id-ID') + ' Carton</div>' +
+      '<div style="font-size:14px;font-weight:800;color:#c05621;">' + _mekN(total) + ' Carton</div>' +
     '</div>';
     body.innerHTML = html;
   }
@@ -2132,7 +2132,7 @@ function _mekRvStockBySku() {
 function _mekRvReservedBySku(agg) {
   var unmatched = 0;
   (_mekRvLastFilteredRows || []).forEach(function(r) {
-    var q = r.qtyReserved || 0;
+    var q = Math.round(r.qtyReserved || 0);
     if (!q) return;
     var skus = String(r.sku || '').split(',').map(function(x){ return x.trim(); }).filter(Boolean);
     if (!skus.length) skus = ['-'];
@@ -2150,7 +2150,7 @@ function _mekRvBalanceHeader(totalStock, totalReserved) {
   function cell(lbl, val, col) {
     return '<div style="flex:1;text-align:center;padding:8px 4px;border-radius:8px;background:#f7fafc;border:1px solid #e2e8f0;">'
       + '<div style="font-size:9px;color:#a0aec0;text-transform:uppercase;font-weight:700;">' + lbl + '</div>'
-      + '<div style="font-size:14px;font-weight:800;color:' + col + ';">' + Math.round(val).toLocaleString('id-ID') + '</div></div>';
+      + '<div style="font-size:14px;font-weight:800;color:' + col + ';">' + _mekN(Math.round(val)) + '</div></div>';
   }
   return '<div style="display:flex;gap:6px;margin-bottom:10px;">'
     + cell('Total Stock', totalStock, '#2d3748') + cell('Reserved', totalReserved, '#c05621') + cell('Available', available, '#276749')
@@ -2166,13 +2166,13 @@ function mekRvShowTotalStockBreakdown() {
     .sort(function(a,b){ return b.karton - a.karton; });
   var total = all.reduce(function(s,x){ return s + x.karton; }, 0);
   var top = all.slice(0, 10);
-  var items = top.map(function(x){ return { left: x.sku, leftSub: x.nama, right: x.karton.toLocaleString('id-ID') + ' Carton' }; });
+  var items = top.map(function(x){ return { left: x.sku, leftSub: x.nama, right: _mekN(x.karton) + ' Carton' }; });
   var rest = all.slice(10);
   if (rest.length) {
     var restSum = rest.reduce(function(s,x){ return s + x.karton; }, 0);
-    items.push({ left: 'Lainnya (' + rest.length + ' SKU)', right: restSum.toLocaleString('id-ID') + ' Carton', rightColor: '#718096' });
+    items.push({ left: 'Lainnya (' + rest.length + ' SKU)', right: _mekN(restSum) + ' Carton', rightColor: '#718096' });
   }
-  items.push({ left: 'TOTAL', right: total.toLocaleString('id-ID') + ' Carton', rightColor: '#c05621' });
+  items.push({ left: 'TOTAL', right: _mekN(total) + ' Carton', rightColor: '#c05621' });
   _mekRvOpenGenericModal('Top 10 SKU — Total Stock', 'Stock fisik terbesar (rak + Gudang External, ikut filter SKU/Nama aktif)', _mekRvBuildListRows(items));
 }
 
@@ -2196,19 +2196,19 @@ function mekRvShowAvailableBreakdown() {
   var items = top.map(function(x){
     return {
       left: x.sku,
-      leftSub: (x.nama || '-') + ' · stock ' + x.karton.toLocaleString('id-ID') + ' − reserved ' + Math.round(x.reserved).toLocaleString('id-ID'),
-      right: x.available.toLocaleString('id-ID', {maximumFractionDigits:0}) + ' Carton',
+      leftSub: (x.nama || '-') + ' · stock ' + _mekN(x.karton) + ' − reserved ' + _mekN(Math.round(x.reserved)),
+      right: _mekN(x.available) + ' Carton',
       rightColor: x.available <= 0 ? '#c53030' : '#276749'
     };
   });
   var rest = list.slice(10);
   if (rest.length) {
     var restSum = rest.reduce(function(s,x){ return s + x.available; }, 0);
-    items.push({ left: 'Lainnya (' + rest.length + ' SKU)', right: Math.round(restSum).toLocaleString('id-ID') + ' Carton', rightColor: '#718096' });
+    items.push({ left: 'Lainnya (' + rest.length + ' SKU)', right: _mekN(Math.round(restSum)) + ' Carton', rightColor: '#718096' });
   }
   var body = _mekRvBalanceHeader(totalStock, totalReserved) + _mekRvBuildListRows(items);
   if (deficit > 0) {
-    body += '<div style="font-size:10px;color:#c53030;margin-top:6px;">Ada reserved yang melebihi stock fisik SKU-nya sebanyak ' + Math.round(deficit).toLocaleString('id-ID')
+    body += '<div style="font-size:10px;color:#c53030;margin-top:6px;">Ada reserved yang melebihi stock fisik SKU-nya sebanyak ' + _mekN(Math.round(deficit))
       + ' Carton (SKU kurang stock) — Available per SKU dibatasi minimal 0, jadi jumlah baris bisa lebih besar dari kartu Available.</div>';
   }
   _mekRvOpenGenericModal('Available per SKU', 'Stock fisik − Reserved (dari kartu Reserved, ikut filter aktif). Sama dengan kartu Total Stock / Reserved / Available.', body);
@@ -2219,12 +2219,12 @@ function mekRvShowAvailableBreakdown() {
 function mekRvShowReservedPctBreakdown() {
   var rows = _mekRvLastFilteredRows || [];
   var sums = {};
-  rows.forEach(function(r) { var t = r.sourceType || 'ekspor'; sums[t] = (sums[t]||0) + (r.qtyReserved||0); });
+  rows.forEach(function(r) { var t = r.sourceType || 'ekspor'; sums[t] = (sums[t]||0) + Math.round(r.qtyReserved||0); });
   var total = 0; Object.keys(sums).forEach(function(k){ total += sums[k]; });
   var items = MEK_RV_BREAKDOWN_ORDER.map(function(t) {
     var v = sums[t] || 0;
     var pct = total > 0 ? (v / total * 100) : 0;
-    return { left: MEK_RV_TYPE_LABELS[t], leftSub: v.toLocaleString('id-ID') + ' Carton', right: pct.toFixed(1) + '%' };
+    return { left: MEK_RV_TYPE_LABELS[t], leftSub: _mekN(v) + ' Carton', right: pct.toFixed(1) + '%' };
   });
   _mekRvOpenGenericModal('Reserved % — Kontribusi per Tipe', 'Porsi tiap tipe dari total reserved (ikut filter aktif)', _mekRvBuildListRows(items));
 }
@@ -2269,8 +2269,8 @@ function mekRvShowShortageBreakdown() {
     if (seen[r.sku]) return;
     seen[r.sku] = true;
     var kurangTx = r.stockTersedia <= 0
-      ? 'Stock kosong (butuh ' + (r.stockButuh||0).toLocaleString('id-ID') + ')'
-      : 'Kurang ' + Math.abs(r.stockSelisih||0).toLocaleString('id-ID') + ' (ada ' + (r.stockTersedia||0).toLocaleString('id-ID') + '/butuh ' + (r.stockButuh||0).toLocaleString('id-ID') + ')';
+      ? 'Stock kosong (butuh ' + _mekN(r.stockButuh||0) + ')'
+      : 'Kurang ' + _mekN(Math.abs(r.stockSelisih||0)) + ' (ada ' + _mekN(r.stockTersedia||0) + '/butuh ' + _mekN(r.stockButuh||0) + ')';
     items.push({ left: r.sku || '-', leftSub: r.nama || '-', right: kurangTx, rightColor: '#c53030', wrap: true });
   });
   _mekRvOpenGenericModal('SKU Kurang Stock', 'Detail kekurangan per SKU (ikut filter aktif)', _mekRvBuildListRows(items));
@@ -2514,8 +2514,8 @@ function _mekRvRenderRowsList(rows, filterActive) {
     var isLong = r.tier === 'gt24';
     var stSt = _MEK_RV_STATUS_STYLE[r.containerStatus] || _MEK_RV_STATUS_STYLE.belum;
     var qtyCell = r.closed
-      ? '<span style="color:#a0aec0;">0</span> <span style="font-size:9px;color:#276749;">(terkirim ' + (r.qtyTotal||0).toLocaleString('id-ID') + ')</span>'
-      : (r.qtyReserved||0).toLocaleString('id-ID');
+      ? '<span style="color:#a0aec0;">0</span> <span style="font-size:9px;color:#276749;">(terkirim ' + _mekN(r.qtyTotal||0) + ')</span>'
+      : _mekN(r.qtyReserved||0);
     var waitCell = r.closed
       ? '<span style="color:#a0aec0;font-weight:400;">selesai</span>'
       : (_mekReservedFmtHours(r.waitHours) + (isLong ? ' <span style="font-size:9px;font-weight:800;">(Delay)</span>' : ''));
@@ -2535,8 +2535,8 @@ function _mekRvRenderRowsList(rows, filterActive) {
     var shortageBadge = '';
     if (!r.closed && r.stockCukup === false) {
       var kurangTx = r.stockTersedia <= 0
-        ? 'Stock kosong (butuh ' + (r.stockButuh||0).toLocaleString('id-ID') + ')'
-        : 'Kurang ' + Math.abs(r.stockSelisih||0).toLocaleString('id-ID') + ' (ada ' + (r.stockTersedia||0).toLocaleString('id-ID') + '/butuh ' + (r.stockButuh||0).toLocaleString('id-ID') + ')';
+        ? 'Stock kosong (butuh ' + _mekN(r.stockButuh||0) + ')'
+        : 'Kurang ' + _mekN(Math.abs(r.stockSelisih||0)) + ' (ada ' + _mekN(r.stockTersedia||0) + '/butuh ' + _mekN(r.stockButuh||0) + ')';
       shortageBadge = '<div style="font-size:9px;font-weight:700;color:#c53030;margin-top:2px;white-space:normal;"><i class="fas fa-triangle-exclamation"></i> ' + kurangTx + '</div>';
     }
 
@@ -3111,6 +3111,9 @@ function _mekRenderSummaryTable(data) {
   });
   tbody.innerHTML = rows;
 }
+
+// Angka ditampilin dibulatin, tanpa desimal (ribuan pakai titik format id-ID)
+function _mekN(v) { return Math.round(Number(v) || 0).toLocaleString('id-ID'); }
 
 function _mekEsc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/'/g,'&#39;').replace(/"/g,'&quot;');
@@ -7594,7 +7597,7 @@ function _mekRvRenderExtBlock() {
   if (chipsEl) {
     chipsEl.innerHTML = names.length ? names.map(function(n){
       return '<span style="background:#fff;border:1px solid #d6bcfa;border-radius:999px;padding:3px 10px;font-size:11px;color:#553c9a;font-weight:700;">'
-        + _mekEsc(n) + ' &middot; ' + (groups[n].pallet ? groups[n].pallet.toLocaleString('id-ID') + ' plt / ' : '') + groups[n].total.toLocaleString('id-ID') + ' krt</span>';
+        + _mekEsc(n) + ' &middot; ' + (groups[n].pallet ? _mekN(groups[n].pallet) + ' plt / ' : '') + _mekN(groups[n].total) + ' krt</span>';
     }).join('') : '<span style="font-size:11px;color:#a0aec0;">belum ada stok external</span>';
   }
   if (!names.length) {
@@ -7606,7 +7609,7 @@ function _mekRvRenderExtBlock() {
   }
   var grand = 0, grandP = 0;
   names.forEach(function(n){ grand += groups[n].total; grandP += groups[n].pallet; });
-  if (sub) sub.innerHTML = 'Total ' + grandP.toLocaleString('id-ID') + ' pallet / ' + grand.toLocaleString('id-ID') + ' karton di ' + names.length + ' gudang &middot; ikut hitungan reserved (FIFO tanggal produksi)';
+  if (sub) sub.innerHTML = 'Total ' + _mekN(grandP) + ' pallet / ' + _mekN(grand) + ' karton di ' + names.length + ' gudang &middot; ikut hitungan reserved (FIFO tanggal produksi)';
 
   body.innerHTML = names.map(function(n) {
     var g = groups[n];
@@ -7616,13 +7619,13 @@ function _mekRvRenderExtBlock() {
     var rows = g.lots.map(function(l) {
       var col = MEKEXT_COL[l.status];
       var lbl = l.status === 'avail' ? 'Available' : (l.status === 'longwait' ? 'Reserved &gt;24h' : 'Reserved');
-      var part = (l.reserved > 0 && l.reserved < l.karton) ? ' <span style="color:#a0aec0;">(' + l.reserved.toLocaleString('id-ID') + ' res / ' + (l.karton-l.reserved).toLocaleString('id-ID') + ' avail)</span>' : '';
+      var part = (l.reserved > 0 && l.reserved < l.karton) ? ' <span style="color:#a0aec0;">(' + _mekN(l.reserved) + ' res / ' + _mekN(l.karton-l.reserved) + ' avail)</span>' : '';
       return '<tr style="border-bottom:1px solid #edf2f7;">'
         + '<td style="padding:5px 8px;font-size:11px;"><span style="display:inline-block;width:9px;height:9px;border-radius:3px;background:' + col + ';margin-right:6px;"></span><b>' + _mekEsc(l.sku) + '</b>'
         + '<div style="font-size:10px;color:#a0aec0;margin-left:15px;">' + _mekEsc(l.nama||'') + '</div></td>'
         + '<td style="padding:5px 8px;font-size:11px;white-space:nowrap;">' + _mekEsc(l.prodate||'-') + '</td>'
-        + '<td style="padding:5px 8px;font-size:11px;text-align:right;">' + (l.pallet ? l.pallet.toLocaleString('id-ID') : '-') + '</td>'
-        + '<td style="padding:5px 8px;font-size:11px;text-align:right;font-weight:700;">' + l.karton.toLocaleString('id-ID') + '</td>'
+        + '<td style="padding:5px 8px;font-size:11px;text-align:right;">' + (l.pallet ? _mekN(l.pallet) : '-') + '</td>'
+        + '<td style="padding:5px 8px;font-size:11px;text-align:right;font-weight:700;">' + _mekN(l.karton) + '</td>'
         + '<td style="padding:5px 8px;font-size:10px;color:' + col + ';font-weight:700;white-space:nowrap;">' + lbl + part + '</td>'
         + '</tr>';
     }).join('');
@@ -7630,9 +7633,9 @@ function _mekRvRenderExtBlock() {
       + '<div style="background:#faf5ff;padding:8px 12px;display:flex;flex-wrap:wrap;align-items:center;gap:10px;">'
       +   '<div style="font-size:12px;font-weight:800;color:#553c9a;"><i class="fas fa-warehouse" style="margin-right:6px;"></i>' + _mekEsc(n) + '</div>'
       +   '<div style="margin-left:auto;display:flex;gap:12px;font-size:11px;">'
-      +     '<span>Total <b>' + g.pallet.toLocaleString('id-ID') + '</b> plt / <b>' + g.total.toLocaleString('id-ID') + '</b> krt</span>'
-      +     '<span style="color:#276749;">Available <b>' + avail.toLocaleString('id-ID') + '</b></span>'
-      +     '<span style="color:#c05621;">Reserved <b>' + g.reserved.toLocaleString('id-ID') + '</b> (' + pct.toFixed(0) + '%)</span>'
+      +     '<span>Total <b>' + _mekN(g.pallet) + '</b> plt / <b>' + _mekN(g.total) + '</b> krt</span>'
+      +     '<span style="color:#276749;">Available <b>' + _mekN(avail) + '</b></span>'
+      +     '<span style="color:#c05621;">Reserved <b>' + _mekN(g.reserved) + '</b> (' + pct.toFixed(0) + '%)</span>'
       +   '</div>'
       + '</div>'
       + '<div style="max-height:260px;overflow:auto;"><table style="width:100%;border-collapse:collapse;">'
