@@ -525,7 +525,7 @@ function _mekStockDetailRenderTersedia(d) {
   }).join('');
 
   pane.innerHTML =
-    '<div style="font-size:11px;color:#718096;margin-bottom:10px;">Posisi stok SKU ini di BinLoc sekarang (diurut dari prodate paling lama):</div>' +
+    '<div style="font-size:11px;color:#718096;margin-bottom:10px;">Posisi stok SKU ini sekarang — rak BinLoc &amp; Gudang External (diurut dari prodate paling lama):</div>' +
     '<table style="width:100%;border-collapse:collapse;">' +
       '<thead><tr style="border-bottom:2px solid #e2e8f0;">' +
         '<th style="padding:6px 8px;font-size:10px;text-align:left;color:#718096;">BIN LOKASI</th>' +
@@ -534,7 +534,7 @@ function _mekStockDetailRenderTersedia(d) {
         '<th style="padding:6px 8px;font-size:10px;text-align:left;color:#718096;">QUOTATION</th>' +
         '<th style="padding:6px 8px;font-size:10px;text-align:right;color:#718096;">KARTON</th>' +
       '</tr></thead>' +
-      '<tbody>' + (rows || '<tr><td colspan="5" style="padding:14px;text-align:center;color:#a0aec0;font-size:11px;">Tidak ada stok di BinLoc</td></tr>') + '</tbody>' +
+      '<tbody>' + (rows || '<tr><td colspan="5" style="padding:14px;text-align:center;color:#a0aec0;font-size:11px;">Tidak ada stok di BinLoc / Gudang External</td></tr>') + '</tbody>' +
       (bins.length ? '<tfoot><tr style="border-top:2px solid #e2e8f0;"><td colspan="4" style="padding:6px 8px;font-size:11px;font-weight:700;text-align:right;">Total</td><td style="padding:6px 8px;font-size:12px;font-weight:800;text-align:right;color:#276749;">' + d.tersedia.toLocaleString('id-ID') + '</td></tr></tfoot>' : '') +
     '</table>';
 }
@@ -1757,6 +1757,7 @@ function _mekRenderReservedView(data) {
 
   var rows = (data.rows || []).map(function(r){ r.tier = _mekReservedWaitTier(r.waitHours); return r; });
   _mekRvRowsRaw  = rows;          // simpan mentah — dipakai _mekRvApplyRowFilter buat filter list
+  _mekRvExtCellsRaw = data.externalCells || []; // stok Gudang External (gak punya koordinat rak, gak masuk peta)
   _mekRvCellsRaw = data.cells || []; // simpan mentah juga — dipakai buat bangun ULANG peta pas filter tipe (ALL/EKSPOR/DIRECT/dst) diganti
 
   // Bangun agregasi peta (_mekRvBinAgg + _mekRvLongWaitSkus), ngikutin tipe
@@ -1831,6 +1832,7 @@ function _mekRvRebuildBinAgg() {
 // ── Filter list "Reserved Stock Monitoring" — sama pola kaya Kesiapan Stock. ──
 var _mekRvRowsRaw = [];
 var _mekRvCellsRaw = [];
+var _mekRvExtCellsRaw = []; // lot Gudang External (dari getMekReservedMap → externalCells)
 var _mekRvLastFilteredRows = []; // rows abis kena filter — dipakai ulang sama mekRvToggleDetail
 var _mekRvStatusFilter = null; // null=semua, atau 'belum'/'proses'/'keluar' — diisi klik strip Status Container
 
@@ -1879,6 +1881,7 @@ function _mekRvApplyRowFilter() {
   _mekRvUpdateStockKpis(skuF, rows);
   _mekRvLastFilteredRows = rows; // disimpan buat mekRvToggleDetail (biar pas di-ON/OFF-in gak perlu nunggu filter berubah lagi)
   _mekRvUpdateAvgWaitCard(rows);
+  _mekRvRenderExtBlock(); // blok Gudang External ikut filter SKU/tipe
 }
 
 // KPI "Total Stock" / "Available" / "Reserved %" — Total Stock dihitung dari
@@ -1899,7 +1902,7 @@ function _mekRvApplyRowFilter() {
 function _mekRvUpdateStockKpis(skuF, rows) {
   if (skuF === undefined) skuF = ((document.getElementById('mekRvFilterSku')||{}).value||'').toLowerCase().trim();
   var totalStock = 0;
-  (_mekRvCellsRaw || []).forEach(function(c){
+  _mekRvCellsRaw.concat(_mekRvExtCellsRaw || []).forEach(function(c){ // rak BinLoc + Gudang External
     if (skuF && (c.sku||'').toLowerCase().indexOf(skuF) < 0 && (c.nama||'').toLowerCase().indexOf(skuF) < 0) return;
     totalStock += c.karton || 0;
   });
@@ -2099,7 +2102,7 @@ function _mekRvBuildListRows(items) {
 function mekRvShowTotalStockBreakdown() {
   var skuF = ((document.getElementById('mekRvFilterSku')||{}).value||'').toLowerCase().trim();
   var agg = {};
-  (_mekRvCellsRaw || []).forEach(function(c) {
+  _mekRvCellsRaw.concat(_mekRvExtCellsRaw || []).forEach(function(c) {
     if (skuF && (c.sku||'').toLowerCase().indexOf(skuF) < 0 && (c.nama||'').toLowerCase().indexOf(skuF) < 0) return;
     var k = c.sku || '-';
     if (!agg[k]) agg[k] = { sku: k, nama: c.nama, karton: 0 };
@@ -2116,7 +2119,7 @@ function mekRvShowAvailableBreakdown() {
   var skuF = ((document.getElementById('mekRvFilterSku')||{}).value||'').toLowerCase().trim();
   var info = _mekRvGetFilterAwareReserveInfo();
   var agg = {};
-  (_mekRvCellsRaw || []).forEach(function(c) {
+  _mekRvCellsRaw.concat(_mekRvExtCellsRaw || []).forEach(function(c) {
     if (skuF && (c.sku||'').toLowerCase().indexOf(skuF) < 0 && (c.nama||'').toLowerCase().indexOf(skuF) < 0) return;
     var karton = c.karton || 0;
     var reserved = info.showEkspor ? Math.min(c.reservedKarton || 0, karton) : 0;
@@ -7436,4 +7439,336 @@ function _mekCloseDownloadMenu(e) {
     if (menu) menu.style.display = 'none';
     document.removeEventListener('click', _mekCloseDownloadMenu);
   }
+}
+
+
+// ════════════════════════════════════════════════════════════
+// GUDANG EXTERNAL — stok di luar rak BinLoc, dicatat lewat ledger
+// masuk/keluar (sheet STOCK_EXTERNAL_MOVEMENT). Saldo dihitung server &
+// digabung ke alokasi reservasi FIFO (lihat getMekStockReadiness).
+// Karena gak punya koordinat rak, ditampilkan sebagai blok terpisah di
+// bawah peta, dengan warna status yang sama (hijau/oranye/merah).
+// ════════════════════════════════════════════════════════════
+var MEKEXT_COL = { avail: '#10b981', reserved: '#f59e0b', longwait: '#ef4444' };
+
+function _mekRvRenderExtBlock() {
+  var body = document.getElementById('mekRvExtBody');
+  if (!body) return;
+  var skuF = ((document.getElementById('mekRvFilterSku')||{}).value||'').toLowerCase().trim();
+  var info = _mekRvGetFilterAwareReserveInfo();
+
+  var groups = {}; // gudang -> {total, reserved, lots:[]}
+  (_mekRvExtCellsRaw || []).forEach(function(c) {
+    if (skuF && (c.sku||'').toLowerCase().indexOf(skuF) < 0 && (c.nama||'').toLowerCase().indexOf(skuF) < 0) return;
+    var karton = c.karton || 0;
+    var reserved = info.showEkspor ? Math.min(c.reservedKarton || 0, karton) : 0;
+    if (info.approxSkuSet[c.sku]) reserved = karton; // tipe non-ekspor: pendekatan per-SKU, sama kayak peta
+    var status = reserved <= 0 ? 'avail' : (info.longWaitSkuSet[c.sku] ? 'longwait' : 'reserved');
+    var g = groups[c.gudang] || (groups[c.gudang] = { total: 0, reserved: 0, lots: [] });
+    g.total += karton; g.reserved += reserved;
+    g.lots.push({ sku: c.sku, nama: c.nama, prodate: c.prodate, karton: karton, reserved: reserved, status: status });
+  });
+
+  var names = Object.keys(groups).sort();
+  var sub = document.getElementById('mekRvExtSub');
+  var chipsEl = document.getElementById('mekRvExtChips');
+  if (chipsEl) {
+    chipsEl.innerHTML = names.length ? names.map(function(n){
+      return '<span style="background:#fff;border:1px solid #d6bcfa;border-radius:999px;padding:3px 10px;font-size:11px;color:#553c9a;font-weight:700;">'
+        + _mekEsc(n) + ' &middot; ' + groups[n].total.toLocaleString('id-ID') + ' krt</span>';
+    }).join('') : '<span style="font-size:11px;color:#a0aec0;">belum ada stok external</span>';
+  }
+  if (!names.length) {
+    if (sub) sub.innerHTML = 'Stok di luar rak BinLoc &middot; ikut hitungan reserved (FIFO tanggal produksi)';
+    body.innerHTML = '<div style="text-align:center;padding:14px;color:#a0aec0;font-size:12px;">'
+      + ((_mekRvExtCellsRaw||[]).length ? 'Tidak ada stok external yang cocok dengan filter.' : 'Belum ada stok di gudang external. Klik <b>Catat Movement</b> &rarr; MASUK untuk mencatat saldo awal.')
+      + '</div>';
+    return;
+  }
+  var grand = 0;
+  names.forEach(function(n){ grand += groups[n].total; });
+  if (sub) sub.innerHTML = 'Total ' + grand.toLocaleString('id-ID') + ' karton di ' + names.length + ' gudang &middot; ikut hitungan reserved (FIFO tanggal produksi)';
+
+  body.innerHTML = names.map(function(n) {
+    var g = groups[n];
+    var avail = Math.max(0, g.total - g.reserved);
+    var pct = g.total > 0 ? (g.reserved / g.total * 100) : 0;
+    g.lots.sort(function(a,b){ return _mekExtDmyKey(a.prodate).localeCompare(_mekExtDmyKey(b.prodate)) || (a.sku||'').localeCompare(b.sku||''); });
+    var rows = g.lots.map(function(l) {
+      var col = MEKEXT_COL[l.status];
+      var lbl = l.status === 'avail' ? 'Available' : (l.status === 'longwait' ? 'Reserved &gt;24h' : 'Reserved');
+      var part = (l.reserved > 0 && l.reserved < l.karton) ? ' <span style="color:#a0aec0;">(' + l.reserved.toLocaleString('id-ID') + ' res / ' + (l.karton-l.reserved).toLocaleString('id-ID') + ' avail)</span>' : '';
+      return '<tr style="border-bottom:1px solid #edf2f7;">'
+        + '<td style="padding:5px 8px;font-size:11px;"><span style="display:inline-block;width:9px;height:9px;border-radius:3px;background:' + col + ';margin-right:6px;"></span><b>' + _mekEsc(l.sku) + '</b>'
+        + '<div style="font-size:10px;color:#a0aec0;margin-left:15px;">' + _mekEsc(l.nama||'') + '</div></td>'
+        + '<td style="padding:5px 8px;font-size:11px;white-space:nowrap;">' + _mekEsc(l.prodate||'-') + '</td>'
+        + '<td style="padding:5px 8px;font-size:11px;text-align:right;font-weight:700;">' + l.karton.toLocaleString('id-ID') + '</td>'
+        + '<td style="padding:5px 8px;font-size:10px;color:' + col + ';font-weight:700;white-space:nowrap;">' + lbl + part + '</td>'
+        + '</tr>';
+    }).join('');
+    return '<div style="border:1px solid #e9d8fd;border-radius:10px;margin-bottom:10px;overflow:hidden;">'
+      + '<div style="background:#faf5ff;padding:8px 12px;display:flex;flex-wrap:wrap;align-items:center;gap:10px;">'
+      +   '<div style="font-size:12px;font-weight:800;color:#553c9a;"><i class="fas fa-warehouse" style="margin-right:6px;"></i>' + _mekEsc(n) + '</div>'
+      +   '<div style="margin-left:auto;display:flex;gap:12px;font-size:11px;">'
+      +     '<span>Total <b>' + g.total.toLocaleString('id-ID') + '</b></span>'
+      +     '<span style="color:#276749;">Available <b>' + avail.toLocaleString('id-ID') + '</b></span>'
+      +     '<span style="color:#c05621;">Reserved <b>' + g.reserved.toLocaleString('id-ID') + '</b> (' + pct.toFixed(0) + '%)</span>'
+      +   '</div>'
+      + '</div>'
+      + '<div style="max-height:260px;overflow:auto;"><table style="width:100%;border-collapse:collapse;">'
+      +   '<thead><tr style="border-bottom:2px solid #e2e8f0;position:sticky;top:0;background:#fff;">'
+      +     '<th style="padding:5px 8px;font-size:10px;text-align:left;color:#718096;">SKU</th>'
+      +     '<th style="padding:5px 8px;font-size:10px;text-align:left;color:#718096;">PRODATE</th>'
+      +     '<th style="padding:5px 8px;font-size:10px;text-align:right;color:#718096;">KARTON</th>'
+      +     '<th style="padding:5px 8px;font-size:10px;text-align:left;color:#718096;">STATUS</th>'
+      +   '</tr></thead><tbody>' + rows + '</tbody></table></div>'
+      + '</div>';
+  }).join('');
+}
+
+function mekRvToggleExtBody() {
+  var body = document.getElementById('mekRvExtBody');
+  var btn = document.getElementById('mekRvExtToggleBtn');
+  if (!body) return;
+  var open = body.style.display === 'none';
+  body.style.display = open ? 'block' : 'none';
+  if (btn) btn.innerHTML = '<i class="fas fa-chevron-' + (open ? 'up' : 'down') + '"></i>';
+}
+
+// "dd/MM/yyyy" → "yyyy-MM-dd" biar bisa disortir sebagai string
+function _mekExtDmyKey(d) {
+  var m = String(d||'').match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  return m ? (m[3] + '-' + m[2] + '-' + m[1]) : String(d||'');
+}
+
+// ── Modal catat movement ──────────────────────────────────
+var _mekExtDrafts = [];
+var _mekExtState = { gudangs: [], lots: [] };
+var _mekExtBusy = false;
+
+function _mekExtTodayIso() {
+  var d = new Date();
+  return d.getFullYear() + '-' + ('0'+(d.getMonth()+1)).slice(-2) + '-' + ('0'+d.getDate()).slice(-2);
+}
+
+function mekExtOpenModal() {
+  var el = document.getElementById('mekExtModal');
+  if (!el) return;
+  el.style.display = 'flex';
+  var t = document.getElementById('mekExtTanggal');
+  if (t && !t.value) t.value = _mekExtTodayIso();
+  _mekExtFillSkuList();
+  mekExtOnTipeChange();
+  mekExtSwitchTab('input');
+  _mekExtRefreshState();
+}
+
+function mekExtCloseModal() {
+  var el = document.getElementById('mekExtModal');
+  if (el) el.style.display = 'none';
+}
+
+function mekExtSwitchTab(tab) {
+  ['input','saldo','riwayat'].forEach(function(t) {
+    var cap = t.charAt(0).toUpperCase() + t.slice(1);
+    var pane = document.getElementById('mekExtPane' + cap);
+    var btn = document.getElementById('mekExtTab' + cap);
+    if (pane) pane.style.display = t === tab ? 'block' : 'none';
+    if (btn) btn.classList.toggle('active', t === tab);
+  });
+  if (tab === 'saldo') _mekExtRenderSaldo();
+  if (tab === 'riwayat') _mekExtLoadRiwayat();
+}
+
+// Daftar SKU dikenal (planning + stok BinLoc + external) buat autocomplete & auto-nama
+function _mekExtKnownSkus() {
+  var map = {};
+  (_mekRvCellsRaw || []).concat(_mekRvExtCellsRaw || []).forEach(function(c) { if (c.sku && !map[c.sku]) map[c.sku] = c.nama || ''; });
+  (_mekRvRowsRaw || []).forEach(function(r) {
+    String(r.sku||'').split(',').forEach(function(sk) { sk = sk.trim(); if (sk && map[sk] === undefined) map[sk] = (String(r.sku||'').indexOf(',') < 0 ? (r.nama||'') : ''); });
+  });
+  return map;
+}
+
+function _mekExtFillSkuList() {
+  var dl = document.getElementById('mekExtSkuList');
+  if (!dl) return;
+  var map = _mekExtKnownSkus();
+  dl.innerHTML = Object.keys(map).sort().map(function(k){ return '<option value="' + _mekEsc(k) + '">' + _mekEsc(map[k]) + '</option>'; }).join('');
+}
+
+function mekExtOnSkuInput() {
+  var sku = (document.getElementById('mekExtSku').value || '').trim();
+  var hint = document.getElementById('mekExtSkuHint');
+  var namaEl = document.getElementById('mekExtNama');
+  if (!sku) { if (hint) hint.textContent = ''; return; }
+  var map = _mekExtKnownSkus();
+  if (map[sku] !== undefined) {
+    if (namaEl && (!namaEl.value || namaEl.dataset.auto === '1')) { namaEl.value = map[sku]; namaEl.dataset.auto = '1'; }
+    if (hint) { hint.style.color = '#276749'; hint.textContent = 'SKU dikenal (ada di planning/stok).'; }
+  } else if (hint) {
+    hint.style.color = '#c05621';
+    hint.textContent = 'SKU belum dikenal — pastikan kodenya sama persis dengan di planning / BinLoc supaya ikut hitungan reserved.';
+  }
+}
+
+function mekExtOnTipeChange() {
+  var tipe = document.getElementById('mekExtTipe').value;
+  var lbl = document.getElementById('mekExtProdateLbl');
+  var hint = document.getElementById('mekExtProdateHint');
+  if (lbl) lbl.textContent = tipe === 'MASUK' ? 'Tgl Produksi (wajib)' : 'Tgl Produksi (opsional)';
+  if (hint) hint.innerHTML = tipe === 'MASUK'
+    ? 'Tips: pertama kali, catat stok yang sudah ada sekarang sebagai MASUK (keterangan: &quot;saldo awal&quot;) per tanggal produksi.'
+    : 'KELUAR: kosongkan tgl produksi &rarr; diambil otomatis dari yang paling lama (FIFO). Isi kalau mau ambil dari lot tertentu.';
+}
+
+function _mekExtFormMsg(t) { var el = document.getElementById('mekExtFormMsg'); if (el) el.textContent = t || ''; }
+
+function mekExtAddDraft() {
+  var g = function(id){ return (document.getElementById(id).value || '').trim(); };
+  var row = {
+    tanggal: g('mekExtTanggal') || _mekExtTodayIso(), gudang: g('mekExtGudang').replace(/\s+/g,' ').toUpperCase(),
+    tipe: g('mekExtTipe'), sku: g('mekExtSku'), nama: g('mekExtNama'),
+    karton: Math.round(Number(g('mekExtKarton')) || 0), prodate: g('mekExtProdate'), keterangan: g('mekExtKet')
+  };
+  if (!row.gudang) return _mekExtFormMsg('Nama gudang belum diisi.');
+  if (!row.sku) return _mekExtFormMsg('SKU belum diisi.');
+  if (row.karton <= 0) return _mekExtFormMsg('Karton harus lebih dari 0.');
+  if (row.tipe === 'MASUK' && !row.prodate) return _mekExtFormMsg('Tanggal produksi wajib untuk MASUK (dipakai buat urutan FIFO).');
+  _mekExtFormMsg('');
+  _mekExtDrafts.push(row);
+  // Tanggal, gudang, tipe dipertahankan buat input beruntun; SKU/qty dikosongkan
+  ['mekExtSku','mekExtNama','mekExtKarton','mekExtProdate','mekExtKet'].forEach(function(id){ var el = document.getElementById(id); if (el) { el.value = ''; if (el.dataset) el.dataset.auto = ''; } });
+  var hint = document.getElementById('mekExtSkuHint'); if (hint) hint.textContent = '';
+  _mekExtRenderDrafts();
+  var sk = document.getElementById('mekExtSku'); if (sk) sk.focus();
+}
+
+function mekExtRemoveDraft(i) { _mekExtDrafts.splice(i, 1); _mekExtRenderDrafts(); }
+
+function _mekExtRenderDrafts() {
+  var tb = document.getElementById('mekExtDraftBody');
+  var cnt = document.getElementById('mekExtDraftCount');
+  var btn = document.getElementById('mekExtSaveBtn');
+  if (cnt) cnt.textContent = _mekExtDrafts.length;
+  if (btn) btn.disabled = !_mekExtDrafts.length || _mekExtBusy;
+  if (!tb) return;
+  if (!_mekExtDrafts.length) { tb.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#a0aec0;padding:14px;">Belum ada</td></tr>'; return; }
+  tb.innerHTML = _mekExtDrafts.map(function(r, i) {
+    var col = r.tipe === 'MASUK' ? '#276749' : '#c05621';
+    return '<tr><td>' + _mekEsc(r.tanggal) + '</td><td>' + _mekEsc(r.gudang) + '</td>'
+      + '<td style="font-weight:800;color:' + col + ';">' + r.tipe + '</td>'
+      + '<td><b>' + _mekEsc(r.sku) + '</b></td><td>' + _mekEsc(r.nama||'') + '</td>'
+      + '<td style="text-align:right;font-weight:700;">' + r.karton.toLocaleString('id-ID') + '</td>'
+      + '<td>' + _mekEsc(r.prodate||'FIFO') + '</td><td>' + _mekEsc(r.keterangan||'') + '</td>'
+      + '<td><button onclick="mekExtRemoveDraft(' + i + ')" style="border:none;background:none;color:#c53030;cursor:pointer;" title="Hapus dari daftar"><i class="fas fa-times"></i></button></td></tr>';
+  }).join('');
+}
+
+function mekExtSaveDrafts() {
+  if (_mekExtBusy || !_mekExtDrafts.length) return;
+  var msg = document.getElementById('mekExtSaveMsg');
+  _mekExtBusy = true; _mekExtRenderDrafts();
+  if (msg) { msg.style.color = '#718096'; msg.textContent = 'Menyimpan...'; }
+  API.run('saveExternalMovements', { rows: _mekExtDrafts }, function(res) {
+    _mekExtBusy = false;
+    if (res && res.success) {
+      var n = _mekExtDrafts.length;
+      _mekExtDrafts = [];
+      _mekExtRenderDrafts();
+      if (msg) { msg.style.color = '#276749'; msg.textContent = n + ' movement tersimpan.'; }
+      _mekExtRefreshState();
+      mekLoadReservedView(); // muat ulang: blok Gudang External + hitungan reserved ikut update
+    } else {
+      _mekExtRenderDrafts();
+      if (msg) { msg.style.color = '#c53030'; msg.textContent = (res && res.message) || 'Gagal menyimpan.'; }
+    }
+  }, function() {
+    _mekExtBusy = false; _mekExtRenderDrafts();
+    if (msg) { msg.style.color = '#c53030'; msg.textContent = 'Koneksi bermasalah, coba lagi.'; }
+  });
+}
+
+function _mekExtRefreshState() {
+  API.run('getExternalStock', {}, function(res) {
+    if (!res || !res.success) return;
+    _mekExtState = res;
+    var dl = document.getElementById('mekExtGudangList');
+    if (dl) dl.innerHTML = (res.gudangs || []).map(function(g){ return '<option value="' + _mekEsc(g) + '"></option>'; }).join('');
+    var chips = document.getElementById('mekExtGudangChips');
+    if (chips && res.gudangs && res.gudangs.length) {
+      chips.innerHTML = res.gudangs.map(function(g){
+        return '<button type="button" onclick="mekExtPickGudang(\'' + _mekEsc(g).replace(/'/g,"&#39;") + '\')" style="border:1px solid #b794f4;background:#fff;color:#553c9a;border-radius:999px;padding:2px 10px;font-size:11px;font-weight:700;cursor:pointer;">' + _mekEsc(g) + '</button>';
+      }).join('');
+    }
+    var pane = document.getElementById('mekExtPaneSaldo');
+    if (pane && pane.style.display !== 'none') _mekExtRenderSaldo();
+  });
+}
+
+function mekExtPickGudang(name) {
+  var gi = document.getElementById('mekExtGudang');
+  if (gi) { gi.value = name; }
+  var sk = document.getElementById('mekExtSku'); if (sk) sk.focus();
+}
+
+function _mekExtRenderSaldo() {
+  var pane = document.getElementById('mekExtPaneSaldo');
+  if (!pane) return;
+  var lots = (_mekExtState && _mekExtState.lots) || [];
+  var warn = ((_mekExtState && _mekExtState.overdraw) || []).map(function(o) {
+    return '<div style="font-size:11px;color:#c53030;margin-bottom:4px;">Peringatan: KELUAR melebihi saldo untuk ' + _mekEsc(o.sku) + ' @ ' + _mekEsc(o.gudang) + ' (' + o.short + ' krt)</div>';
+  }).join('');
+  if (!lots.length) { pane.innerHTML = warn + '<div style="text-align:center;padding:24px;color:#a0aec0;font-size:12px;">Belum ada saldo. Catat MASUK dulu di tab Input.</div>'; return; }
+  var byG = {};
+  lots.forEach(function(l){ (byG[l.gudang] = byG[l.gudang] || []).push(l); });
+  pane.innerHTML = warn + Object.keys(byG).sort().map(function(g) {
+    var tot = 0; byG[g].forEach(function(l){ tot += l.karton; });
+    var rows = byG[g].map(function(l) {
+      return '<tr><td><b>' + _mekEsc(l.sku) + '</b></td><td>' + _mekEsc(l.nama||'') + '</td><td>' + _mekEsc(_mekExtIsoToDmy(l.prodate)) + '</td>'
+        + '<td style="text-align:right;font-weight:700;">' + l.karton.toLocaleString('id-ID') + '</td></tr>';
+    }).join('');
+    return '<div style="font-size:12px;font-weight:800;color:#553c9a;margin:6px 0;">' + _mekEsc(g) + ' &middot; ' + tot.toLocaleString('id-ID') + ' karton</div>'
+      + '<table class="mekext-tbl" style="margin-bottom:12px;"><thead><tr><th>SKU</th><th>Nama</th><th>Prodate</th><th style="text-align:right;">Karton</th></tr></thead><tbody>' + rows + '</tbody></table>';
+  }).join('');
+}
+
+function _mekExtIsoToDmy(iso) {
+  var m = String(iso||'').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? (m[3] + '/' + m[2] + '/' + m[1]) : String(iso||'');
+}
+
+function _mekExtLoadRiwayat() {
+  var pane = document.getElementById('mekExtPaneRiwayat');
+  if (!pane) return;
+  pane.innerHTML = '<div style="text-align:center;padding:24px;color:#a0aec0;font-size:12px;"><i class="fas fa-spinner fa-spin"></i> Memuat...</div>';
+  API.run('getExternalMovements', { limit: 200 }, function(res) {
+    if (!res || !res.success) { pane.innerHTML = '<div style="color:#c53030;font-size:12px;padding:14px;">' + _mekEsc((res && res.message) || 'Gagal memuat') + '</div>'; return; }
+    var data = res.data || [];
+    if (!data.length) { pane.innerHTML = '<div style="text-align:center;padding:24px;color:#a0aec0;font-size:12px;">Belum ada movement.</div>'; return; }
+    pane.innerHTML = '<div style="font-size:10px;color:#a0aec0;margin-bottom:6px;">' + data.length + ' terbaru dari ' + (res.total||data.length) + '. Salah input? Hapus barisnya, lalu catat ulang.</div>'
+      + '<div style="overflow:auto;"><table class="mekext-tbl"><thead><tr><th>Tgl</th><th>Gudang</th><th>Tipe</th><th>SKU</th><th>Nama</th><th style="text-align:right;">Karton</th><th>Prodate</th><th>Ket</th><th></th></tr></thead><tbody>'
+      + data.map(function(m) {
+        var col = m.tipe === 'MASUK' ? '#276749' : '#c05621';
+        return '<tr><td>' + _mekEsc(m.tanggal) + '</td><td>' + _mekEsc(m.gudang) + '</td><td style="font-weight:800;color:' + col + ';">' + m.tipe + '</td>'
+          + '<td><b>' + _mekEsc(m.sku) + '</b></td><td>' + _mekEsc(m.nama||'') + '</td><td style="text-align:right;font-weight:700;">' + m.karton.toLocaleString('id-ID') + '</td>'
+          + '<td>' + _mekEsc(m.prodate||'FIFO') + '</td><td>' + _mekEsc(m.keterangan||'') + '</td>'
+          + '<td><button onclick="mekExtDeleteMovement(\'' + _mekEsc(m.id) + '\')" style="border:none;background:none;color:#c53030;cursor:pointer;" title="Hapus movement ini"><i class="fas fa-trash"></i></button></td></tr>';
+      }).join('') + '</tbody></table></div><div id="mekExtRiwayatMsg" style="font-size:11px;margin-top:8px;"></div>';
+  });
+}
+
+function mekExtDeleteMovement(id) {
+  if (!id) return;
+  if (!window.confirm('Hapus movement ini? Saldo akan dihitung ulang.')) return;
+  API.run('deleteExternalMovement', { id: id }, function(res) {
+    var el = document.getElementById('mekExtRiwayatMsg');
+    if (res && res.success) {
+      _mekExtRefreshState();
+      _mekExtLoadRiwayat();
+      mekLoadReservedView();
+    } else if (el) {
+      el.style.color = '#c53030'; el.textContent = (res && res.message) || 'Gagal menghapus.';
+    }
+  });
 }
