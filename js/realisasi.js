@@ -501,22 +501,45 @@ function initRealForm(){
       if(!rows.length){ showToast('⚠️ Belum ada data untuk disimpan', 'error'); return; }
 
       var btn = document.getElementById('btnSaveHp');
+      if(btn && btn.disabled) return; // lagi proses simpan — jangan kirim dobel
       if(btn){ btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menyimpan...'; }
+      var finished = false;
+      var saveGudang = _hpGudang;
       function resetBtn(){
         if(btn){ btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Save'; }
       }
+      // Pengaman: kalau server gak bales dalam 60 detik, tombol dilepas (gak muter terus).
+      // Data BISA saja sudah tersimpan di server — cek sheet HASIL_PRODUKSI sebelum Save ulang.
+      var guard = setTimeout(function(){
+        if(finished) return;
+        finished = true;
+        resetBtn();
+        showToast('⚠️ Server belum membalas (>60 dtk). Data mungkin sudah tersimpan — cek dulu sebelum Save ulang.', 'error');
+      }, 60000);
 
-      API.run('saveHasilProduksiData', { tanggal: tgl, gudang: _hpGudang, rows: rows }, function(res){
+      API.run('saveHasilProduksiData', { tanggal: tgl, gudang: saveGudang, rows: rows }, function(res){
+          if(finished) return; // sudah kena timeout pengaman
+          finished = true; clearTimeout(guard);
           resetBtn();
           if(res && res.success){
             showToast('✅ '+res.message, 'success');
-            // Refresh cache & tampilan tab yang barusan di-Save SAJA — tab
-            // gudang lain yang masih ada draft belum di-Save tetap aman.
-            _hpFetchFromServer(_hpGudang, tgl);
+            // Cache tab yang barusan di-Save langsung diisi dari baris yang dikirim
+            // (gak perlu ambil ulang dari server — itu 1 panggilan berat tambahan
+            // yang bikin Save terasa lama). Tab gudang lain yang masih ada draft
+            // belum di-Save tetap aman.
+            // rows: [code, nama, bb, receipt, issued, eb, std, jml, divisi, plant]
+            _hpFetchedGudang[saveGudang] = true;
+            _hpCache[saveGudang] = rows.map(function(r){
+              return { code:r[0]||'', name:r[1]||'', bal:r[2]||'', rec:r[3]||'', issued:r[4]||'', ending:r[5]||'', std:r[6]||'', divisi:r[8]||'', plant:r[9]||'' };
+            });
           } else {
             showToast('❌ '+(res&&res.message||'Gagal menyimpan'), 'error');
           }
-        }, function(){ resetBtn(); showToast('❌ Gagal menyimpan', 'error'); });
+        }, function(){
+          if(finished) return;
+          finished = true; clearTimeout(guard);
+          resetBtn(); showToast('❌ Gagal menyimpan', 'error');
+        });
     }
 
     // =============================================
