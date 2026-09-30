@@ -6038,12 +6038,19 @@
                 </select></div>
               <div><label class="mekext-lbl">SKU</label><input type="text" id="mekExtSku" list="mekExtSkuList" class="mekext-in" placeholder="kode SKU" oninput="mekExtOnSkuInput()"><datalist id="mekExtSkuList"></datalist></div>
               <div><label class="mekext-lbl">Nama Barang</label><input type="text" id="mekExtNama" class="mekext-in" placeholder="otomatis kalau SKU dikenal"></div>
-              <div><label class="mekext-lbl">Karton</label><input type="number" id="mekExtKarton" class="mekext-in" min="1" step="1" placeholder="0"></div>
+              <div><label class="mekext-lbl">Satuan Input</label>
+                <select id="mekExtUnit" class="mekext-in" onchange="mekExtOnUnitChange()">
+                  <option value="PALLET">Pallet (&times; STD = karton)</option>
+                  <option value="KARTON">Karton</option>
+                </select></div>
+              <div><label id="mekExtQtyLbl" class="mekext-lbl">Jumlah Pallet</label><input type="number" id="mekExtKarton" class="mekext-in" min="0" step="any" placeholder="0" oninput="mekExtRecalc()"></div>
+              <div id="mekExtStdWrap"><label class="mekext-lbl">STD Pallet (isi/pallet)</label><input type="number" id="mekExtStd" class="mekext-in" min="0" step="1" placeholder="otomatis dari SKU" oninput="mekExtRecalc(true)"></div>
               <div><label id="mekExtProdateLbl" class="mekext-lbl">Tgl Produksi (wajib)</label><input type="date" id="mekExtProdate" class="mekext-in"></div>
               <div><label class="mekext-lbl">Keterangan</label><input type="text" id="mekExtKet" class="mekext-in" placeholder="opsional (mis. saldo awal, no. DO)"></div>
             </div>
             <div style="margin-top:8px;font-size:10px;color:#718096;">Gudang yang sudah ada (klik untuk pilih): <span id="mekExtGudangChips" style="display:inline-flex;gap:5px;flex-wrap:wrap;vertical-align:middle;"><i style="color:#a0aec0;">belum ada — ketik nama gudang baru di atas</i></span></div>
             <div id="mekExtSkuHint" style="font-size:10px;margin-top:6px;min-height:14px;color:#a0aec0;"></div>
+            <div id="mekExtCalcHint" style="font-size:12px;font-weight:800;color:#553c9a;margin-top:4px;min-height:16px;"></div>
             <div id="mekExtProdateHint" style="font-size:10px;color:#a0aec0;margin-top:2px;">Tips: pertama kali, catat stok yang sudah ada sekarang sebagai MASUK (keterangan: &quot;saldo awal&quot;) per tanggal produksi.</div>
             <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
               <button onclick="mekExtAddDraft()" class="mek-tab-btn mek-pill-tab active" style="padding:7px 14px;font-size:12px;"><i class="fas fa-plus"></i> Tambah ke daftar</button>
@@ -6052,8 +6059,8 @@
 
             <div style="margin-top:14px;font-size:11px;font-weight:800;color:#4a5568;">Daftar yang akan disimpan (<span id="mekExtDraftCount">0</span>)</div>
             <div style="overflow:auto;margin-top:6px;">
-              <table class="mekext-tbl"><thead><tr><th>Tgl</th><th>Gudang</th><th>Tipe</th><th>SKU</th><th>Nama</th><th style="text-align:right;">Karton</th><th>Prodate</th><th>Ket</th><th></th></tr></thead>
-              <tbody id="mekExtDraftBody"><tr><td colspan="9" style="text-align:center;color:#a0aec0;padding:14px;">Belum ada</td></tr></tbody></table>
+              <table class="mekext-tbl"><thead><tr><th>Tgl</th><th>Gudang</th><th>Tipe</th><th>SKU</th><th>Nama</th><th style="text-align:right;">Pallet</th><th style="text-align:right;">Karton</th><th>Prodate</th><th>Ket</th><th></th></tr></thead>
+              <tbody id="mekExtDraftBody"><tr><td colspan="10" style="text-align:center;color:#a0aec0;padding:14px;">Belum ada</td></tr></tbody></table>
             </div>
             <div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
               <button id="mekExtSaveBtn" onclick="mekExtSaveDrafts()" class="mek-tab-btn mek-pill-tab active" style="padding:8px 18px;font-size:12px;background:#276749;color:#fff;" disabled><i class="fas fa-floppy-disk"></i> Simpan semua</button>
