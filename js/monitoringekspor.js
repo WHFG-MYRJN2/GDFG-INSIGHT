@@ -7560,7 +7560,7 @@ function mekExtOpenModal() {
   var t = document.getElementById('mekExtTanggal');
   if (t && !t.value) t.value = _mekExtTodayIso();
   _mekExtFillSkuList();
-  try { if (typeof _preloadStdCache === 'function') _preloadStdCache(); } catch (e) {} // isi cache STD PALLET (sama dgn Input Data)
+  _mekExtLoadStd(function(){ mekExtAutoStd(); });
   mekExtOnTipeChange();
   mekExtOnUnitChange();
   mekExtSwitchTab('input');
@@ -7607,6 +7607,7 @@ function mekExtOnSkuInput() {
   var namaEl = document.getElementById('mekExtNama');
   if (!sku) { if (hint) hint.textContent = ''; return; }
   var map = _mekExtKnownSkus();
+  if (map[sku] === undefined) mekExtAutoStd(); // SKU di luar planning/stok pun tetap dicari STD-nya
   if (map[sku] !== undefined) {
     if (namaEl && (!namaEl.value || namaEl.dataset.auto === '1')) { namaEl.value = map[sku]; namaEl.dataset.auto = '1'; }
     if (hint) { hint.style.color = '#276749'; hint.textContent = 'SKU dikenal (ada di planning/stok).'; }
@@ -7618,23 +7619,49 @@ function mekExtOnSkuInput() {
 }
 
 // ── Satuan pallet: karton = pallet x STD ──
+var _mekExtStdMap = null;      // sku (normalisasi) -> std, dimuat langsung dari sheet STD
+var _mekExtStdLoading = false;
+function _mekExtNormSku(s) { return String(s || '').trim().toUpperCase().replace(/^0+/, ''); }
+
+// Muat STD PALLET langsung dari server (getStandarPalet) — TIDAK bergantung
+// pada cache Input Data (_stdLookupMap) yang bisa saja belum terisi.
+function _mekExtLoadStd(cb) {
+  if (_mekExtStdMap) { if (cb) cb(); return; }
+  if (_mekExtStdLoading) { setTimeout(function(){ _mekExtLoadStd(cb); }, 400); return; }
+  _mekExtStdLoading = true;
+  API.run('getStandarPalet', {}, function(res) {
+    _mekExtStdLoading = false;
+    var m = {};
+    if (res && res.success && res.data) {
+      res.data.forEach(function(d) { var k = _mekExtNormSku(d.sku); if (k && Number(d.std) > 0) m[k] = Number(d.std); });
+    }
+    _mekExtStdMap = m;
+    if (cb) cb();
+  }, function() {
+    _mekExtStdLoading = false;
+    if (cb) cb();
+  });
+}
+
 function _mekExtStdFor(sku) {
-  try {
+  var k = _mekExtNormSku(sku);
+  if (!k) return 0;
+  if (_mekExtStdMap && _mekExtStdMap[k] > 0) return _mekExtStdMap[k];
+  try { // cadangan: cache Input Data kalau sudah terisi
     var m = (typeof _stdLookupMap !== 'undefined') ? _stdLookupMap : null;
-    if (!m) return 0;
-    var k = (typeof _stripSkuZeros === 'function') ? _stripSkuZeros(sku) : sku;
-    var c = m[sku] || m[k];
-    return (c && Number(c.std) > 0) ? Number(c.std) : 0;
-  } catch (e) { return 0; }
+    if (m) { var c = m[sku] || m[k]; if (c && Number(c.std) > 0) return Number(c.std); }
+  } catch (e) {}
+  return 0;
 }
 
 function mekExtAutoStd() {
   var sku = (document.getElementById('mekExtSku').value || '').trim();
   var stdEl = document.getElementById('mekExtStd');
   if (!sku || !stdEl || stdEl.dataset.manual === '1') return;
+  if (!_mekExtStdMap) { _mekExtLoadStd(function(){ mekExtAutoStd(); }); return; }
   var std = _mekExtStdFor(sku);
   stdEl.value = std > 0 ? std : '';
-  mekExtRecalc();
+  mekExtRecalc(); // kalau STD gak ketemu, pesannya muncul di baris hitung di bawah form
 }
 
 function mekExtOnUnitChange() {
