@@ -7464,9 +7464,9 @@ function _mekRvRenderExtBlock() {
     var reserved = info.showEkspor ? Math.min(c.reservedKarton || 0, karton) : 0;
     if (info.approxSkuSet[c.sku]) reserved = karton; // tipe non-ekspor: pendekatan per-SKU, sama kayak peta
     var status = reserved <= 0 ? 'avail' : (info.longWaitSkuSet[c.sku] ? 'longwait' : 'reserved');
-    var g = groups[c.gudang] || (groups[c.gudang] = { total: 0, reserved: 0, lots: [] });
-    g.total += karton; g.reserved += reserved;
-    g.lots.push({ sku: c.sku, nama: c.nama, prodate: c.prodate, karton: karton, reserved: reserved, status: status });
+    var g = groups[c.gudang] || (groups[c.gudang] = { total: 0, reserved: 0, pallet: 0, lots: [] });
+    g.total += karton; g.reserved += reserved; g.pallet += c.pallet || 0;
+    g.lots.push({ sku: c.sku, nama: c.nama, prodate: c.prodate, karton: karton, pallet: c.pallet || 0, std: c.std || 0, reserved: reserved, status: status });
   });
 
   var names = Object.keys(groups).sort();
@@ -7475,7 +7475,7 @@ function _mekRvRenderExtBlock() {
   if (chipsEl) {
     chipsEl.innerHTML = names.length ? names.map(function(n){
       return '<span style="background:#fff;border:1px solid #d6bcfa;border-radius:999px;padding:3px 10px;font-size:11px;color:#553c9a;font-weight:700;">'
-        + _mekEsc(n) + ' &middot; ' + groups[n].total.toLocaleString('id-ID') + ' krt</span>';
+        + _mekEsc(n) + ' &middot; ' + (groups[n].pallet ? groups[n].pallet.toLocaleString('id-ID') + ' plt / ' : '') + groups[n].total.toLocaleString('id-ID') + ' krt</span>';
     }).join('') : '<span style="font-size:11px;color:#a0aec0;">belum ada stok external</span>';
   }
   if (!names.length) {
@@ -7485,9 +7485,9 @@ function _mekRvRenderExtBlock() {
       + '</div>';
     return;
   }
-  var grand = 0;
-  names.forEach(function(n){ grand += groups[n].total; });
-  if (sub) sub.innerHTML = 'Total ' + grand.toLocaleString('id-ID') + ' karton di ' + names.length + ' gudang &middot; ikut hitungan reserved (FIFO tanggal produksi)';
+  var grand = 0, grandP = 0;
+  names.forEach(function(n){ grand += groups[n].total; grandP += groups[n].pallet; });
+  if (sub) sub.innerHTML = 'Total ' + grandP.toLocaleString('id-ID') + ' pallet / ' + grand.toLocaleString('id-ID') + ' karton di ' + names.length + ' gudang &middot; ikut hitungan reserved (FIFO tanggal produksi)';
 
   body.innerHTML = names.map(function(n) {
     var g = groups[n];
@@ -7502,6 +7502,7 @@ function _mekRvRenderExtBlock() {
         + '<td style="padding:5px 8px;font-size:11px;"><span style="display:inline-block;width:9px;height:9px;border-radius:3px;background:' + col + ';margin-right:6px;"></span><b>' + _mekEsc(l.sku) + '</b>'
         + '<div style="font-size:10px;color:#a0aec0;margin-left:15px;">' + _mekEsc(l.nama||'') + '</div></td>'
         + '<td style="padding:5px 8px;font-size:11px;white-space:nowrap;">' + _mekEsc(l.prodate||'-') + '</td>'
+        + '<td style="padding:5px 8px;font-size:11px;text-align:right;">' + (l.pallet ? l.pallet.toLocaleString('id-ID') : '-') + '</td>'
         + '<td style="padding:5px 8px;font-size:11px;text-align:right;font-weight:700;">' + l.karton.toLocaleString('id-ID') + '</td>'
         + '<td style="padding:5px 8px;font-size:10px;color:' + col + ';font-weight:700;white-space:nowrap;">' + lbl + part + '</td>'
         + '</tr>';
@@ -7510,7 +7511,7 @@ function _mekRvRenderExtBlock() {
       + '<div style="background:#faf5ff;padding:8px 12px;display:flex;flex-wrap:wrap;align-items:center;gap:10px;">'
       +   '<div style="font-size:12px;font-weight:800;color:#553c9a;"><i class="fas fa-warehouse" style="margin-right:6px;"></i>' + _mekEsc(n) + '</div>'
       +   '<div style="margin-left:auto;display:flex;gap:12px;font-size:11px;">'
-      +     '<span>Total <b>' + g.total.toLocaleString('id-ID') + '</b></span>'
+      +     '<span>Total <b>' + g.pallet.toLocaleString('id-ID') + '</b> plt / <b>' + g.total.toLocaleString('id-ID') + '</b> krt</span>'
       +     '<span style="color:#276749;">Available <b>' + avail.toLocaleString('id-ID') + '</b></span>'
       +     '<span style="color:#c05621;">Reserved <b>' + g.reserved.toLocaleString('id-ID') + '</b> (' + pct.toFixed(0) + '%)</span>'
       +   '</div>'
@@ -7519,6 +7520,7 @@ function _mekRvRenderExtBlock() {
       +   '<thead><tr style="border-bottom:2px solid #e2e8f0;position:sticky;top:0;background:#fff;">'
       +     '<th style="padding:5px 8px;font-size:10px;text-align:left;color:#718096;">SKU</th>'
       +     '<th style="padding:5px 8px;font-size:10px;text-align:left;color:#718096;">PRODATE</th>'
+      +     '<th style="padding:5px 8px;font-size:10px;text-align:right;color:#718096;">PALLET</th>'
       +     '<th style="padding:5px 8px;font-size:10px;text-align:right;color:#718096;">KARTON</th>'
       +     '<th style="padding:5px 8px;font-size:10px;text-align:left;color:#718096;">STATUS</th>'
       +   '</tr></thead><tbody>' + rows + '</tbody></table></div>'
@@ -7558,7 +7560,9 @@ function mekExtOpenModal() {
   var t = document.getElementById('mekExtTanggal');
   if (t && !t.value) t.value = _mekExtTodayIso();
   _mekExtFillSkuList();
+  try { if (typeof _preloadStdCache === 'function') _preloadStdCache(); } catch (e) {} // isi cache STD PALLET (sama dgn Input Data)
   mekExtOnTipeChange();
+  mekExtOnUnitChange();
   mekExtSwitchTab('input');
   _mekExtRefreshState();
 }
@@ -7606,9 +7610,59 @@ function mekExtOnSkuInput() {
   if (map[sku] !== undefined) {
     if (namaEl && (!namaEl.value || namaEl.dataset.auto === '1')) { namaEl.value = map[sku]; namaEl.dataset.auto = '1'; }
     if (hint) { hint.style.color = '#276749'; hint.textContent = 'SKU dikenal (ada di planning/stok).'; }
+    mekExtAutoStd();
   } else if (hint) {
     hint.style.color = '#c05621';
     hint.textContent = 'SKU belum dikenal — pastikan kodenya sama persis dengan di planning / BinLoc supaya ikut hitungan reserved.';
+  }
+}
+
+// ── Satuan pallet: karton = pallet x STD ──
+function _mekExtStdFor(sku) {
+  try {
+    var m = (typeof _stdLookupMap !== 'undefined') ? _stdLookupMap : null;
+    if (!m) return 0;
+    var k = (typeof _stripSkuZeros === 'function') ? _stripSkuZeros(sku) : sku;
+    var c = m[sku] || m[k];
+    return (c && Number(c.std) > 0) ? Number(c.std) : 0;
+  } catch (e) { return 0; }
+}
+
+function mekExtAutoStd() {
+  var sku = (document.getElementById('mekExtSku').value || '').trim();
+  var stdEl = document.getElementById('mekExtStd');
+  if (!sku || !stdEl || stdEl.dataset.manual === '1') return;
+  var std = _mekExtStdFor(sku);
+  stdEl.value = std > 0 ? std : '';
+  mekExtRecalc();
+}
+
+function mekExtOnUnitChange() {
+  var unit = document.getElementById('mekExtUnit').value;
+  var lbl = document.getElementById('mekExtQtyLbl');
+  var wrap = document.getElementById('mekExtStdWrap');
+  if (lbl) lbl.textContent = unit === 'PALLET' ? 'Jumlah Pallet' : 'Jumlah Karton';
+  if (wrap) wrap.style.display = unit === 'PALLET' ? '' : 'none';
+  mekExtAutoStd();
+  mekExtRecalc();
+}
+
+// Hint hasil hitung: pallet x STD = karton (atau karton / STD = pallet)
+function mekExtRecalc(manualStd) {
+  var stdEl = document.getElementById('mekExtStd');
+  if (manualStd === true && stdEl) stdEl.dataset.manual = stdEl.value ? '1' : '';
+  var unit = document.getElementById('mekExtUnit').value;
+  var qty = Number(document.getElementById('mekExtKarton').value) || 0;
+  var std = Number(stdEl && stdEl.value) || _mekExtStdFor((document.getElementById('mekExtSku').value || '').trim());
+  var hint = document.getElementById('mekExtCalcHint');
+  if (!hint) return;
+  if (qty <= 0) { hint.textContent = ''; return; }
+  if (unit === 'PALLET') {
+    hint.textContent = std > 0
+      ? (qty.toLocaleString('id-ID') + ' pallet x ' + std.toLocaleString('id-ID') + ' = ' + Math.round(qty * std).toLocaleString('id-ID') + ' karton')
+      : 'STD PALLET SKU ini belum ketemu — isi kolom STD manual supaya karton bisa dihitung.';
+  } else {
+    hint.textContent = std > 0 ? (qty.toLocaleString('id-ID') + ' karton = ' + Math.ceil(qty / std).toLocaleString('id-ID') + ' pallet (STD ' + std.toLocaleString('id-ID') + ')') : '';
   }
 }
 
@@ -7626,20 +7680,33 @@ function _mekExtFormMsg(t) { var el = document.getElementById('mekExtFormMsg'); 
 
 function mekExtAddDraft() {
   var g = function(id){ return (document.getElementById(id).value || '').trim(); };
+  var unit = g('mekExtUnit') === 'KARTON' ? 'KARTON' : 'PALLET';
+  var qty = Number(g('mekExtKarton')) || 0;
+  var sku = g('mekExtSku');
+  var std = Number(g('mekExtStd')) || _mekExtStdFor(sku);
   var row = {
     tanggal: g('mekExtTanggal') || _mekExtTodayIso(), gudang: g('mekExtGudang').replace(/\s+/g,' ').toUpperCase(),
-    tipe: g('mekExtTipe'), sku: g('mekExtSku'), nama: g('mekExtNama'),
-    karton: Math.round(Number(g('mekExtKarton')) || 0), prodate: g('mekExtProdate'), keterangan: g('mekExtKet')
+    tipe: g('mekExtTipe'), sku: sku, nama: g('mekExtNama'), unit: unit,
+    prodate: g('mekExtProdate'), keterangan: g('mekExtKet'), std: std
   };
-  if (!row.gudang) return _mekExtFormMsg('Nama gudang belum diisi.');
+  if (unit === 'PALLET') {
+    row.pallet = qty;
+    row.karton = std > 0 ? Math.round(qty * std) : 0; // kalau STD belum ketemu, server yang coba cari
+  } else {
+    row.karton = Math.round(qty);
+    row.pallet = std > 0 ? Math.ceil(row.karton / std) : 0;
+  }
+  if (!row.gudang) return _mekExtFormMsg('Nama gudang external wajib diisi.');
   if (!row.sku) return _mekExtFormMsg('SKU belum diisi.');
-  if (row.karton <= 0) return _mekExtFormMsg('Karton harus lebih dari 0.');
+  if (qty <= 0) return _mekExtFormMsg('Jumlah harus lebih dari 0.');
+  if (unit === 'PALLET' && std <= 0) return _mekExtFormMsg('STD PALLET SKU ini belum ketemu — isi kolom STD manual.');
   if (row.tipe === 'MASUK' && !row.prodate) return _mekExtFormMsg('Tanggal produksi wajib untuk MASUK (dipakai buat urutan FIFO).');
   _mekExtFormMsg('');
   _mekExtDrafts.push(row);
-  // Tanggal, gudang, tipe dipertahankan buat input beruntun; SKU/qty dikosongkan
-  ['mekExtSku','mekExtNama','mekExtKarton','mekExtProdate','mekExtKet'].forEach(function(id){ var el = document.getElementById(id); if (el) { el.value = ''; if (el.dataset) el.dataset.auto = ''; } });
+  // Tanggal, gudang, tipe, satuan dipertahankan buat input beruntun; SKU/qty dikosongkan
+  ['mekExtSku','mekExtNama','mekExtKarton','mekExtStd','mekExtProdate','mekExtKet'].forEach(function(id){ var el = document.getElementById(id); if (el) { el.value = ''; if (el.dataset) { el.dataset.auto = ''; el.dataset.manual = ''; } } });
   var hint = document.getElementById('mekExtSkuHint'); if (hint) hint.textContent = '';
+  var ch = document.getElementById('mekExtCalcHint'); if (ch) ch.textContent = '';
   _mekExtRenderDrafts();
   var sk = document.getElementById('mekExtSku'); if (sk) sk.focus();
 }
@@ -7653,13 +7720,14 @@ function _mekExtRenderDrafts() {
   if (cnt) cnt.textContent = _mekExtDrafts.length;
   if (btn) btn.disabled = !_mekExtDrafts.length || _mekExtBusy;
   if (!tb) return;
-  if (!_mekExtDrafts.length) { tb.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#a0aec0;padding:14px;">Belum ada</td></tr>'; return; }
+  if (!_mekExtDrafts.length) { tb.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#a0aec0;padding:14px;">Belum ada</td></tr>'; return; }
   tb.innerHTML = _mekExtDrafts.map(function(r, i) {
     var col = r.tipe === 'MASUK' ? '#276749' : '#c05621';
     return '<tr><td>' + _mekEsc(r.tanggal) + '</td><td>' + _mekEsc(r.gudang) + '</td>'
       + '<td style="font-weight:800;color:' + col + ';">' + r.tipe + '</td>'
       + '<td><b>' + _mekEsc(r.sku) + '</b></td><td>' + _mekEsc(r.nama||'') + '</td>'
-      + '<td style="text-align:right;font-weight:700;">' + r.karton.toLocaleString('id-ID') + '</td>'
+      + '<td style="text-align:right;">' + (r.pallet ? Number(r.pallet).toLocaleString('id-ID') : '-') + '</td>'
+      + '<td style="text-align:right;font-weight:700;">' + (r.karton ? r.karton.toLocaleString('id-ID') : '<i style="color:#a0aec0;">dihitung server</i>') + '</td>'
       + '<td>' + _mekEsc(r.prodate||'FIFO') + '</td><td>' + _mekEsc(r.keterangan||'') + '</td>'
       + '<td><button onclick="mekExtRemoveDraft(' + i + ')" style="border:none;background:none;color:#c53030;cursor:pointer;" title="Hapus dari daftar"><i class="fas fa-times"></i></button></td></tr>';
   }).join('');
@@ -7723,13 +7791,15 @@ function _mekExtRenderSaldo() {
   var byG = {};
   lots.forEach(function(l){ (byG[l.gudang] = byG[l.gudang] || []).push(l); });
   pane.innerHTML = warn + Object.keys(byG).sort().map(function(g) {
-    var tot = 0; byG[g].forEach(function(l){ tot += l.karton; });
+    var tot = 0, totP = 0; byG[g].forEach(function(l){ tot += l.karton; totP += l.pallet || 0; });
     var rows = byG[g].map(function(l) {
       return '<tr><td><b>' + _mekEsc(l.sku) + '</b></td><td>' + _mekEsc(l.nama||'') + '</td><td>' + _mekEsc(_mekExtIsoToDmy(l.prodate)) + '</td>'
+        + '<td style="text-align:right;">' + (l.std ? l.std.toLocaleString('id-ID') : '-') + '</td>'
+        + '<td style="text-align:right;">' + (l.pallet ? l.pallet.toLocaleString('id-ID') : '-') + '</td>'
         + '<td style="text-align:right;font-weight:700;">' + l.karton.toLocaleString('id-ID') + '</td></tr>';
     }).join('');
-    return '<div style="font-size:12px;font-weight:800;color:#553c9a;margin:6px 0;">' + _mekEsc(g) + ' &middot; ' + tot.toLocaleString('id-ID') + ' karton</div>'
-      + '<table class="mekext-tbl" style="margin-bottom:12px;"><thead><tr><th>SKU</th><th>Nama</th><th>Prodate</th><th style="text-align:right;">Karton</th></tr></thead><tbody>' + rows + '</tbody></table>';
+    return '<div style="font-size:12px;font-weight:800;color:#553c9a;margin:6px 0;">' + _mekEsc(g) + ' &middot; ' + totP.toLocaleString('id-ID') + ' pallet &middot; ' + tot.toLocaleString('id-ID') + ' karton</div>'
+      + '<table class="mekext-tbl" style="margin-bottom:12px;"><thead><tr><th>SKU</th><th>Nama</th><th>Prodate</th><th style="text-align:right;">STD</th><th style="text-align:right;">Pallet</th><th style="text-align:right;">Karton</th></tr></thead><tbody>' + rows + '</tbody></table>';
   }).join('');
 }
 
@@ -7747,11 +7817,12 @@ function _mekExtLoadRiwayat() {
     var data = res.data || [];
     if (!data.length) { pane.innerHTML = '<div style="text-align:center;padding:24px;color:#a0aec0;font-size:12px;">Belum ada movement.</div>'; return; }
     pane.innerHTML = '<div style="font-size:10px;color:#a0aec0;margin-bottom:6px;">' + data.length + ' terbaru dari ' + (res.total||data.length) + '. Salah input? Hapus barisnya, lalu catat ulang.</div>'
-      + '<div style="overflow:auto;"><table class="mekext-tbl"><thead><tr><th>Tgl</th><th>Gudang</th><th>Tipe</th><th>SKU</th><th>Nama</th><th style="text-align:right;">Karton</th><th>Prodate</th><th>Ket</th><th></th></tr></thead><tbody>'
+      + '<div style="overflow:auto;"><table class="mekext-tbl"><thead><tr><th>Tgl</th><th>Gudang</th><th>Tipe</th><th>SKU</th><th>Nama</th><th style="text-align:right;">Pallet</th><th style="text-align:right;">Karton</th><th>Prodate</th><th>Ket</th><th></th></tr></thead><tbody>'
       + data.map(function(m) {
         var col = m.tipe === 'MASUK' ? '#276749' : '#c05621';
         return '<tr><td>' + _mekEsc(m.tanggal) + '</td><td>' + _mekEsc(m.gudang) + '</td><td style="font-weight:800;color:' + col + ';">' + m.tipe + '</td>'
-          + '<td><b>' + _mekEsc(m.sku) + '</b></td><td>' + _mekEsc(m.nama||'') + '</td><td style="text-align:right;font-weight:700;">' + m.karton.toLocaleString('id-ID') + '</td>'
+          + '<td><b>' + _mekEsc(m.sku) + '</b></td><td>' + _mekEsc(m.nama||'') + '</td><td style="text-align:right;">' + (m.pallet ? Number(m.pallet).toLocaleString('id-ID') : '-') + '</td>'
+          + '<td style="text-align:right;font-weight:700;">' + m.karton.toLocaleString('id-ID') + '</td>'
           + '<td>' + _mekEsc(m.prodate||'FIFO') + '</td><td>' + _mekEsc(m.keterangan||'') + '</td>'
           + '<td><button onclick="mekExtDeleteMovement(\'' + _mekEsc(m.id) + '\')" style="border:none;background:none;color:#c53030;cursor:pointer;" title="Hapus movement ini"><i class="fas fa-trash"></i></button></td></tr>';
       }).join('') + '</tbody></table></div><div id="mekExtRiwayatMsg" style="font-size:11px;margin-top:8px;"></div>';
