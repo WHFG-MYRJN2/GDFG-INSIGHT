@@ -1848,7 +1848,7 @@ function _mekRvApplyRowFilter() {
   var isAllTipe = Object.keys(tipeSet).length === 0;
   var showClosed = !!((document.getElementById('mekRvShowClosedToggle')||{}).checked);
 
-  var baseRows = raw.filter(function(r){
+  var baseRowsAll = raw.filter(function(r){
     if (skuF && (r.sku||'').toLowerCase().indexOf(skuF) < 0 && (r.nama||'').toLowerCase().indexOf(skuF) < 0) return false;
     if (noSoF && (r.noSo||'').toLowerCase().indexOf(noSoF) < 0) return false;
     if (tujuanF && (r.tujuan||'').toLowerCase().indexOf(tujuanF) < 0) return false;
@@ -1870,9 +1870,11 @@ function _mekRvApplyRowFilter() {
     }
     if (agingF && r.tier !== agingF) return false;
     if (!isAllTipe && !tipeSet[r.sourceType||'ekspor']) return false;
-    if (r.closed && !showClosed) return false;
     return true;
   });
+  // Kartu "DO dan SO" dihitung TANPA memperhatikan toggle "tampilkan closed" (yang Keluar harus tetap kehitung).
+  var doBaseRows = baseRowsAll;
+  var baseRows = baseRowsAll.filter(function(r){ return !(r.closed && !showClosed); });
   // Filter dari strip "Status Container" (ekspor/RDC/MDC/MT — DIRECT sengaja gak ikut)
   // dan dari kartu "DO dan SO" (khusus DIRECT).
   var rows = baseRows.filter(function(r){
@@ -1888,7 +1890,7 @@ function _mekRvApplyRowFilter() {
     }
     return true;
   });
-  _mekRvRenderDoSoCard(baseRows);
+  _mekRvRenderDoSoCard(doBaseRows);
   _mekRvRenderRowsList(rows, !!(skuF || noSoF || tujuanF || plantF || agingF || !isAllTipe));
   _mekRvUpdateStockKpis(skuF, rows);
   _mekRvLastFilteredRows = rows; // disimpan buat mekRvToggleDetail (biar pas di-ON/OFF-in gak perlu nunggu filter berubah lagi)
@@ -2291,14 +2293,31 @@ function _mekRvRenderDoSoCard(baseRows) {
   card.style.display = show ? '' : 'none';
   if (!show) return;
 
+  // Dihitung per NOMOR DO/SO (bagian sebelum "/", tanpa 0 di depan) — satu DO yang
+  // punya beberapa item/SKU (/000040, /000050, ...) tetap dihitung 1.
   var b = { belum: 0, proses: 0, keluar: 0 };
-  _mekRvDedupeByGroup((baseRows || []).filter(function(r){ return (r.sourceType||'ekspor') === 'direct'; })).forEach(function(r){
+  var stages = {}; // detail tahap antrian utk yang Proses
+  var seen = {};
+  (baseRows || []).forEach(function(r){
+    if ((r.sourceType||'ekspor') !== 'direct') return;
+    var k = r.docKey || r.groupId || r.noSo;
+    if (seen[k]) return;
+    seen[k] = true;
     var st = r.docStatus || 'belum';
     if (b[st] === undefined) st = 'belum';
     b[st]++;
+    if (st === 'proses') { var d = r.docDetail || 'Proses'; stages[d] = (stages[d]||0) + 1; }
   });
   var set = function(id, v){ var el = document.getElementById(id); if (el) el.textContent = v; };
   set('mekRvDoBelum', b.belum); set('mekRvDoProses', b.proses); set('mekRvDoKeluar', b.keluar);
+  var sub = document.getElementById('mekRvDoProsesSub');
+  if (sub) {
+    var order = ['Antrian','Nunggu Dokumen','Treatment','Proses Muat','Selesai Muat'];
+    var parts = order.filter(function(o){ return stages[o]; }).map(function(o){ return o + ' ' + stages[o]; });
+    Object.keys(stages).forEach(function(o){ if (order.indexOf(o) < 0) parts.push(o + ' ' + stages[o]); });
+    sub.textContent = parts.join(' · ');
+    sub.style.display = parts.length ? '' : 'none';
+  }
   var ring = '0 0 0 2px #2c5282 inset';
   ['belum','proses','keluar'].forEach(function(k){
     var box = document.getElementById('mekRvDoBox' + k.charAt(0).toUpperCase() + k.slice(1));
@@ -2500,7 +2519,7 @@ function _mekRvRenderRowsList(rows, filterActive) {
       + '<td style="padding:8px 10px;border-bottom:1px solid #edf2f7;font-size:11px;color:#2d3748;text-align:right;white-space:nowrap;">' + qtyCell + '</td>'
       + spanCell(
           '<span style="padding:3px 9px;border-radius:12px;font-size:10px;font-weight:700;background:' + stSt.bg + ';color:' + stSt.fg + ';">' + _mekEsc(r.containerStatusLabel||'Belum') + '</span>' + contDetail
-            + (r.sourceType === 'direct' && r.docStatusLabel ? '<div style="font-size:9px;font-weight:700;margin-top:2px;color:' + stSt.fg + ';">' + _mekEsc(r.docStatusLabel) + (r.docStatus === 'proses' ? ' (di antrian)' : '') + '</div>' : ''),
+            + (r.sourceType === 'direct' && r.docStatusLabel ? '<div title="' + _mekEsc(r.docNopol ? ('Nopol: ' + r.docNopol) : '') + '" style="font-size:9px;font-weight:700;margin-top:2px;color:' + stSt.fg + ';white-space:normal;">' + _mekEsc(r.docStatus === 'proses' ? ('Proses · ' + (r.docDetail||'')) : (r.docStatus === 'keluar' ? 'Keluar' : 'Belum ada di antrian')) + '</div>' : ''),
           'text-align:center;white-space:nowrap;'
         )
       + spanCell(waitCell, 'font-size:11px;font-weight:700;white-space:nowrap;color:' + (r.closed?'#a0aec0':(isLong?'#c53030':'#c05621')) + ';')
