@@ -5882,6 +5882,97 @@ function mekSummarySwitchSub(which) {
   if (which === 'direct' && !_mekDirectSummaryLoaded) mekLoadDirectSummary();
 }
 
+// ── Filter Week / Tanggal DO buat Summary DIRECT ──
+// Week = ISO (Senin–Minggu): 28 Sep–4 Okt 2026 = Week 40. Default = week hari ini.
+// Tanggal setelah HARI INI (future) tidak pernah ditampilkan.
+var _mekDirRes = null;          // respons mentah dari getMekReservedDirectSummary
+var _mekDirFilterInited = false; // filter sudah pernah di-set (jangan direset tiap refresh)
+
+function _mekDirPad(n) { return (n < 10 ? '0' : '') + n; }
+function _mekDirYmd(dt) { return dt.getUTCFullYear() + '-' + _mekDirPad(dt.getUTCMonth()+1) + '-' + _mekDirPad(dt.getUTCDate()); }
+function _mekDirParse(ymd) { var p = String(ymd).split('-'); return new Date(Date.UTC(+p[0], +p[1]-1, +p[2])); }
+// ISO week: { y, w } dari 'yyyy-MM-dd'
+function _mekDirIsoWeek(ymd) {
+  var d = _mekDirParse(ymd);
+  var day = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - day);
+  var y0 = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return { y: d.getUTCFullYear(), w: Math.ceil(((d - y0) / 86400000 + 1) / 7) };
+}
+// Senin & Minggu dari 'yyyy-MM-dd' mana pun di week itu
+function _mekDirWeekRange(ymd) {
+  var d = _mekDirParse(ymd);
+  var day = d.getUTCDay() || 7;
+  var mon = new Date(d.getTime()); mon.setUTCDate(d.getUTCDate() - (day - 1));
+  var sun = new Date(mon.getTime()); sun.setUTCDate(mon.getUTCDate() + 6);
+  return { from: _mekDirYmd(mon), to: _mekDirYmd(sun) };
+}
+function _mekDirToday() {
+  if (_mekDirRes && _mekDirRes.today) return _mekDirRes.today;
+  var n = new Date();
+  return n.getFullYear() + '-' + _mekDirPad(n.getMonth()+1) + '-' + _mekDirPad(n.getDate());
+}
+function _mekDirFmtShort(ymd) { var p = String(ymd).split('-'); return p[2] + '.' + p[1]; }
+
+// Isi dropdown Week: week hari ini + semua week yang punya data (<= hari ini), terbaru duluan.
+function _mekDirFillWeekSelect(selected) {
+  var sel = document.getElementById('mekDirWeek');
+  if (!sel || !_mekDirRes) return;
+  var today = _mekDirToday();
+  var seen = {}, list = [];
+  function addWeek(ymd) {
+    var iw = _mekDirIsoWeek(ymd), key = iw.y + '-' + iw.w;
+    if (seen[key]) return;
+    var rg = _mekDirWeekRange(ymd);
+    seen[key] = true;
+    list.push({ key: key, label: 'Week ' + iw.w + ' (' + _mekDirFmtShort(rg.from) + ' – ' + _mekDirFmtShort(rg.to) + '.' + rg.to.slice(0,4) + ')', from: rg.from });
+  }
+  addWeek(today);
+  (_mekDirRes.dates || []).forEach(function(d){ if (d <= today) addWeek(d); });
+  list.sort(function(a,b){ return a.from < b.from ? 1 : -1; });
+  var html = list.map(function(x){ return '<option value="' + x.key + '">' + _mekEsc(x.label) + '</option>'; }).join('');
+  html += '<option value="all">Semua tanggal</option><option value="custom">Custom tanggal</option>';
+  sel.innerHTML = html;
+  sel.value = selected || (function(){ var iw = _mekDirIsoWeek(today); return iw.y + '-' + iw.w; })();
+}
+
+function mekDirSetWeekDefault() {
+  var today = _mekDirToday();
+  var iw = _mekDirIsoWeek(today), rg = _mekDirWeekRange(today);
+  _mekDirFillWeekSelect(iw.y + '-' + iw.w);
+  var f = document.getElementById('mekDirFrom'), t = document.getElementById('mekDirTo');
+  if (f) f.value = rg.from;
+  if (t) t.value = rg.to;
+}
+function mekDirResetFilter() { mekDirSetWeekDefault(); _mekRenderDirectSummary(); }
+
+function mekDirOnWeekChange() {
+  var sel = document.getElementById('mekDirWeek');
+  var f = document.getElementById('mekDirFrom'), t = document.getElementById('mekDirTo');
+  if (!sel) return;
+  var v = sel.value;
+  if (v === 'all') {
+    var ds = (_mekDirRes && _mekDirRes.dates) || [];
+    if (f) f.value = ds.length ? ds[0] : '';
+    if (t) t.value = _mekDirToday();
+  } else if (v && v !== 'custom') {
+    var parts = v.split('-'); // 'yyyy-w' → cari tanggal Kamis week itu (patokan ISO), lalu Senin–Minggu-nya
+    var jan4 = new Date(Date.UTC(+parts[0], 0, 4));
+    var jd = jan4.getUTCDay() || 7;
+    var mon1 = new Date(jan4.getTime()); mon1.setUTCDate(jan4.getUTCDate() - (jd - 1));
+    var mon = new Date(mon1.getTime()); mon.setUTCDate(mon1.getUTCDate() + (+parts[1] - 1) * 7);
+    var rg = _mekDirWeekRange(_mekDirYmd(mon));
+    if (f) f.value = rg.from;
+    if (t) t.value = rg.to;
+  }
+  _mekRenderDirectSummary();
+}
+function mekDirOnDateChange() {
+  var sel = document.getElementById('mekDirWeek');
+  if (sel) sel.value = 'custom';
+  _mekRenderDirectSummary();
+}
+
 function mekLoadDirectSummary() {
   var body = document.getElementById('mekDirectSummaryBody');
   if (!body) return;
@@ -5892,7 +5983,16 @@ function mekLoadDirectSummary() {
       body.innerHTML = '<div style="text-align:center;padding:30px;color:#c53030;font-size:12px;">Gagal memuat data: ' + _mekEsc((res && res.message) || 'unknown') + '</div>';
       return;
     }
-    _mekRenderDirectSummary(res);
+    _mekDirRes = res;
+    if (!_mekDirFilterInited) {
+      _mekDirFilterInited = true;
+      mekDirSetWeekDefault(); // pertama kali: week hari ini
+    } else {
+      // refresh: pertahankan pilihan user, cuma isi ulang daftar week
+      var sel = document.getElementById('mekDirWeek');
+      _mekDirFillWeekSelect(sel ? sel.value : '');
+    }
+    _mekRenderDirectSummary();
   }, function() {
     _mekDirectSummaryLoaded = true;
     body.innerHTML = '<div style="text-align:center;padding:30px;color:#c53030;font-size:12px;">Gagal memuat data: koneksi</div>';
@@ -5906,21 +6006,51 @@ function _mekDirectFmtTglDot(ymd) {
   return p[2] + '.' + p[1] + '.' + p[0];
 }
 
-function _mekRenderDirectSummary(res) {
+// Render tabel dari _mekDirRes + filter aktif. Reserved Out per SKU = jumlah SO+DO
+// di tanggal-tanggal yang sedang ditampilkan (snapshot terbaru saja — lihat backend).
+function _mekRenderDirectSummary() {
   var body = document.getElementById('mekDirectSummaryBody');
-  if (!body) return;
-  var dates = res.dates || [];
-  var rows  = res.rows  || [];
+  var res = _mekDirRes;
+  if (!body || !res) return;
+  var today = _mekDirToday();
+  var fromV = ((document.getElementById('mekDirFrom')||{}).value || '');
+  var toV   = ((document.getElementById('mekDirTo')  ||{}).value || '');
+
+  var dates = (res.dates || []).filter(function(d){
+    if (d > today) return false;            // future gak ditampilin
+    if (fromV && d < fromV) return false;
+    if (toV && d > toV) return false;
+    return true;
+  });
+
+  // Hitung ulang per SKU untuk tanggal yang lolos filter; SKU tanpa qty di rentang itu disembunyiin.
+  var rows = [];
+  (res.rows || []).forEach(function(r) {
+    var cells = {}, total = 0;
+    dates.forEach(function(d) {
+      var c = (r.cells && r.cells[d]) || { so:0, do:0 };
+      cells[d] = { so: c.so || 0, do: c.do || 0 };
+      total += Math.round(c.so || 0) + Math.round(c.do || 0);
+    });
+    if (total > 0) rows.push({ sku: r.sku, nama: r.nama, reservedOut: total, cells: cells });
+  });
 
   if (!rows.length) {
     body.innerHTML = '<div style="text-align:center;padding:50px;color:#a0aec0;font-size:13px;">'
       + '<i class="fas fa-check-circle" style="font-size:30px;display:block;margin-bottom:10px;opacity:.3;"></i>'
-      + 'Gak ada SKU Reserved Out Direct yang pending saat ini</div>';
+      + 'Tidak ada DO/SO Direct pada rentang tanggal ini</div>';
     return;
   }
 
-  var now = new Date();
-  var todayLabel = ('0'+now.getDate()).slice(-2)+'.'+('0'+(now.getMonth()+1)).slice(-2)+'.'+now.getFullYear();
+  var totalPerDate = {}, totalSo = 0, totalDo = 0;
+  dates.forEach(function(d){ totalPerDate[d] = { so:0, do:0 }; });
+  rows.forEach(function(r){ dates.forEach(function(d){
+    totalPerDate[d].so += Math.round(r.cells[d].so);
+    totalPerDate[d].do += Math.round(r.cells[d].do);
+  }); });
+  dates.forEach(function(d){ totalSo += totalPerDate[d].so; totalDo += totalPerDate[d].do; });
+
+  var todayLabel = today.split('-').reverse().join('.');
 
   var thStyle   = 'padding:7px 8px;font-size:10px;font-weight:800;color:#2d3748;background:#e2e8f0;border:1px solid #cbd5e0;text-align:center;';
   var thSoStyle = 'padding:5px 8px;font-size:10px;font-weight:800;color:#744210;background:#fbd38d;border:1px solid #cbd5e0;text-align:center;';
@@ -5931,42 +6061,40 @@ function _mekRenderDirectSummary(res) {
     + '<th rowspan="3" style="'+thStyle+'min-width:70px;">SKU</th>'
     + '<th rowspan="3" style="'+thStyle+'min-width:170px;text-align:left;">NAMA BARANG</th>'
     + '<th rowspan="3" style="'+thStyle+'min-width:90px;">RESERVED<br>OUT DIRECT</th>'
-    + (dates.length ? '<th colspan="'+(dates.length*2)+'" style="'+thStyle+'">TANGGAL DO</th>' : '<th style="'+thStyle+'">TANGGAL DO</th>')
+    + '<th colspan="'+(dates.length*2)+'" style="'+thStyle+'">TANGGAL DO</th>'
   + '</tr>';
   var headRow2 = '<tr>'
     + dates.map(function(d){ return '<th colspan="2" style="'+thStyle+'">' + _mekDirectFmtTglDot(d) + '</th>'; }).join('')
-    + (!dates.length ? '<th style="'+thStyle+'">-</th>' : '')
   + '</tr>';
   var headRow3 = '<tr>'
     + dates.map(function(){ return '<th style="'+thSoStyle+'">SO</th><th style="'+thDoStyle+'">DO</th>'; }).join('')
-    + (!dates.length ? '<th style="'+thStyle+'"></th>' : '')
   + '</tr>';
 
   var tdStyle = 'padding:6px 8px;font-size:11px;color:#2d3748;border:1px solid #e2e8f0;text-align:center;';
   var bodyRows = rows.map(function(r, i) {
     var zebra = i % 2 === 1 ? 'background:#f7fafc;' : '';
     var cells = dates.map(function(d) {
-      var c = r.cells[d] || { so:0, do:0 };
-      var soTx = c.so > 0 ? c.so.toLocaleString('id-ID') : '-';
-      var doTx = c.do > 0 ? c.do.toLocaleString('id-ID') : '-';
+      var c = r.cells[d];
+      var soTx = c.so > 0 ? _mekN(c.so) : '-';
+      var doTx = c.do > 0 ? _mekN(c.do) : '-';
       return '<td style="'+tdStyle+zebra+'">' + soTx + '</td><td style="'+tdStyle+zebra+'">' + doTx + '</td>';
     }).join('');
     return '<tr>'
       + '<td style="'+tdStyle+zebra+'font-weight:800;">' + _mekEsc(r.sku) + '</td>'
       + '<td style="'+tdStyle+zebra+'text-align:left;">' + _mekEsc(r.nama||'-') + '</td>'
-      + '<td style="'+tdStyle+zebra+'font-weight:700;">' + (r.reservedOut||0).toLocaleString('id-ID') + '</td>'
+      + '<td style="'+tdStyle+zebra+'font-weight:700;">' + _mekN(r.reservedOut) + '</td>'
       + cells
     + '</tr>';
   }).join('');
 
   var totalCells = dates.map(function(d) {
-    var t = (res.totalPerDate && res.totalPerDate[d]) || { so:0, do:0 };
-    return '<td style="'+tdStyle+'background:#e2e8f0;font-weight:800;">' + (t.so||0).toLocaleString('id-ID') + '</td>'
-         + '<td style="'+tdStyle+'background:#e2e8f0;font-weight:800;">' + (t.do||0).toLocaleString('id-ID') + '</td>';
+    var t = totalPerDate[d];
+    return '<td style="'+tdStyle+'background:#e2e8f0;font-weight:800;">' + _mekN(t.so) + '</td>'
+         + '<td style="'+tdStyle+'background:#e2e8f0;font-weight:800;">' + _mekN(t.do) + '</td>';
   }).join('');
   var footRow = '<tr>'
     + '<td colspan="3" style="'+tdStyle+'background:#e2e8f0;font-weight:800;text-align:right;">JUMLAH ( KARTON )</td>'
-    + (dates.length ? totalCells : '<td style="'+tdStyle+'background:#e2e8f0;"></td>')
+    + totalCells
   + '</tr>';
 
   var tableHtml = '<div style="font-size:15px;font-weight:800;color:#1a3a5c;text-align:center;margin-bottom:10px;">'
@@ -5981,11 +6109,11 @@ function _mekRenderDirectSummary(res) {
 
   var boxesHtml = '<div style="display:grid;grid-template-columns:1fr 2fr;gap:0;max-width:420px;margin:16px auto 0;border:1px solid #cbd5e0;border-radius:8px;overflow:hidden;">'
     + '<div style="background:#f6e05e;padding:10px 12px;font-size:12px;font-weight:800;color:#744210;display:flex;align-items:center;">JUMLAH SO ( KARTON )</div>'
-    + '<div style="background:#e2e8f0;padding:10px 12px;font-size:18px;font-weight:800;color:#2d3748;text-align:center;">' + (res.totalSo||0).toLocaleString('id-ID') + '</div>'
+    + '<div style="background:#e2e8f0;padding:10px 12px;font-size:18px;font-weight:800;color:#2d3748;text-align:center;">' + _mekN(totalSo) + '</div>'
     + '<div style="background:#ed8936;padding:10px 12px;font-size:12px;font-weight:800;color:#fff;display:flex;align-items:center;">JUMLAH DO ( KARTON )</div>'
-    + '<div style="background:#e2e8f0;padding:10px 12px;font-size:18px;font-weight:800;color:#2d3748;text-align:center;">' + (res.totalDo||0).toLocaleString('id-ID') + '</div>'
+    + '<div style="background:#e2e8f0;padding:10px 12px;font-size:18px;font-weight:800;color:#2d3748;text-align:center;">' + _mekN(totalDo) + '</div>'
     + '<div style="background:#cbd5e0;padding:10px 12px;font-size:12px;font-weight:800;color:#2d3748;display:flex;align-items:center;">TOTAL ALL</div>'
-    + '<div style="background:#e2e8f0;padding:10px 12px;font-size:20px;font-weight:900;color:#1a3a5c;text-align:center;">' + (res.totalAll||0).toLocaleString('id-ID') + '</div>'
+    + '<div style="background:#e2e8f0;padding:10px 12px;font-size:20px;font-weight:900;color:#1a3a5c;text-align:center;">' + _mekN(totalSo + totalDo) + '</div>'
   + '</div>';
 
   body.innerHTML = tableHtml + boxesHtml;
