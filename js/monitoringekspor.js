@@ -6006,8 +6006,8 @@ function _mekDirectFmtTglDot(ymd) {
   return p[2] + '.' + p[1] + '.' + p[0];
 }
 
-// Render tabel dari _mekDirRes + filter aktif. Reserved Out per SKU = jumlah SO+DO
-// di tanggal-tanggal yang sedang ditampilkan (snapshot terbaru saja — lihat backend).
+// Render tabel dari _mekDirRes + filter aktif. Kolom = TANGGAL INPUT (bukan tanggal DO).
+// Reserved Out per SKU = SO+DO pada tanggal input terakhir yang ada datanya (lihat backend).
 function _mekRenderDirectSummary() {
   var body = document.getElementById('mekDirectSummaryBody');
   var res = _mekDirRes;
@@ -6016,29 +6016,49 @@ function _mekRenderDirectSummary() {
   var fromV = ((document.getElementById('mekDirFrom')||{}).value || '');
   var toV   = ((document.getElementById('mekDirTo')  ||{}).value || '');
 
-  var dates = (res.dates || []).filter(function(d){
-    if (d > today) return false;            // future gak ditampilin
-    if (fromV && d < fromV) return false;
-    if (toV && d > toV) return false;
-    return true;
+  // Kolom tanggal: SEMUA hari dalam rentang filter sampai hari ini (yang gak ada data-nya
+  // tetap muncul, isinya "-"), biar keliatan jelas kalau ternyata belum ada DO di tanggal itu.
+  // Mode "Semua tanggal" cuma nampilin tanggal yang ada datanya + hari ini.
+  var selV = ((document.getElementById('mekDirWeek')||{}).value || '');
+  var dates = [];
+  if (selV === 'all') {
+    var seenD = {};
+    (res.dates || []).forEach(function(d){ if (d <= today) { seenD[d] = true; } });
+    seenD[today] = true;
+    dates = Object.keys(seenD).sort();
+  } else {
+    var startD = fromV || (res.dates && res.dates[0]) || today;
+    var endD = (toV && toV < today) ? toV : today; // future gak ditampilin
+    var cur = _mekDirParse(startD), endDt = _mekDirParse(endD), guard = 0;
+    while (cur <= endDt && guard++ < 62) { dates.push(_mekDirYmd(cur)); cur.setUTCDate(cur.getUTCDate() + 1); }
+  }
+
+  // Tanggal input TERAKHIR (dalam rentang yang ditampilkan) yang ada datanya — Reserved Out
+  // = SO + DO pada tanggal itu SAJA (bukan jumlah semua kolom).
+  var lastDate = '';
+  dates.forEach(function(d) {
+    (res.rows || []).forEach(function(r) {
+      var c = r.cells && r.cells[d];
+      if (c && ((c.so || 0) + (c.do || 0)) > 0) lastDate = d;
+    });
   });
 
-  // Hitung ulang per SKU untuk tanggal yang lolos filter; SKU tanpa qty di rentang itu disembunyiin.
   var rows = [];
   (res.rows || []).forEach(function(r) {
-    var cells = {}, total = 0;
+    var cells = {};
     dates.forEach(function(d) {
       var c = (r.cells && r.cells[d]) || { so:0, do:0 };
       cells[d] = { so: c.so || 0, do: c.do || 0 };
-      total += Math.round(c.so || 0) + Math.round(c.do || 0);
     });
-    if (total > 0) rows.push({ sku: r.sku, nama: r.nama, reservedOut: total, cells: cells });
+    var last = lastDate ? cells[lastDate] : null;
+    var out = last ? (Math.round(last.so) + Math.round(last.do)) : 0;
+    if (out > 0) rows.push({ sku: r.sku, nama: r.nama, reservedOut: out, cells: cells }); // yang Reserved Out-nya 0 = sudah gak pending
   });
 
   if (!rows.length) {
     body.innerHTML = '<div style="text-align:center;padding:50px;color:#a0aec0;font-size:13px;">'
       + '<i class="fas fa-check-circle" style="font-size:30px;display:block;margin-bottom:10px;opacity:.3;"></i>'
-      + 'Tidak ada DO/SO Direct pada rentang tanggal ini</div>';
+      + 'Tidak ada DO/SO Direct pada rentang tanggal input ini</div>';
     return;
   }
 
@@ -6048,7 +6068,8 @@ function _mekRenderDirectSummary() {
     totalPerDate[d].so += Math.round(r.cells[d].so);
     totalPerDate[d].do += Math.round(r.cells[d].do);
   }); });
-  dates.forEach(function(d){ totalSo += totalPerDate[d].so; totalDo += totalPerDate[d].do; });
+  // Tiap tanggal input = snapshot penuh, jadi kotak ringkasan cuma ngambil tanggal input TERAKHIR (jangan dijumlah lintas tanggal — dobel).
+  if (lastDate && totalPerDate[lastDate]) { totalSo = totalPerDate[lastDate].so; totalDo = totalPerDate[lastDate].do; }
 
   var todayLabel = today.split('-').reverse().join('.');
 
@@ -6061,7 +6082,7 @@ function _mekRenderDirectSummary() {
     + '<th rowspan="3" style="'+thStyle+'min-width:70px;">SKU</th>'
     + '<th rowspan="3" style="'+thStyle+'min-width:170px;text-align:left;">NAMA BARANG</th>'
     + '<th rowspan="3" style="'+thStyle+'min-width:90px;">RESERVED<br>OUT DIRECT</th>'
-    + '<th colspan="'+(dates.length*2)+'" style="'+thStyle+'">TANGGAL DO</th>'
+    + '<th colspan="'+(dates.length*2)+'" style="'+thStyle+'">TANGGAL INPUT</th>'
   + '</tr>';
   var headRow2 = '<tr>'
     + dates.map(function(d){ return '<th colspan="2" style="'+thStyle+'">' + _mekDirectFmtTglDot(d) + '</th>'; }).join('')
@@ -6100,6 +6121,7 @@ function _mekRenderDirectSummary() {
   var tableHtml = '<div style="font-size:15px;font-weight:800;color:#1a3a5c;text-align:center;margin-bottom:10px;">'
       + 'Data Pending DO Direct yang (Menunggu Armada) ' + todayLabel
     + '</div>'
+    + '<div style="text-align:center;font-size:11px;color:#718096;margin:-4px 0 10px;">Reserved Out = SO + DO pada tanggal input terakhir (' + _mekDirectFmtTglDot(lastDate) + ')</div>'
     + '<div style="overflow:auto;border:1px solid #cbd5e0;border-radius:8px;-webkit-overflow-scrolling:touch;">'
       + '<table style="border-collapse:collapse;min-width:100%;white-space:nowrap;">'
         + '<thead>' + headRow1 + headRow2 + headRow3 + '</thead>'
