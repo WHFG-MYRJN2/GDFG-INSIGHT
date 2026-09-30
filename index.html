@@ -5729,6 +5729,9 @@
                 <span id="mekRvDetailToggleDot" style="position:absolute;left:2px;top:2px;width:17px;height:17px;background:#fff;border-radius:50%;transition:.15s;pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,.3);"></span>
               </span>
             </label>
+            <button onclick="mekExtOpenModal()" style="padding:7px 14px;border-radius:8px;border:1px solid #553c9a;background:#fff;color:#553c9a;font-size:12px;font-weight:700;cursor:pointer;">
+              <i class="fas fa-warehouse"></i> Input Gudang External
+            </button>
             <button onclick="mekLoadReservedView()" style="padding:7px 14px;border-radius:8px;border:1px solid #2c5282;background:#2c5282;color:#fff;font-size:12px;font-weight:700;cursor:pointer;">
               <i class="fas fa-sync"></i> Refresh
             </button>
@@ -5802,6 +5805,22 @@
       </div>
 
       <div style="overflow:auto;flex:1;-webkit-overflow-scrolling:touch;padding:14px 16px;">
+
+        <!-- ════ GUDANG EXTERNAL — stok di luar rak BinLoc (dicatat via ledger masuk/keluar, bisa lebih dari 1 gudang) ════ -->
+        <div id="mekRvExtBlock" style="background:#faf5ff;border:1px solid #d6bcfa;border-radius:12px;padding:10px 12px;margin-bottom:14px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0;">
+              <div style="font-size:13px;font-weight:800;color:#553c9a;white-space:nowrap;"><i class="fas fa-warehouse" style="margin-right:6px;"></i>Gudang External</div>
+              <div id="mekRvExtChips" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+            </div>
+            <div style="display:flex;gap:6px;align-items:center;">
+              <button onclick="mekExtOpenModal()" style="padding:7px 14px;border-radius:8px;border:1px solid #553c9a;background:#553c9a;color:#fff;font-size:12px;font-weight:700;cursor:pointer;"><i class="fas fa-pen-to-square"></i> Catat Movement</button>
+              <button id="mekRvExtToggleBtn" onclick="mekRvToggleExtBody()" title="Lihat rincian per lot" style="padding:7px 10px;border-radius:8px;border:1px solid #b794f4;background:#fff;color:#553c9a;font-size:12px;font-weight:700;cursor:pointer;"><i class="fas fa-chevron-down"></i></button>
+            </div>
+          </div>
+          <div id="mekRvExtSub" style="font-size:10px;color:#a0aec0;margin-top:4px;">Stok di luar rak BinLoc &middot; ikut hitungan reserved (FIFO tanggal produksi)</div>
+          <div id="mekRvExtBody" style="display:none;margin-top:10px;"></div>
+        </div>
 
         <!-- KPI cards -->
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:14px;">
@@ -5925,6 +5944,7 @@
           <div id="mekRv3dAktualWrap" style="display:block;overflow:auto;padding:8px 2px;"></div>
           <div style="text-align:right;font-size:10px;color:#a0aec0;margin-top:4px;">Tap sel = detail · (mode 3D: drag = rotate, scroll = zoom · mode 3D Aktual: pilih rak buat lihat detail per-posisi)</div>
         </div>
+
         </div><!-- /mekrv-split-map -->
 
         <div id="mekRvSplitToggleWrap" class="mekrv-split-toggle" style="display:none;">
@@ -5978,6 +5998,71 @@
         </div>
         <div style="font-size:10px;color:#a0aec0;padding:10px 18px 0;">* Ngikutin filter yang lagi aktif di atas (tipe/SKU/dst).</div>
         <div id="mekRvReservedBreakdownBody" style="padding:14px 18px;"></div>
+      </div>
+    </div>
+
+    <!-- ════ MODAL GUDANG EXTERNAL — catat movement masuk/keluar, lihat saldo & riwayat ════ -->
+    <style>
+      #mekExtModal .mekext-tab{padding:8px 14px;font-size:12px;font-weight:700;color:#718096;background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;}
+      #mekExtModal .mekext-tab.active{color:#553c9a;border-bottom-color:#553c9a;}
+      #mekExtModal label.mekext-lbl{display:block;font-size:10px;font-weight:700;color:#718096;text-transform:uppercase;margin-bottom:3px;}
+      #mekExtModal .mekext-in{width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #cbd5e0;border-radius:7px;font-size:12px;}
+      #mekExtModal .mekext-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;}
+      #mekExtModal table.mekext-tbl{width:100%;border-collapse:collapse;}
+      #mekExtModal table.mekext-tbl th{padding:6px 8px;font-size:10px;text-align:left;color:#718096;border-bottom:2px solid #e2e8f0;white-space:nowrap;}
+      #mekExtModal table.mekext-tbl td{padding:6px 8px;font-size:11px;border-bottom:1px solid #edf2f7;}
+    </style>
+    <div id="mekExtModal" onclick="if(event.target===this) mekExtCloseModal()" style="display:none;position:fixed;inset:0;background:rgba(15,32,39,.55);z-index:3000;align-items:center;justify-content:center;padding:16px;">
+      <div style="background:#fff;border-radius:12px;max-width:860px;width:100%;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.3);">
+        <div style="padding:14px 18px;background:linear-gradient(90deg,#44337a,#6b46c1);color:#fff;display:flex;align-items:center;gap:10px;border-radius:12px 12px 0 0;flex-shrink:0;">
+          <div>
+            <div style="font-size:13px;font-weight:800;">Gudang External &mdash; Catat Movement</div>
+            <div style="font-size:10px;opacity:.85;">Catat barang MASUK / KELUAR saja &mdash; saldo dihitung otomatis</div>
+          </div>
+          <button onclick="mekExtCloseModal()" style="margin-left:auto;padding:5px 10px;border-radius:7px;border:1px solid rgba(255,255,255,.4);background:none;color:#fff;font-size:13px;cursor:pointer;" title="Tutup"><i class="fas fa-times"></i></button>
+        </div>
+        <div style="display:flex;gap:2px;border-bottom:1px solid #e2e8f0;padding:0 12px;flex-shrink:0;">
+          <button id="mekExtTabInput"  class="mekext-tab active" onclick="mekExtSwitchTab('input')">Input</button>
+          <button id="mekExtTabSaldo"  class="mekext-tab" onclick="mekExtSwitchTab('saldo')">Saldo</button>
+          <button id="mekExtTabRiwayat" class="mekext-tab" onclick="mekExtSwitchTab('riwayat')">Riwayat</button>
+        </div>
+        <div style="overflow:auto;padding:14px 18px;flex:1;">
+          <div id="mekExtPaneInput">
+            <div class="mekext-grid">
+              <div><label class="mekext-lbl">Tanggal</label><input type="date" id="mekExtTanggal" class="mekext-in"></div>
+              <div><label class="mekext-lbl">Nama Gudang External <span style="color:#c53030;">* wajib</span></label><input type="text" id="mekExtGudang" list="mekExtGudangList" class="mekext-in" placeholder="mis. GUDANG SEWA A" autocomplete="off"><datalist id="mekExtGudangList"></datalist></div>
+              <div><label class="mekext-lbl">Tipe</label>
+                <select id="mekExtTipe" class="mekext-in" onchange="mekExtOnTipeChange()">
+                  <option value="MASUK">MASUK (barang datang)</option>
+                  <option value="KELUAR">KELUAR (barang diambil)</option>
+                </select></div>
+              <div><label class="mekext-lbl">SKU</label><input type="text" id="mekExtSku" list="mekExtSkuList" class="mekext-in" placeholder="kode SKU" oninput="mekExtOnSkuInput()"><datalist id="mekExtSkuList"></datalist></div>
+              <div><label class="mekext-lbl">Nama Barang</label><input type="text" id="mekExtNama" class="mekext-in" placeholder="otomatis kalau SKU dikenal"></div>
+              <div><label class="mekext-lbl">Karton</label><input type="number" id="mekExtKarton" class="mekext-in" min="1" step="1" placeholder="0"></div>
+              <div><label id="mekExtProdateLbl" class="mekext-lbl">Tgl Produksi (wajib)</label><input type="date" id="mekExtProdate" class="mekext-in"></div>
+              <div><label class="mekext-lbl">Keterangan</label><input type="text" id="mekExtKet" class="mekext-in" placeholder="opsional (mis. saldo awal, no. DO)"></div>
+            </div>
+            <div style="margin-top:8px;font-size:10px;color:#718096;">Gudang yang sudah ada (klik untuk pilih): <span id="mekExtGudangChips" style="display:inline-flex;gap:5px;flex-wrap:wrap;vertical-align:middle;"><i style="color:#a0aec0;">belum ada — ketik nama gudang baru di atas</i></span></div>
+            <div id="mekExtSkuHint" style="font-size:10px;margin-top:6px;min-height:14px;color:#a0aec0;"></div>
+            <div id="mekExtProdateHint" style="font-size:10px;color:#a0aec0;margin-top:2px;">Tips: pertama kali, catat stok yang sudah ada sekarang sebagai MASUK (keterangan: &quot;saldo awal&quot;) per tanggal produksi.</div>
+            <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+              <button onclick="mekExtAddDraft()" class="mek-tab-btn mek-pill-tab active" style="padding:7px 14px;font-size:12px;"><i class="fas fa-plus"></i> Tambah ke daftar</button>
+              <span id="mekExtFormMsg" style="font-size:11px;color:#c53030;"></span>
+            </div>
+
+            <div style="margin-top:14px;font-size:11px;font-weight:800;color:#4a5568;">Daftar yang akan disimpan (<span id="mekExtDraftCount">0</span>)</div>
+            <div style="overflow:auto;margin-top:6px;">
+              <table class="mekext-tbl"><thead><tr><th>Tgl</th><th>Gudang</th><th>Tipe</th><th>SKU</th><th>Nama</th><th style="text-align:right;">Karton</th><th>Prodate</th><th>Ket</th><th></th></tr></thead>
+              <tbody id="mekExtDraftBody"><tr><td colspan="9" style="text-align:center;color:#a0aec0;padding:14px;">Belum ada</td></tr></tbody></table>
+            </div>
+            <div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+              <button id="mekExtSaveBtn" onclick="mekExtSaveDrafts()" class="mek-tab-btn mek-pill-tab active" style="padding:8px 18px;font-size:12px;background:#276749;color:#fff;" disabled><i class="fas fa-floppy-disk"></i> Simpan semua</button>
+              <span id="mekExtSaveMsg" style="font-size:11px;"></span>
+            </div>
+          </div>
+          <div id="mekExtPaneSaldo" style="display:none;"></div>
+          <div id="mekExtPaneRiwayat" style="display:none;"></div>
+        </div>
       </div>
     </div>
 
