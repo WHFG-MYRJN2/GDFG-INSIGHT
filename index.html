@@ -5330,6 +5330,24 @@
             <i class="fas fa-rotate"></i> Muat / Refresh
           </button>
         </div>
+        <div id="mekDirFilterBar" style="padding:8px 14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-bottom:1px solid #e2e8f0;background:#f7fafc;">
+          <label style="font-size:11px;font-weight:700;color:#718096;">Week</label>
+          <select id="mekDirWeek" onchange="mekDirOnWeekChange()"
+            style="padding:6px 8px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;font-weight:600;color:#2d3748;background:#fff;max-width:230px;">
+            <option value="">Memuat...</option>
+          </select>
+          <label style="font-size:11px;font-weight:700;color:#718096;margin-left:6px;">Tanggal DO</label>
+          <input type="date" id="mekDirFrom" onchange="mekDirOnDateChange()"
+            style="padding:5px 7px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;color:#2d3748;background:#fff;">
+          <span style="font-size:11px;color:#a0aec0;">s/d</span>
+          <input type="date" id="mekDirTo" onchange="mekDirOnDateChange()"
+            style="padding:5px 7px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;color:#2d3748;background:#fff;">
+          <button onclick="mekDirResetFilter()"
+            style="padding:6px 10px;border-radius:8px;border:1.5px solid #cbd5e0;background:#fff;color:#4a5568;font-size:11px;font-weight:700;cursor:pointer;">
+            <i class="fas fa-calendar-day"></i> Week ini
+          </button>
+          <span style="font-size:10px;color:#a0aec0;">Tanggal setelah hari ini (future) tidak ditampilkan</span>
+        </div>
         <div id="mekDirectSummaryBody" style="padding:14px;">
           <div style="text-align:center;padding:50px;color:#a0aec0;font-size:13px;">
             <i class="fas fa-truck-fast" style="font-size:30px;display:block;margin-bottom:10px;opacity:.2;"></i>
@@ -5988,7 +6006,7 @@
         <!-- Kartu "DO dan SO" — status khusus DIRECT (DO/SO). Proses = No. DO/SO (bagian sebelum "/", tanpa 0 di depan)
              ketemu di ANTRIAN. Terpisah dari strip Status Container (yang untuk ekspor/RDC/MDC/MT). -->
         <div id="mekRvDoSoCard" style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:12px 14px;margin-top:12px;">
-          <div style="font-size:11px;font-weight:800;color:#718096;text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px;">DO dan SO <span style="font-weight:600;text-transform:none;color:#a0aec0;">&middot; Proses = nomornya ada di antrian</span></div>
+          <div style="font-size:11px;font-weight:800;color:#718096;text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px;">DO dan SO <span style="font-weight:600;text-transform:none;color:#a0aec0;">&middot; Proses = nomornya ada di antrian (tahapnya ditampilkan), Keluar = truk sudah keluar</span></div>
           <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
             <div id="mekRvDoBoxBelum" onclick="mekRvFilterByDoStatus('belum')" style="background:#fff5f5;border:1px solid #fed7d7;border-radius:10px;padding:10px 8px;text-align:center;cursor:pointer;" title="Klik buat filter list di bawah">
               <div id="mekRvDoBelum" style="font-size:20px;font-weight:800;color:#c53030;">&mdash;</div>
@@ -5997,6 +6015,7 @@
             <div id="mekRvDoBoxProses" onclick="mekRvFilterByDoStatus('proses')" style="background:#fffaf0;border:1px solid #feebc8;border-radius:10px;padding:10px 8px;text-align:center;cursor:pointer;" title="Klik buat filter list di bawah">
               <div id="mekRvDoProses" style="font-size:20px;font-weight:800;color:#c05621;">&mdash;</div>
               <div style="font-size:10px;color:#c05621;text-transform:uppercase;margin-top:2px;">Proses</div>
+              <div id="mekRvDoProsesSub" style="display:none;font-size:9px;color:#744210;margin-top:3px;line-height:1.35;"></div>
             </div>
             <div id="mekRvDoBoxKeluar" onclick="mekRvFilterByDoStatus('keluar')" style="background:#f0fff4;border:1px solid #c6f6d5;border-radius:10px;padding:10px 8px;text-align:center;cursor:pointer;" title="Klik buat filter list di bawah">
               <div id="mekRvDoKeluar" style="font-size:20px;font-weight:800;color:#276749;">&mdash;</div>
