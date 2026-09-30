@@ -5984,6 +5984,26 @@
             </div>
           </div>
         </div>
+
+        <!-- Kartu "DO dan SO" — status khusus DIRECT (DO/SO). Proses = No. DO/SO (bagian sebelum "/", tanpa 0 di depan)
+             ketemu di ANTRIAN. Terpisah dari strip Status Container (yang untuk ekspor/RDC/MDC/MT). -->
+        <div id="mekRvDoSoCard" style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:12px 14px;margin-top:12px;">
+          <div style="font-size:11px;font-weight:800;color:#718096;text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px;">DO dan SO <span style="font-weight:600;text-transform:none;color:#a0aec0;">&middot; Proses = nomornya ada di antrian</span></div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
+            <div id="mekRvDoBoxBelum" onclick="mekRvFilterByDoStatus('belum')" style="background:#fff5f5;border:1px solid #fed7d7;border-radius:10px;padding:10px 8px;text-align:center;cursor:pointer;" title="Klik buat filter list di bawah">
+              <div id="mekRvDoBelum" style="font-size:20px;font-weight:800;color:#c53030;">&mdash;</div>
+              <div style="font-size:10px;color:#c53030;text-transform:uppercase;margin-top:2px;">Belum</div>
+            </div>
+            <div id="mekRvDoBoxProses" onclick="mekRvFilterByDoStatus('proses')" style="background:#fffaf0;border:1px solid #feebc8;border-radius:10px;padding:10px 8px;text-align:center;cursor:pointer;" title="Klik buat filter list di bawah">
+              <div id="mekRvDoProses" style="font-size:20px;font-weight:800;color:#c05621;">&mdash;</div>
+              <div style="font-size:10px;color:#c05621;text-transform:uppercase;margin-top:2px;">Proses</div>
+            </div>
+            <div id="mekRvDoBoxKeluar" onclick="mekRvFilterByDoStatus('keluar')" style="background:#f0fff4;border:1px solid #c6f6d5;border-radius:10px;padding:10px 8px;text-align:center;cursor:pointer;" title="Klik buat filter list di bawah">
+              <div id="mekRvDoKeluar" style="font-size:20px;font-weight:800;color:#276749;">&mdash;</div>
+              <div style="font-size:10px;color:#276749;text-transform:uppercase;margin-top:2px;">Keluar</div>
+            </div>
+          </div>
+        </div>
         </div><!-- /mekrv-split-list -->
         </div><!-- /mekrv-split -->
       </div>
