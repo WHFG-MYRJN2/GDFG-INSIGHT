@@ -658,7 +658,6 @@ function mekLoadReservedView() {
 function _mekRvShowExtDebugNote(res, err) {
   var el = document.getElementById('mekRvExtDebugNote');
   if (!el) return;
-  if (res && res.debug) console.log('[RDC/MDC/MT debug]', res.debug);
 
   if (err) {
     el.style.display = 'block';
@@ -2038,6 +2037,9 @@ function mekRvShowReservedBreakdown() {
     var html = '';
     var typeOrder = MEK_RV_BREAKDOWN_ORDER.slice();
     Object.keys(sums).forEach(function(k){ if (typeOrder.indexOf(k) < 0) typeOrder.push(k); }); // tipe di luar 5 baku tetap tampil, biar jumlah baris = TOTAL
+    // Urut dari reserved (carton) terbanyak ke paling sedikit; seri → urutan baku.
+    var _baseIdx = typeOrder.slice();
+    typeOrder.sort(function(a,b){ return ((sums[b]||0) - (sums[a]||0)) || (_baseIdx.indexOf(a) - _baseIdx.indexOf(b)); });
     typeOrder.forEach(function(t) {
       var v = sums[t] || 0;
       html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 12px;border-radius:8px;background:#f7fafc;border:1px solid #e2e8f0;margin-bottom:6px;">' +
@@ -2221,7 +2223,9 @@ function mekRvShowReservedPctBreakdown() {
   var sums = {};
   rows.forEach(function(r) { var t = r.sourceType || 'ekspor'; sums[t] = (sums[t]||0) + Math.round(r.qtyReserved||0); });
   var total = 0; Object.keys(sums).forEach(function(k){ total += sums[k]; });
-  var items = MEK_RV_BREAKDOWN_ORDER.map(function(t) {
+  var items = MEK_RV_BREAKDOWN_ORDER.slice()
+    .sort(function(a,b){ return ((sums[b]||0) - (sums[a]||0)) || (MEK_RV_BREAKDOWN_ORDER.indexOf(a) - MEK_RV_BREAKDOWN_ORDER.indexOf(b)); })
+    .map(function(t) {
     var v = sums[t] || 0;
     var pct = total > 0 ? (v / total * 100) : 0;
     return { left: MEK_RV_TYPE_LABELS[t], leftSub: _mekN(v) + ' Carton', right: pct.toFixed(1) + '%' };
@@ -4697,10 +4701,28 @@ function _mekRenderCapaianEmail(data, skuFilter, docFilter, tujFilter) {
     });
   }
 
+  // Tandai tiap baris dengan nomor planning-nya (baris isFirstRow = awal planning baru)
+  // SEBELUM filter status — supaya kalau baris pertama sebuah SO disembunyikan filter
+  // status (mis. 1 dari 3 container sudah Keluar lalu filter "Belum" aktif), kolom
+  // NO SO / Plan / Tujuan tetap tampil di baris pertama yang MASIH terlihat.
+  var _planHead = {}, _pIdx = 0;
+  filtered.forEach(function(r){
+    if (r.isFirstRow || !_pIdx) _pIdx++;
+    r._pIdx = _pIdx;
+    if (r.isFirstRow && !_planHead[_pIdx]) _planHead[_pIdx] = r;
+  });
+
   // Filter status per baris
   if (statusFilter.length && statusFilter.length < 4) {
     filtered = filtered.filter(function(r){ return _mekMatchStatus(r.status, statusFilter); });
   }
+
+  var _headSeen = {};
+  filtered.forEach(function(r){
+    r._showHead = !_headSeen[r._pIdx];
+    _headSeen[r._pIdx] = true;
+    r._head = _planHead[r._pIdx] || r;
+  });
 
   _mekCapEmailRowData = [];
   var byDate={}, dateOrder=[];
@@ -4756,7 +4778,7 @@ function _mekRenderCapaianEmail(data, skuFilter, docFilter, tujFilter) {
     rows.forEach(function(r){
       // Tampilkan semua baris termasuk yang belum datang
 
-      if(r.isFirstRow) rowNum++;
+      if(r._showHead) rowNum++;
       var isPend=r.isPendingan;
       var isMaju=r.isMaju;
       var bg=isPend?'background:#fffff0;':(isMaju?'background:#f0fff4;':(r.status==='belum'?'background:#fff5f5;':''));
@@ -4780,17 +4802,17 @@ function _mekRenderCapaianEmail(data, skuFilter, docFilter, tujFilter) {
         : '';
       _mekCapEmailRowData.push({sku:r.sku,nama:r.nama,qty:r.qty||'',qt:r.qt||'',keterangan:r.keterangan||'',note:r.note||'',items:r.items||[]});
       var ditolakBadge = '';
-      if (r.isFirstRow && r.ditolakList && r.ditolakList.length) {
-        _mekDitolakData[_mekCapEmailRowData.length-1] = r.ditolakList;
+      if (r._showHead && r._head.ditolakList && r._head.ditolakList.length) {
+        _mekDitolakData[_mekCapEmailRowData.length-1] = r._head.ditolakList;
         ditolakBadge = '<span onclick="event.stopPropagation();mekShowDitolakPopup('+(_mekCapEmailRowData.length-1)+')" title="Ada container ditolak, klik untuk detail" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#e53e3e;margin-left:5px;cursor:pointer;vertical-align:middle;"></span>';
       }
       html+='<tr style="'+bg+';cursor:pointer;" data-rowidx="'+(_mekCapEmailRowData.length-1)+'" onclick="mekShowRowDetail(this)">' +
-        '<td style="'+CS+'text-align:center;color:#a0aec0;" data-edit-btn>'+( r.isFirstRow ? rowNum+'<br>'+editBtn : editBtn)+'</td>' +
-        '<td style="'+CS+'font-weight:600;color:#2b6cb0;">'+(r.isFirstRow?(_mekEsc(r.noSo||'—')+ditolakBadge):'')+  '</td>' +
+        '<td style="'+CS+'text-align:center;color:#a0aec0;" data-edit-btn>'+( r._showHead ? rowNum+'<br>'+editBtn : editBtn)+'</td>' +
+        '<td style="'+CS+'font-weight:600;color:#2b6cb0;">'+(r._showHead?(_mekEsc(r._head.noSo||r.noSo||'—')+ditolakBadge):'')+  '</td>' +
         '<td style="'+CS+'font-weight:700;">'+_mekEsc(r.sku||'')+'</td>' +
         '<td style="'+CS+'">'+_mekEsc(r.nama||'')+'</td>' +
-        '<td style="'+CS+'text-align:right;font-weight:700;">'+(r.isFirstRow&&r.planCont?r.planCont:'')+'</td>' +
-        '<td style="'+CS+'color:#276749;font-weight:600;">'+(r.isFirstRow?_mekEsc(r.tujuan||''):'')+'</td>' +
+        '<td style="'+CS+'text-align:right;font-weight:700;">'+(r._showHead&&r._head.planCont?r._head.planCont:'')+'</td>' +
+        '<td style="'+CS+'color:#276749;font-weight:600;">'+(r._showHead?_mekEsc(r._head.tujuan||r.tujuan||''):'')+'</td>' +
         '<td style="'+CS+'font-weight:600;" data-field="nopol">'+_mekEsc(r.nopol||'\u2014')+'</td>' +
         '<td style="'+CS+'font-size:11px;color:#4a5568;" data-field="noContainer">'+_mekEsc(r.noContainer||'\u2014')+'</td>' +
         '<td style="'+CS+'" data-field="ekspedisi">'+_mekEsc(r.ekspedisi||'\u2014')+'</td>' +
