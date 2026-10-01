@@ -202,6 +202,7 @@ function initRealForm(){
     // biar bisa isi semua tab dulu baru Save satu-satu kapan pun siap.
     var _hpCache         = {}; // gudang -> array baris {code,name,bal,rec,issued,ending,std,divisi,plant}
     var _hpFetchedGudang = {}; // gudang -> true kalau sudah pernah diambil dari server utk tanggal ini
+    var _hpMerge         = {}; // gudang -> true kalau tabel dikosongkan setelah Save (server hanya timpa kode yang sama, bukan seluruh tanggal+gudang)
 
     function initHasilProduksi(){
       var tglEl = document.getElementById('hpTanggal');
@@ -429,6 +430,7 @@ function initRealForm(){
       if(!tgl) return;
       _hpCache = {};
       _hpFetchedGudang = {};
+      _hpMerge = {};
       _hpFetchFromServer(_hpGudang, tgl);
     }
 
@@ -517,21 +519,22 @@ function initRealForm(){
         showToast('⚠️ Server belum membalas (>60 dtk). Data mungkin sudah tersimpan — cek dulu sebelum Save ulang.', 'error');
       }, 60000);
 
-      API.run('saveHasilProduksiData', { tanggal: tgl, gudang: saveGudang, rows: rows }, function(res){
+      API.run('saveHasilProduksiData', { tanggal: tgl, gudang: saveGudang, rows: rows, merge: !!_hpMerge[saveGudang] }, function(res){
           if(finished) return; // sudah kena timeout pengaman
           finished = true; clearTimeout(guard);
           resetBtn();
           if(res && res.success){
             showToast('✅ '+res.message, 'success');
-            // Cache tab yang barusan di-Save langsung diisi dari baris yang dikirim
-            // (gak perlu ambil ulang dari server — itu 1 panggilan berat tambahan
-            // yang bikin Save terasa lama). Tab gudang lain yang masih ada draft
-            // belum di-Save tetap aman.
-            // rows: [code, nama, bb, receipt, issued, eb, std, jml, divisi, plant]
+            // Setelah Save berhasil, tabel gudang ini dikosongkan supaya tidak ada
+            // input dobel. Data sudah aman di sheet HASIL_PRODUKSI; Save berikutnya
+            // utk tanggal+gudang yang sama mengirim merge=true (hanya timpa kode yang
+            // sama, baris hasil Save sebelumnya tidak ikut terhapus). Ganti tanggal
+            // / klik muat ulang = ambil lagi data tersimpan dari server.
+            // Tab gudang lain yang masih ada draft belum di-Save tetap aman.
             _hpFetchedGudang[saveGudang] = true;
-            _hpCache[saveGudang] = rows.map(function(r){
-              return { code:r[0]||'', name:r[1]||'', bal:r[2]||'', rec:r[3]||'', issued:r[4]||'', ending:r[5]||'', std:r[6]||'', divisi:r[8]||'', plant:r[9]||'' };
-            });
+            _hpMerge[saveGudang] = true;
+            _hpCache[saveGudang] = [];
+            if(saveGudang === _hpGudang) _hpRenderFromCache(saveGudang);
           } else {
             showToast('❌ '+(res&&res.message||'Gagal menyimpan'), 'error');
           }
