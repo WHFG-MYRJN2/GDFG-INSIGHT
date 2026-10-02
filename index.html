@@ -2696,6 +2696,10 @@
         <div class="s-icon"><i class="fa-solid fa-th"></i></div>
         <span>Aplikasi</span>
       </a>
+      <a id="menuAdmin" onclick="showPage('adminPage')" style="display:none;">
+        <div class="s-icon"><i class="fa-solid fa-user-shield"></i></div>
+        <span>Admin</span>
+      </a>
     </div>
 
     <!-- Footer -->
@@ -2753,6 +2757,29 @@
       </div>
       <button class="btn-login" onclick="login()">Login</button>
       <div id="loginMsg" class="alert alert-err"></div>
+      <div style="text-align:center;margin-top:16px;font-size:13px;color:#718096;">
+        Belum punya akun? <a href="javascript:void(0)" onclick="AUTH.showRegister()" style="color:#2c5364;font-weight:700;text-decoration:none;">Daftar</a>
+      </div>
+    </div>
+
+    <!-- ===== DAFTAR AKUN BARU ===== -->
+    <div class="login-box" id="registerBox" style="display:none;">
+      <div class="login-logo">
+        <div class="logo-ring"><i class="fa-solid fa-user-plus"></i></div>
+        <div class="login-title">DAFTAR AKUN</div>
+        <div class="login-sub">Akun aktif setelah disetujui admin</div>
+      </div>
+      <div class="field"><label>Nama Lengkap</label><input id="regNama" type="text" placeholder="Nama lengkap" autocomplete="name"></div>
+      <div class="field"><label>Bagian / Jabatan</label><input id="regBagian" type="text" placeholder="Mis. PPIC, Gudang, Admin"></div>
+      <div class="field"><label>Username</label><input id="regUsername" type="text" placeholder="huruf kecil, angka, titik, strip" autocomplete="username" autocapitalize="none"></div>
+      <div class="field"><label>Password</label><input id="regPassword" type="password" placeholder="Minimal 6 karakter" autocomplete="new-password"></div>
+      <div class="field"><label>Ulangi Password</label><input id="regPassword2" type="password" placeholder="Ulangi password" autocomplete="new-password"
+        onkeydown="if(event.key==='Enter') AUTH.doRegister()"></div>
+      <button class="btn-login" id="btnRegister" onclick="AUTH.doRegister()">Kirim Pendaftaran</button>
+      <div id="registerMsg" class="alert" style="display:none;"></div>
+      <div style="text-align:center;margin-top:16px;font-size:13px;color:#718096;">
+        Sudah punya akun? <a href="javascript:void(0)" onclick="AUTH.showLogin()" style="color:#2c5364;font-weight:700;text-decoration:none;">Login</a>
+      </div>
     </div>
   </div>
 
@@ -6326,6 +6353,81 @@
   </div>
 
 
+
+  <!-- ============================================================ -->
+  <!-- ADMIN — approval user, role & hak akses                      -->
+  <!-- ============================================================ -->
+  <style>
+    .adm-badge{ margin-left:auto; min-width:18px; padding:1px 6px; border-radius:10px; background:#e53e3e; color:#fff; font-size:10px; font-weight:800; text-align:center; display:none; }
+    .adm-tabbar{ display:flex; gap:6px; padding:12px 14px 0; flex-wrap:wrap; }
+    .adm-tabbtn{ padding:8px 16px; border-radius:10px 10px 0 0; border:1px solid #e2e8f0; border-bottom:none; background:#edf2f7; color:#4a5568; font-size:12px; font-weight:700; cursor:pointer; }
+    .adm-tabbtn.active{ background:#fff; color:#1a3a5c; }
+    #admBody{ padding:14px; background:#fff; margin:0 14px 20px; border:1px solid #e2e8f0; border-radius:0 12px 12px 12px; min-height:240px; }
+    .adm-empty{ text-align:center; color:#a0aec0; padding:40px 10px; font-size:13px; }
+    .adm-card{ border:1px solid #e2e8f0; border-radius:12px; padding:12px 14px; margin-bottom:10px; background:#f8fafc; }
+    .adm-card-top{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:10px; flex-wrap:wrap; }
+    .adm-name{ font-size:14px; font-weight:800; color:#2d3748; }
+    .adm-sub{ font-size:11px; color:#718096; margin-top:2px; font-weight:500; }
+    .adm-row{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    .adm-input{ flex:1 1 160px; min-width:130px; padding:8px 10px; border:1.5px solid #e2e8f0; border-radius:8px; font-size:13px; background:#fff; color:#2d3748; }
+    .adm-btn{ padding:8px 14px; border-radius:8px; border:1px solid #cbd5e0; background:#fff; color:#2d3748; font-size:12px; font-weight:700; cursor:pointer; }
+    .adm-btn-ok{ background:#276749; border-color:#276749; color:#fff; }
+    .adm-btn-bad{ background:#fff5f5; border-color:#feb2b2; color:#c53030; }
+    .adm-pill{ display:inline-block; padding:2px 9px; border-radius:10px; font-size:10px; font-weight:800; }
+    .adm-pill-green{ background:#c6f6d5; color:#276749; } .adm-pill-red{ background:#fed7d7; color:#c53030; }
+    .adm-pill-amber{ background:#feebc8; color:#9c4221; } .adm-pill-gray{ background:#e2e8f0; color:#4a5568; }
+    .adm-pill-blue{ background:#bee3f8; color:#2b6cb0; }
+    #admRoleModal{ position:fixed; inset:0; background:rgba(15,32,39,.55); z-index:9999; display:none; align-items:center; justify-content:center; padding:14px; }
+    .adm-modal{ background:#fff; border-radius:14px; width:100%; max-width:560px; max-height:92vh; display:flex; flex-direction:column; box-shadow:0 20px 60px rgba(0,0,0,.35); }
+    .adm-modal-h{ padding:14px 18px; border-bottom:1px solid #e2e8f0; font-weight:800; color:#1a3a5c; font-size:15px; }
+    .adm-modal-b{ padding:14px 18px; overflow-y:auto; flex:1; }
+    .adm-modal-f{ padding:12px 18px; border-top:1px solid #e2e8f0; display:flex; gap:8px; justify-content:flex-end; }
+    .adm-field{ margin-bottom:12px; } .adm-field label.adm-lbl{ display:block; font-size:12px; font-weight:700; color:#4a5568; margin-bottom:4px; }
+    .adm-field input[type=text], .adm-field select{ width:100%; padding:9px 10px; border:1.5px solid #e2e8f0; border-radius:8px; font-size:13px; box-sizing:border-box; }
+    .adm-chk{ display:flex; align-items:center; gap:8px; font-size:13px; color:#2d3748; cursor:pointer; padding:3px 0; }
+    .adm-chk input{ width:16px; height:16px; accent-color:#1a3a5c; }
+    .adm-tree-page{ border:1px solid #e2e8f0; border-radius:10px; padding:8px 12px; margin-bottom:8px; background:#f8fafc; }
+    .adm-page{ font-weight:800; } .adm-tabs{ margin:4px 0 2px 26px; display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:0 12px; }
+    .adm-tab{ font-size:12px; color:#4a5568; }
+  </style>
+
+  <div id="adminPage" style="display:none;">
+    <div class="gdrm-header">
+      <h2>
+        <span style="cursor:pointer;font-size:17px;" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></span>
+        <i class="fa-solid fa-user-shield"></i> Admin
+      </h2>
+      <div class="gdrm-header-btns">
+        <button class="btn-hdr" onclick="AUTH.adminReload()"><i class="fas fa-sync-alt"></i> Muat Ulang</button>
+      </div>
+    </div>
+    <div class="adm-tabbar">
+      <button class="adm-tabbtn active" id="admTab-pending" onclick="AUTH.adminTab('pending')">Pendaftar<span id="admTabPendingCount"></span></button>
+      <button class="adm-tabbtn" id="admTab-users" onclick="AUTH.adminTab('users')">Pengguna</button>
+      <button class="adm-tabbtn" id="admTab-roles" onclick="AUTH.adminTab('roles')">Role &amp; Akses</button>
+    </div>
+    <div id="admBody"></div>
+  </div>
+
+  <div id="admRoleModal">
+    <div class="adm-modal">
+      <div class="adm-modal-h">Role &amp; Hak Akses</div>
+      <div class="adm-modal-b">
+        <div class="adm-field"><label class="adm-lbl">Kode role (huruf kecil, tanpa spasi)</label><input id="rolKey" type="text" placeholder="mis. ppic, gudang, tamu"></div>
+        <div class="adm-field"><label class="adm-lbl">Nama role</label><input id="rolLabel" type="text" placeholder="mis. PPIC"></div>
+        <div class="adm-field"><label class="adm-lbl">Perilaku tombol (fitur lama)</label><select id="rolLevel"></select></div>
+        <label class="adm-chk"><input type="checkbox" id="rolPenuh" onchange="AUTH.treeChanged(this)"> <b>Akses penuh</b> — semua halaman &amp; tab</label>
+        <label class="adm-chk" style="margin-bottom:10px;"><input type="checkbox" id="rolKelola"> Boleh mengelola user (approve, role, reset password)</label>
+        <div style="font-size:12px;font-weight:700;color:#4a5568;margin:8px 0 6px;">Halaman &amp; tab yang boleh dibuka</div>
+        <div id="rolTree"></div>
+      </div>
+      <div class="adm-modal-f">
+        <button class="adm-btn" onclick="AUTH.closeRole()">Batal</button>
+        <button class="adm-btn adm-btn-ok" onclick="AUTH.saveRole()">Simpan Role</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ============================================================ -->
   <!-- JS MODULES                                                   -->
   <!-- ============================================================ -->
@@ -6341,6 +6443,7 @@
   <script src="js/binloc.js"></script>
   <script src="js/monitoringekspor.js"></script>
   <script src="js/kpi.js"></script>
+  <script src="js/auth.js"></script>
   <script type="module" src="js/mek-reserved3d.js"></script>
 
   <!-- Service Worker Registration -->
