@@ -12,7 +12,7 @@ var _skuNamaMap          = {};
 var _skuDataMap          = {};
 var _opnameNamaMap       = {};
 var _currentUser         = '';
-var _userRole            = 'admin';
+var _userRole            = '';   // diisi dari server saat login (level: admin/viewer/visitor/owner). Kosong = tanpa hak.
 var divisiChartData      = null;
 var lokalChartInstance   = null;
 var eksporChartInstance  = null;
@@ -60,28 +60,54 @@ function login(){
   btn.classList.add("loading");
   btn.innerHTML = '<span class="btn-spinner"></span> Memuat...';
 
-  API.run('verifyLogin', { username: u, password: p }, function(res){
+  var remember = !!(document.getElementById('loginRemember') && document.getElementById('loginRemember').checked);
+  API.run('verifyLogin', { username: u, password: p, remember: remember }, function(res){
     if(res && res.success){
-      _currentUser = u;
-      _userRole    = res.role || 'admin';
       API.setToken(res.token);
-      var remember = document.getElementById('loginRemember') && document.getElementById('loginRemember').checked;
-      var sess = JSON.stringify({ user: u, role: _userRole, ts: Date.now(), token: res.token });
-      try { if(remember) localStorage.setItem('gdfgSession', sess); } catch(e){}
+      try { if(remember) localStorage.setItem('gdfgSession', JSON.stringify({ user: res.user, ts: Date.now(), token: res.token })); } catch(e){}
       try { sessionStorage.removeItem('gdfgLoggedOut'); } catch(e){}
       _patternLoaded = false;
       _patternCache  = null;
-      document.getElementById("loginWrap").style.display = "none";
-      document.getElementById("dashboard").style.display = "block";
-      applyRoleRestrictions(_userRole);
-      refreshData();
-      _patternLoadAsync(function(){});
+      btn.classList.remove("loading");
+      btn.innerHTML = "Login";
+      _enterApp(res, true);
     } else {
       btn.classList.remove("loading");
       btn.innerHTML = "Login";
       showLoginError((res&&res.message) || "Login gagal.");
     }
+  }, function(){
+    btn.classList.remove("loading");
+    btn.innerHTML = "Login";
+    showLoginError("Koneksi gagal. Coba lagi.");
   });
+}
+
+// Masuk ke aplikasi setelah login / pemulihan sesi. Semua hak akses (role level lama,
+// daftar halaman & tab) datang dari SERVER (res), bukan dihitung di frontend.
+function _enterApp(res, isLogin){
+  _currentUser = res.user;
+  _userRole    = res.role || '';
+  AUTH.setSession(res);
+  var home = AUTH.homePage();
+  if(!home){
+    AUTH.setSession(null); API.clearToken(); _userRole = '';
+    try { localStorage.removeItem('gdfgSession'); } catch(e){}
+    handleAuthExpired('Akun Anda belum punya akses ke halaman mana pun. Hubungi admin.');
+    return;
+  }
+  document.getElementById("loginWrap").style.display = "none";
+  document.getElementById("dashboard").style.display = "block";
+  applyRoleRestrictions(_userRole);   // pembatasan lama (viewer/visitor/ppic/owner)
+  AUTH.apply();                        // pembatasan baru per halaman & tab
+  if(home === 'dashboard'){
+    AUTH.ensureDefault('dashboard');
+    if(isLogin){ refreshData(); _patternLoadAsync(function(){}); }
+    else loadTanggalHistoryThenHariIni();
+  } else {
+    showPage(home);
+    if(isLogin) _patternLoadAsync(function(){});
+  }
 }
 
 function showLoginError(msg) {
@@ -92,6 +118,9 @@ function showLoginError(msg) {
 
 function handleAuthExpired(serverMsg) {
   try { localStorage.removeItem('gdfgSession'); } catch(e){}
+  if (window.AUTH) AUTH.setSession(null);
+  _userRole = '';
+  var lb = document.querySelector('.btn-login'); if (lb) { lb.classList.remove('loading'); lb.innerHTML = 'Login'; }
   var dash = document.getElementById('dashboard');
   var lw   = document.getElementById('loginWrap');
   if (dash) dash.style.display = 'none';
@@ -103,17 +132,14 @@ function logout() {
   try { localStorage.removeItem('gdfgSession'); } catch(e) {}
   try { sessionStorage.setItem('gdfgLoggedOut', '1'); } catch(e) {}
   API.clearToken();
+  if (window.AUTH) AUTH.setSession(null);
   _currentUser   = '';
-  _userRole      = 'admin';
+  _userRole      = '';
   _patternLoaded = false;
   _patternCache  = null;
-  document.getElementById('dashboard').style.display  = 'none';
-  document.getElementById('loginWrap').style.display  = 'flex';
-  document.getElementById('username').value = '';
-  document.getElementById('password').value = '';
-  document.getElementById('loginMsg').style.display = 'none';
-  var btn = document.querySelector('.btn-login');
-  if (btn) { btn.classList.remove('loading'); btn.innerHTML = 'Login'; }
+  // Muat ulang halaman supaya semua state (menu/tab yang disembunyikan, cache data, mode
+  // visitor) bersih sebelum orang lain login di perangkat yang sama.
+  location.reload();
 }
 
 // ============================================================
@@ -225,6 +251,11 @@ function closeSidebar() {
 // ROUTING — SHOW PAGE
 // ============================================================
 function showPage(page) {
+  // Hak akses: halaman yang tidak diizinkan role-nya ditolak (juga kalau belum login).
+  if (window.AUTH && !AUTH.canPage(page)) {
+    if (AUTH.ready()) showToast('Anda tidak punya akses ke halaman ini', 'error');
+    return;
+  }
   // Push ke history agar tombol back HP kembali ke halaman sebelumnya
   if (window.history && window.history.pushState) {
     window.history.pushState({ page: page }, '', '#' + page);
@@ -233,7 +264,7 @@ function showPage(page) {
   if (page !== 'opnamePage')   _opClearSel();
   if (page !== 'inputPage')    _inResetSel();
 
-  var pages = ['dashboard','inputPage','realisasiPage','opnamePage','rdcPage','stockJalurPage','binLocPage','appsPage','monitoringEksporPage','kpiPage'];
+  var pages = ['dashboard','inputPage','realisasiPage','opnamePage','rdcPage','stockJalurPage','binLocPage','appsPage','monitoringEksporPage','kpiPage','adminPage'];
   pages.forEach(function (p) {
     var el = document.getElementById(p);
     if (!el) return;
@@ -259,6 +290,7 @@ function showPage(page) {
   document.getElementById('menuMonitoringEkspor').classList.toggle('active-page',  page === 'monitoringEksporPage');
   document.getElementById('menuApps').classList.toggle('active-page',              page === 'appsPage');
   var menuKpiEl = document.getElementById('menuKpi'); if (menuKpiEl) menuKpiEl.classList.toggle('active-page', page === 'kpiPage');
+  var menuAdminEl = document.getElementById('menuAdmin'); if (menuAdminEl) menuAdminEl.classList.toggle('active-page', page === 'adminPage');
 
   // Page-specific init
   if (page === 'dashboard') {
@@ -272,6 +304,7 @@ function showPage(page) {
   if (page === 'binLocPage')           blInitPage();
   if (page === 'monitoringEksporPage') mekInitPage();
   if (page === 'kpiPage') kpiInitPage();
+  if (page === 'adminPage') adminInit();
   if (page === 'realisasiPage') {
     initRealForm();
     var today   = new Date();
@@ -284,6 +317,8 @@ function showPage(page) {
     switchFilterMode('date');
     loadSummaryReal();
   }
+  // Kalau tab default halaman ini tidak diizinkan, pindah ke tab pertama yang boleh.
+  if (window.AUTH) AUTH.ensureDefault(page);
 }
 
 // ============================================================
@@ -485,7 +520,7 @@ window.addEventListener('popstate', function(e) {
     // Kembali ke halaman sebelumnya tanpa push history baru
     var page = e.state.page;
     var pages = ['dashboard','inputPage','realisasiPage','opnamePage',
-                 'rdcPage','stockJalurPage','binLocPage','appsPage','monitoringEksporPage'];
+                 'rdcPage','stockJalurPage','binLocPage','appsPage','monitoringEksporPage','kpiPage','adminPage'];
     pages.forEach(function(p) {
       var el = document.getElementById(p);
       if (el) { el.style.display = 'none'; el.classList.remove('page-enter'); }
@@ -515,24 +550,27 @@ window.addEventListener('load', function() {
 });
 
 // ── Session persistence ───────────────────────────────────────
+// Sesi hanya menyimpan TOKEN. Role & hak akses selalu diambil ulang dari server
+// (getAuthSession) — jadi akun yang dihapus/dinonaktifkan atau role yang diubah
+// admin langsung berlaku saat aplikasi dibuka.
 function _restoreSession() {
   try {
     if (sessionStorage.getItem('gdfgLoggedOut')) return false;
     var sess = localStorage.getItem('gdfgSession');
     if (!sess) return false;
     var data = JSON.parse(sess);
-    if (!data.token) {
-      // sesi lama dari sebelum patch auth -- token tidak ada, paksa login ulang
-      localStorage.removeItem('gdfgSession');
-      return false;
-    }
-    _currentUser = data.user;
-    _userRole    = data.role || 'admin';
+    if (!data.token) { localStorage.removeItem('gdfgSession'); return false; }
     API.setToken(data.token);
-    document.getElementById("loginWrap").style.display = "none";
-    document.getElementById("dashboard").style.display = "block";
-    applyRoleRestrictions(_userRole);
-    loadTanggalHistoryThenHariIni();
+    API.run('getAuthSession', {}, function(res){
+      if (res && res.success) {
+        res.token = data.token;
+        _enterApp(res, false);
+      } else if (!(res && res.authError)) {
+        // authError sudah ditangani api.js (handleAuthExpired); selain itu: tetap di halaman login
+        API.clearToken();
+        try { localStorage.removeItem('gdfgSession'); } catch(e){}
+      }
+    });
     return true;
   } catch(e) { return false; }
 }
