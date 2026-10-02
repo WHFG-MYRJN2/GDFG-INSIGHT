@@ -3,7 +3,7 @@
 // Ganti CACHE_VERSION setiap kali ada update file
 // ============================================================
 
-const CACHE_VERSION  = 'v2.1.7';
+const CACHE_VERSION  = 'v2.1.8';
 const CACHE_NAME     = 'monitoring-gdfg-' + CACHE_VERSION;
 
 // File yang di-cache saat install
@@ -22,6 +22,7 @@ const PRECACHE_URLS = [
   './js/binloc.js',
   './js/monitoringekspor.js',
   './js/kpi.js',
+  './js/auth.js',
   './js/mek-reserved3d.js',
 ];
 
