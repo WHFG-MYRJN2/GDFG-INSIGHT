@@ -184,6 +184,15 @@ var AUTH = (function () {
     m.style.background = ok ? '#f0fff4' : '#fee'; m.style.color = ok ? '#276749' : '#c53030';
     m.style.border = '1px solid ' + (ok ? '#9ae6b4' : '#fc8181');
   }
+  // Tampilkan / sembunyikan kedua kolom password di form daftar sekaligus.
+  function toggleRegPw() {
+    var a = _el('regPassword'), b = _el('regPassword2');
+    if (!a || !b) return;
+    var show = a.type === 'password';
+    a.type = show ? 'text' : 'password';
+    b.type = show ? 'text' : 'password';
+    document.querySelectorAll('.regEyeIcon').forEach(function (i) { i.className = 'fas ' + (show ? 'fa-eye-slash' : 'fa-eye') + ' regEyeIcon'; });
+  }
   function doRegister() {
     var u = (_el('regUsername').value || '').trim().toLowerCase();
     var p = _el('regPassword').value || '';
@@ -421,7 +430,7 @@ var AUTH = (function () {
     ready: ready, canPage: canPage, canTab: canTab, firstTab: firstTab, homePage: homePage, session: session, setSession: setSession,
     apply: apply, ensureDefault: ensureDefault, wrapTabFuncs: wrapTabFuncs, refreshBadge: refreshBadge,
     // daftar
-    showRegister: showRegister, showLogin: showLogin, doRegister: doRegister,
+    showRegister: showRegister, showLogin: showLogin, doRegister: doRegister, toggleRegPw: toggleRegPw,
     // admin
     adminInit: adminInit, adminReload: adminReload, adminTab: adminTab,
     approve: approve, reject: reject, saveUser: saveUser, resetPw: resetPw, delUser: delUser,
