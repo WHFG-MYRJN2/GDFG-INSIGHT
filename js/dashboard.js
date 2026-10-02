@@ -932,7 +932,8 @@ function _applyChartZoom() {
       document.getElementById('inOutChartWrap').insertAdjacentHTML('beforeend',
         '<div id="inOutLoading" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#a0aec0;font-size:13px;"><i class="fas fa-spinner fa-spin"></i> Memuat...</div>');
 
-      API.run('getInOutStockData', {from: from, to: to}, function(res){
+      var detail = !!((document.getElementById('inOutDetailToggle')||{}).checked);
+      API.run('getInOutStockData', {from: from, to: to, detail: detail}, function(res){
         var loader = document.getElementById('inOutLoading');
         if(loader) loader.remove();
         if(!res||!res.success||!res.data||!res.data.length){
@@ -941,14 +942,15 @@ function _applyChartZoom() {
           document.getElementById('inOutTotalMasuk').textContent='-';
           document.getElementById('inOutTotalKeluar').textContent='-';
           document.getElementById('inOutTotalSelisih').textContent='-';
+          var kc0=document.getElementById('inOutTotalKap'); if(kc0) kc0.textContent='-';
           if(_inOutInstance){ _inOutInstance.destroy(); _inOutInstance=null; }
           return;
         }
-        _renderInOutChart(res.data);
+        _renderInOutChart(res.data, detail);
       });
     }
 
-    function _renderInOutChart(data){
+    function _renderInOutChart(data, detail){
       var labels = data.map(function(r){
         var p = String(r.tanggal).split('-'); return p.length===3 ? p[2]+'/'+p[1] : r.tanggal;
       });
@@ -965,6 +967,19 @@ function _applyChartZoom() {
       elSel.textContent = (selisih>=0?'+':'') + selisih.toLocaleString('id-ID');
       elSel.style.color = selisih >= 0 ? '#276749' : '#c53030';
 
+      // Mode Detail: Keluar = ISSUED (Hasil Produksi), + kapasitas pallet (Σ JML PALLET)
+      var palletArr = detail ? data.map(function(r){ return r.pallet || 0; }) : [];
+      var kapCard = document.getElementById('inOutCardKap');
+      if(kapCard) kapCard.style.display = detail ? '' : 'none';
+      var subK = document.getElementById('inOutSubKeluar');
+      if(subK) subK.textContent = detail ? 'Karton — Issued (Hasil Produksi)' : 'Karton — Realisasi Pengiriman';
+      if(detail){
+        var lastP = palletArr[palletArr.length-1] || 0;
+        var lastT = String(data[data.length-1].tanggal).split('-');
+        document.getElementById('inOutTotalKap').textContent = lastP.toLocaleString('id-ID');
+        document.getElementById('inOutSubKap').textContent = 'Pallet — Σ JML PALLET, tgl ' + (lastT.length===3 ? lastT[2]+'/'+lastT[1] : '-');
+      }
+
       var canvas = document.getElementById('inOutBarChart');
       canvas.style.display = 'block';
       if(_inOutInstance){ _inOutInstance.destroy(); _inOutInstance=null; }
@@ -975,8 +990,12 @@ function _applyChartZoom() {
           labels: labels,
           datasets:[
             { label:'Barang Masuk (Hasil Produksi)',  data: masukArr,  backgroundColor:'#68d391', borderRadius:4, maxBarThickness:28 },
-            { label:'Barang Keluar (Realisasi Kirim)', data: keluarArr, backgroundColor:'#f6ad55', borderRadius:4, maxBarThickness:28 }
-          ]
+            { label: detail ? 'Barang Keluar (Issued)' : 'Barang Keluar (Realisasi Kirim)', data: keluarArr, backgroundColor:'#f6ad55', borderRadius:4, maxBarThickness:28 }
+          ].concat(detail ? [{
+            type:'line', label:'Kapasitas (Pallet)', data: palletArr, yAxisID:'y1',
+            borderColor:'#6b46c1', backgroundColor:'#6b46c1', borderWidth:2, tension:.25,
+            pointRadius:3, pointHoverRadius:5, order:0
+          }] : [])
         },
         options:{
           responsive:true, maintainAspectRatio:false,
@@ -986,7 +1005,7 @@ function _applyChartZoom() {
             legend:{display:true, position:'bottom', labels:{font:{size:11}, boxWidth:12}},
             tooltip:{
               callbacks:{
-                label:function(c){ return ' '+c.dataset.label+': '+c.parsed.y.toLocaleString('id-ID')+' krt'; }
+                label:function(c){ return ' '+c.dataset.label+': '+c.parsed.y.toLocaleString('id-ID')+(c.dataset.yAxisID==='y1'?' pallet':' krt'); }
               }
             }
           },
@@ -996,7 +1015,13 @@ function _applyChartZoom() {
               beginAtZero:true,
               grid:{color:'rgba(0,0,0,.06)'},
               ticks:{ font:{size:11}, color:'#718096', callback:function(v){ return v.toLocaleString('id-ID'); } }
-            }
+            },
+            y1: detail ? {
+              position:'right', beginAtZero:true,
+              grid:{drawOnChartArea:false},
+              title:{display:true, text:'Pallet', color:'#6b46c1', font:{size:11}},
+              ticks:{ font:{size:11}, color:'#6b46c1', callback:function(v){ return v.toLocaleString('id-ID'); } }
+            } : { display:false }
           },
           animation:{duration:600, easing:'easeOutQuart'}
         }
