@@ -1224,6 +1224,13 @@
       padding:16px 20px 6px 20px;
     }
 
+    /* Toggle Detail (In-Out Stock) */
+    .io-sw{ position:relative; width:34px; height:19px; border-radius:999px; background:#cbd5e0; transition:background .2s; flex-shrink:0; }
+    .io-sw::after{ content:''; position:absolute; top:2px; left:2px; width:15px; height:15px; border-radius:50%; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.3); transition:transform .2s; }
+    #inOutDetailToggle:checked + .io-sw{ background:#2c5364; }
+    #inOutDetailToggle:checked + .io-sw::after{ transform:translateX(15px); }
+    #inOutDetailToggle:focus-visible + .io-sw{ outline:2px solid #2c5364; outline-offset:2px; }
+
     /* Menu items */
     .sidebar-menu{ flex:1; padding:4px 12px; overflow-y:auto; overflow-x:hidden;
       overscroll-behavior:contain;
@@ -3008,6 +3015,11 @@
           <button onclick="loadTrendChart()" style="padding:6px 16px;font-size:12px;font-weight:700;border:none;border-radius:8px;background:linear-gradient(135deg,#0f2027,#2c5364);color:#fff;cursor:pointer;">
             <i class="fas fa-search"></i> Tampilkan
           </button>
+          <label title="ON: Keluar = ISSUED (Hasil Produksi), plus kapasitas pallet dari JML PALLET" style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12px;font-weight:700;color:#4a5568;user-select:none;margin-left:4px;">
+            <input type="checkbox" id="inOutDetailToggle" onchange="loadInOutChart()" style="position:absolute;opacity:0;width:0;height:0;">
+            <span class="io-sw"></span>
+            Detail
+          </label>
         </div>
         <div class="chart-card" style="padding:16px 20px;">
           <div id="trendChartWrap" style="position:relative;height:340px;">
@@ -3040,17 +3052,22 @@
           <div class="chart-card" style="flex:1 1 150px;padding:12px 16px;">
             <div style="font-size:11px;font-weight:700;color:#276749;text-transform:uppercase;letter-spacing:.3px;"><i class="fas fa-arrow-down"></i> Total Masuk</div>
             <div id="inOutTotalMasuk" style="font-size:22px;font-weight:800;color:#1a202c;">-</div>
-            <div style="font-size:10px;color:#a0aec0;">Karton — Hasil Produksi</div>
+            <div id="inOutSubMasuk" style="font-size:10px;color:#a0aec0;">Karton — Hasil Produksi</div>
           </div>
           <div class="chart-card" style="flex:1 1 150px;padding:12px 16px;">
             <div style="font-size:11px;font-weight:700;color:#c05621;text-transform:uppercase;letter-spacing:.3px;"><i class="fas fa-arrow-up"></i> Total Keluar</div>
             <div id="inOutTotalKeluar" style="font-size:22px;font-weight:800;color:#1a202c;">-</div>
-            <div style="font-size:10px;color:#a0aec0;">Karton — Realisasi Pengiriman</div>
+            <div id="inOutSubKeluar" style="font-size:10px;color:#a0aec0;">Karton — Realisasi Pengiriman</div>
           </div>
           <div class="chart-card" style="flex:1 1 150px;padding:12px 16px;">
             <div style="font-size:11px;font-weight:700;color:#2b6cb0;text-transform:uppercase;letter-spacing:.3px;"><i class="fas fa-scale-balanced"></i> Selisih</div>
             <div id="inOutTotalSelisih" style="font-size:22px;font-weight:800;color:#1a202c;">-</div>
             <div style="font-size:10px;color:#a0aec0;">Masuk − Keluar</div>
+          </div>
+          <div class="chart-card" id="inOutCardKap" style="flex:1 1 150px;padding:12px 16px;display:none;">
+            <div style="font-size:11px;font-weight:700;color:#6b46c1;text-transform:uppercase;letter-spacing:.3px;"><i class="fas fa-pallet"></i> Kapasitas</div>
+            <div id="inOutTotalKap" style="font-size:22px;font-weight:800;color:#1a202c;">-</div>
+            <div id="inOutSubKap" style="font-size:10px;color:#a0aec0;">Pallet — Σ JML PALLET</div>
           </div>
         </div>
 
