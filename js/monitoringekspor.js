@@ -4682,7 +4682,8 @@ function _mekRenderCapaianEmail(data, skuFilter, docFilter, tujFilter) {
   tujFilter = (tujFilter||'').toLowerCase();
 
   var plantFilter  = ((document.getElementById('mekCapPlant')||{}).value||'').trim().toUpperCase();
-  var statusFilter = mekGetStatusFilter('');
+  var _wkEl = document.getElementById('mekCapFilterWeek');
+  var statusFilter = mekGetStatusFilter((_wkEl && _wkEl.style.display !== 'none') ? 'W' : '');
 
   var filtered = data;
   if (skuFilter || docFilter || tujFilter || plantFilter) {
@@ -7177,10 +7178,11 @@ function mekStatusFilterChange(sfx) {
     _mekRenderCapaian(data, _mekCapFilter);
   } else if (_mekCapEmailView === 'plan') {
     // Mode email By Planning — filter dari _mekCapEmailData
+    // JANGAN pre-filter status di sini: _mekRenderCapaianEmail menerapkan filter status
+    // sendiri SETELAH menandai baris pertama tiap planning (_planHead). Kalau di-filter
+    // duluan, baris pertama SO yang sudah Keluar ikut hilang dan NO SO / Plan / Tujuan
+    // tidak punya induk buat dibawa ke baris "Belum".
     var data2 = (_mekCapEmailData || []).slice();
-    if (checked.length && checked.length < allStatuses.length) {
-      data2 = data2.filter(function(r){ return _mekMatchStatus(r.status, checked); });
-    }
     var skuF2 = ((document.getElementById('mekCapSku')||{}).value||'').trim().toLowerCase();
     var docF2 = _mekStripLeadingZero(((document.getElementById('mekCapDoc')||{}).value||'').trim());
     var tujF2 = ((document.getElementById('mekCapTujuan')||{}).value||'').trim().toLowerCase();
