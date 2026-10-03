@@ -8166,3 +8166,176 @@ function mekExtDeleteMovement(id) {
     }
   });
 }
+
+// ════════════════════════════════════════════════════════════
+// KESIAPAN STOCK — mode LOKAL (Direct)
+// Planning Direct (FDOS, per tanggal per SKU) vs stok GDIN & GDI2
+// (HISTORY KAPASITAS, beginning balance karton) di tanggal yang sama.
+// ════════════════════════════════════════════════════════════
+var _mekStockMode = 'ekspor';
+var _mekKlData = null;
+
+function mekStockSwitchMode(mode) {
+  _mekStockMode = mode;
+  var isL = mode === 'lokal';
+  var bE = document.getElementById('mekStockModeEkspor'), bL = document.getElementById('mekStockModeLokal');
+  if (bE) { bE.style.background = isL ? 'transparent' : '#1a3a5c'; bE.style.color = isL ? '#4a5568' : '#fff'; }
+  if (bL) { bL.style.background = isL ? '#1a3a5c' : 'transparent'; bL.style.color = isL ? '#fff' : '#4a5568'; }
+  var fb = document.getElementById('mekStockFilterBar'); if (fb) fb.style.display = isL ? 'none' : '';
+  var eb = document.getElementById('mekStockEksporBody'); if (eb) eb.style.display = isL ? 'none' : '';
+  var lw = document.getElementById('mekStockLokalWrap'); if (lw) lw.style.display = isL ? 'flex' : 'none';
+  var st = document.getElementById('mekStockSubtitle');
+  if (st) st.textContent = isL
+    ? 'Planning Direct (FDOS) per tanggal vs stok GDIN + GDI2 (History Kapasitas, beginning balance karton)'
+    : 'Kebutuhan dari planning 2 minggu terakhir (minggu ini + minggu lalu) yang belum close vs stok BinLoc saat ini';
+  if (isL && !_mekKlData) mekKlLoad('');
+}
+
+function mekStockRefresh() {
+  if (_mekStockMode === 'lokal') {
+    var sel = document.getElementById('mekKlWeek');
+    mekKlLoad(sel ? sel.value : '');
+  } else {
+    mekLoadStockReadiness();
+  }
+}
+
+function mekKlLoad(weekKey) {
+  var load = document.getElementById('mekKlLoading'), wrap = document.getElementById('mekKlWrap'), empty = document.getElementById('mekKlEmpty');
+  if (!wrap) return;
+  wrap.innerHTML = ''; if (empty) empty.style.display = 'none'; if (load) load.style.display = 'block';
+  API.run('getMekKesiapanLokal', { week: weekKey || '' }, function(res) {
+    if (load) load.style.display = 'none';
+    if (!res || !res.success) {
+      wrap.innerHTML = '<div style="text-align:center;padding:30px;color:#c53030;">Gagal memuat: ' + _mekEsc((res && res.message) || 'Error') + '</div>';
+      return;
+    }
+    _mekKlData = res;
+    var sel = document.getElementById('mekKlWeek');
+    if (sel) {
+      sel.innerHTML = (res.weeks || []).map(function(w) {
+        return '<option value="' + _mekEsc(w.key) + '"' + (w.key === res.selected ? ' selected' : '') + '>' + _mekEsc(w.label) + '</option>';
+      }).join('');
+    }
+    _mekKlRender();
+  }, function(err) {
+    if (load) load.style.display = 'none';
+    wrap.innerHTML = '<div style="text-align:center;padding:30px;color:#c53030;">Gagal memuat: ' + _mekEsc((err && err.message) || err) + '</div>';
+  });
+}
+
+function _mekKlFmtDate(d) {
+  var p = String(d).split('-'); if (p.length !== 3) return d;
+  var hari = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+  var dt = new Date(Date.UTC(+p[0], +p[1] - 1, +p[2]));
+  return hari[dt.getUTCDay()] + ', ' + p[2] + '.' + p[1] + '.' + p[0];
+}
+
+function _mekKlRender() {
+  var res = _mekKlData;
+  var wrap = document.getElementById('mekKlWrap'), empty = document.getElementById('mekKlEmpty');
+  if (!res || !wrap) return;
+  var dates = res.dates || [], rows = res.rows || [];
+  if (!rows.length || !dates.length) {
+    wrap.innerHTML = ''; if (empty) empty.style.display = 'block';
+    ['mekKlCardKurang','mekKlCardCukup'].forEach(function(id){ var e = document.getElementById(id); if (e) e.textContent = '—'; });
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+
+  var q = ((document.getElementById('mekKlFilterSku') || {}).value || '').toLowerCase().trim();
+  var onlyShort = !!(document.getElementById('mekKlOnlyShort') || {}).checked;
+  var fmt = function(n) { return (n === null || n === undefined) ? '-' : Number(n).toLocaleString('id-ID'); };
+
+  // Status per SKU: kurang kalau ada tanggal dengan planning > 0 dan (GDIN+GDI2) < planning
+  var kurang = 0, cukup = 0;
+  var list = rows.map(function(r) {
+    var short = false;
+    dates.forEach(function(d) {
+      var c = r.cells[d]; if (!c || !(c.plan > 0) || c.gdin === null) return;
+      if ((c.gdin || 0) + (c.gdi2 || 0) < c.plan) short = true;
+    });
+    return { r: r, short: short };
+  }).filter(function(x) {
+    if (q && (x.r.sku || '').toLowerCase().indexOf(q) < 0 && (x.r.nama || '').toLowerCase().indexOf(q) < 0) return false;
+    return true;
+  });
+  list.forEach(function(x) { if (x.short) kurang++; else cukup++; });
+  var elK = document.getElementById('mekKlCardKurang'); if (elK) elK.textContent = kurang;
+  var elC = document.getElementById('mekKlCardCukup');  if (elC) elC.textContent = cukup;
+  if (onlyShort) list = list.filter(function(x) { return x.short; });
+
+  var TH = 'background:#1a3a5c;color:#fff;font-size:11px;font-weight:700;padding:6px 8px;border:1px solid #2d4a6a;text-align:center;white-space:nowrap;';
+  var TH2 = 'background:#2d4a6a;color:#bee3f8;font-size:11px;font-weight:700;padding:5px 8px;border:1px solid #2d4a6a;text-align:center;white-space:nowrap;';
+  var TD = 'font-size:12px;padding:5px 8px;border:1px solid #e2e8f0;text-align:right;white-space:nowrap;';
+
+  var h = '<table id="mekKlTable" style="border-collapse:collapse;background:#fff;min-width:100%;">';
+  h += '<thead><tr>' +
+    '<th rowspan="2" style="' + TH + 'width:34px;">No</th>' +
+    '<th rowspan="2" style="' + TH + '">SKU</th>' +
+    '<th rowspan="2" style="' + TH + 'min-width:240px;">Nama Barang</th>' +
+    '<th rowspan="2" style="' + TH + '">Total Planning Direct</th>';
+  dates.forEach(function(d) {
+    var sd = (res.stockDates || {})[d] || {};
+    var note = (sd.approx && sd.used) ? ' (stok per ' + sd.used.split('-').reverse().join('/') + ')' : (!sd.used ? ' (belum ada stok)' : '');
+    h += '<th colspan="4" style="' + TH + '">' + _mekEsc(_mekKlFmtDate(d)) + '<span style="font-weight:400;font-size:10px;opacity:.8;">' + _mekEsc(note) + '</span></th>';
+  });
+  h += '</tr><tr>';
+  dates.forEach(function() {
+    h += '<th style="' + TH2 + '">Planning Direct</th><th style="' + TH2 + '">GDIN</th><th style="' + TH2 + '">GDI2</th><th style="' + TH2 + '">Total</th>';
+  });
+  h += '</tr></thead><tbody>';
+
+  var tot = { qty: 0, byDate: {} };
+  dates.forEach(function(d) { tot.byDate[d] = { plan: 0, gdin: 0, gdi2: 0, has: false }; });
+
+  list.forEach(function(x, i) {
+    var r = x.r;
+    tot.qty += r.qty || 0;
+    h += '<tr><td style="' + TD + 'text-align:center;color:#a0aec0;">' + (i + 1) + '</td>' +
+      '<td style="' + TD + 'text-align:left;font-weight:700;">' + _mekEsc(r.sku) + '</td>' +
+      '<td style="' + TD + 'text-align:left;">' + _mekEsc(r.nama) + '</td>' +
+      '<td style="' + TD + 'font-weight:700;">' + fmt(r.qty) + '</td>';
+    dates.forEach(function(d) {
+      var c = r.cells[d] || { plan: 0, gdin: null, gdi2: null };
+      var hasStock = c.gdin !== null;
+      var total = hasStock ? (c.gdin || 0) + (c.gdi2 || 0) : null;
+      var bg = '', extra = '';
+      if (hasStock && c.plan > 0) {
+        if (total >= c.plan) bg = 'background:#c6f6d5;color:#276749;font-weight:700;';
+        else { bg = 'background:#fed7d7;color:#c53030;font-weight:700;'; extra = ' <span style="font-size:10px;font-weight:600;">(-' + fmt(c.plan - total) + ')</span>'; }
+      }
+      var T = tot.byDate[d]; T.plan += c.plan || 0;
+      if (hasStock) { T.gdin += c.gdin || 0; T.gdi2 += c.gdi2 || 0; T.has = true; }
+      h += '<td style="' + TD + 'font-weight:700;">' + (c.plan > 0 ? fmt(c.plan) : '') + '</td>' +
+        '<td style="' + TD + ((hasStock && c.plan > 0 && (c.gdin || 0) < c.plan) ? 'background:#fed7d7;color:#c53030;font-weight:700;' : '') + '">' + fmt(c.gdin) + '</td>' +
+        '<td style="' + TD + '">' + fmt(c.gdi2) + '</td>' +
+        '<td style="' + TD + bg + '">' + fmt(total) + extra + '</td>';
+    });
+    h += '</tr>';
+  });
+
+  // Baris total
+  var TF = 'font-size:12px;padding:6px 8px;border:1px solid #cbd5e0;text-align:right;background:#edf2f7;font-weight:800;white-space:nowrap;';
+  h += '<tr><td style="' + TF + '" colspan="3">TOTAL</td><td style="' + TF + '">' + fmt(tot.qty) + '</td>';
+  dates.forEach(function(d) {
+    var T = tot.byDate[d];
+    h += '<td style="' + TF + '">' + fmt(T.plan) + '</td><td style="' + TF + '">' + (T.has ? fmt(T.gdin) : '-') + '</td>' +
+      '<td style="' + TF + '">' + (T.has ? fmt(T.gdi2) : '-') + '</td><td style="' + TF + '">' + (T.has ? fmt(T.gdin + T.gdi2) : '-') + '</td>';
+  });
+  h += '</tr></tbody></table>';
+  wrap.innerHTML = h;
+
+  var note = document.getElementById('mekKlNote');
+  if (note) note.innerHTML = '<span style="display:inline-block;width:10px;height:10px;background:#c6f6d5;border:1px solid #9ae6b4;margin-right:4px;vertical-align:middle;"></span>stok cukup &nbsp; ' +
+    '<span style="display:inline-block;width:10px;height:10px;background:#fed7d7;border:1px solid #feb2b2;margin-right:4px;vertical-align:middle;"></span>kurang (selisih di dalam kurung); GDIN merah = GDIN saja belum cukup untuk planning hari itu. ' +
+    'Stok = beginning balance karton di History Kapasitas; tanggal tanpa histori memakai histori terdekat sebelumnya.';
+}
+
+function _mekKlSubtitle() {
+  var res = _mekKlData; if (!res) return '';
+  var w = (res.weeks || []).filter(function(x) { return x.key === res.selected; })[0];
+  return w ? w.label : '';
+}
+function mekKlExportExcel() { _mekExportTableExcel('mekKlTable', 'Kesiapan Stock Lokal (Direct)', _mekKlSubtitle()); }
+function mekKlExportPdf()   { _mekPrintTable('mekKlTable', 'Kesiapan Stock Lokal (Direct)', _mekKlSubtitle()); }
