@@ -2088,7 +2088,9 @@ function _mekModalClose(id) {
 // ── Modal generik buat rincian kartu2 lain (Total Stock/Available/Reserved %/
 // Container Waiting/Longest Waiting/SKU Kurang Stock/Rata2 Waktu per tipe) —
 // satu modal dipakai bareng, isinya diganti-ganti sesuai kartu yang diklik.
-function _mekRvOpenGenericModal(title, sub, bodyHtml) {
+function _mekRvOpenGenericModal(title, sub, bodyHtml, maxWidth) {
+  var m = document.getElementById('mekRvGenericModal');
+  if (m && m.firstElementChild) m.firstElementChild.style.maxWidth = (maxWidth || 420) + 'px';
   var t = document.getElementById('mekRvGenericModalTitle');
   var s = document.getElementById('mekRvGenericModalSub');
   var b = document.getElementById('mekRvGenericModalBody');
@@ -2178,42 +2180,79 @@ function mekRvShowTotalStockBreakdown() {
   _mekRvOpenGenericModal('Top 10 SKU — Total Stock', 'Stock fisik terbesar (rak + Gudang External, ikut filter SKU/Nama aktif)', _mekRvBuildListRows(items));
 }
 
-// "Available" → per SKU: stock fisik − reserved (dari baris yang sama persis
-// dengan kartu Reserved). Dulu pakai pendekatan per-bin (satu bin penuh dianggap
-// reserved begitu SKU-nya punya reservasi non-EKSPOR) → angkanya gak nyambung
-// sama kartu Available begitu ada reserve manual yang ditambah.
+// "Available" → stok GDI2 & GDIN per SKU dari HISTORY KAPASITAS terbaru (karton),
+// plus Reserved per SKU (baris yang sama dgn kartu Reserved, ikut filter aktif) dan
+// GDIN − Reserved. Ikut filter SKU/Nama di Reserved View.
 function mekRvShowAvailableBreakdown() {
-  var agg = _mekRvStockBySku();
-  _mekRvReservedBySku(agg);
-  var totalStock = 0, totalReserved = 0, deficit = 0;
-  var list = Object.keys(agg).map(function(k){
-    var x = agg[k];
-    totalStock += x.karton; totalReserved += x.reserved;
-    x.available = Math.max(0, x.karton - x.reserved);
-    if (x.reserved > x.karton) deficit += (x.reserved - x.karton);
-    return x;
-  }).filter(function(x){ return x.karton > 0 || x.reserved > 0; })
-    .sort(function(a,b){ return b.available - a.available; });
-  var top = list.slice(0, 10);
-  var items = top.map(function(x){
-    return {
-      left: x.sku,
-      leftSub: (x.nama || '-') + ' · stock ' + _mekN(x.karton) + ' − reserved ' + _mekN(Math.round(x.reserved)),
-      right: _mekN(x.available) + ' Carton',
-      rightColor: x.available <= 0 ? '#c53030' : '#276749'
-    };
+  var SUB = 'Stok karton GDI2 & GDIN dari History Kapasitas terbaru';
+  _mekRvOpenGenericModal('Stok GDI2 & GDIN', SUB,
+    '<div style="text-align:center;padding:30px;color:#a0aec0;"><i class="fas fa-spinner fa-spin" style="font-size:22px;"></i></div>', 680);
+
+  API.run('getHistoryTanggals', {}, function(tr) {
+    var tgls = ((tr && tr.tanggals) || []).slice().sort().reverse();
+    var latest = tgls[0];
+    if (!latest) {
+      _mekRvOpenGenericModal('Stok GDI2 & GDIN', SUB, '<div style="text-align:center;padding:24px;color:#a0aec0;font-size:12px;">Belum ada data History Kapasitas.</div>', 680);
+      return;
+    }
+    API.run('getHistoryKapasitas', { from: latest, to: latest, tipes: ['GDI2','GDIN'] }, function(res) {
+      if (!res || !res.success) {
+        _mekRvOpenGenericModal('Stok GDI2 & GDIN', SUB, '<div style="text-align:center;padding:24px;color:#c53030;font-size:12px;">Gagal memuat: ' + _mekEsc((res && res.message) || 'Error') + '</div>', 680);
+        return;
+      }
+      var skuF = ((document.getElementById('mekRvFilterSku')||{}).value||'').toLowerCase().trim();
+      var agg = {};
+      (res.data || []).forEach(function(r) {
+        if (r.tanggal !== latest) return;
+        if (skuF && (r.sku||'').toLowerCase().indexOf(skuF) < 0 && (r.nama||'').toLowerCase().indexOf(skuF) < 0) return;
+        var k = r.sku || '-';
+        if (!agg[k]) agg[k] = { sku: k, nama: r.nama, gdi2: 0, gdin: 0, reserved: 0 };
+        if (r.tipe === 'GDI2') agg[k].gdi2 += (r.bb || 0);
+        else if (r.tipe === 'GDIN') agg[k].gdin += (r.bb || 0);
+      });
+      _mekRvReservedBySku(agg); // isi reserved per SKU (SKU yg cuma punya reserved ikut dibuat, stok 0)
+      var skuFilt = function(x){ return !skuF || (x.sku||'').toLowerCase().indexOf(skuF) >= 0 || (x.nama||'').toLowerCase().indexOf(skuF) >= 0; };
+      var list = Object.keys(agg).map(function(k){ var x = agg[k]; x.gdi2 = x.gdi2 || 0; x.gdin = x.gdin || 0; x.net = x.gdin - Math.round(x.reserved || 0); return x; })
+        .filter(function(x){ return skuFilt(x) && (x.gdi2 > 0 || x.gdin > 0 || x.reserved > 0); })
+        .sort(function(a,b){ return b.net - a.net; });
+
+      var tG2 = 0, tGN = 0, tRes = 0;
+      list.forEach(function(x){ tG2 += x.gdi2; tGN += x.gdin; tRes += Math.round(x.reserved || 0); });
+      var tNet = tGN - tRes;
+      function cell(lbl, val, col) {
+        return '<div style="flex:1;text-align:center;padding:8px 4px;border-radius:8px;background:#f7fafc;border:1px solid #e2e8f0;">'
+          + '<div style="font-size:9px;color:#a0aec0;text-transform:uppercase;font-weight:700;">' + lbl + '</div>'
+          + '<div style="font-size:14px;font-weight:800;color:' + col + ';">' + _mekN(Math.round(val)) + '</div></div>';
+      }
+      var body = '<div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">'
+        + cell('GDI2', tG2, '#2d3748') + cell('GDIN', tGN, '#2d3748') + cell('Reserved', tRes, '#c05621')
+        + cell('GDIN − Reserved', tNet, tNet < 0 ? '#c53030' : '#276749') + '</div>';
+
+      var TH = 'padding:6px 8px;font-size:10px;font-weight:700;color:#718096;text-transform:uppercase;text-align:right;border-bottom:2px solid #e2e8f0;white-space:nowrap;position:sticky;top:0;background:#fff;';
+      var TD = 'padding:6px 8px;font-size:12px;text-align:right;border-bottom:1px solid #edf2f7;white-space:nowrap;';
+      if (!list.length) {
+        body += '<div style="text-align:center;padding:20px;color:#a0aec0;font-size:12px;">Tidak ada data</div>';
+      } else {
+        body += '<table style="width:100%;border-collapse:collapse;"><thead><tr>'
+          + '<th style="' + TH + 'text-align:left;">SKU</th><th style="' + TH + '">GDI2</th><th style="' + TH + '">GDIN</th>'
+          + '<th style="' + TH + '">Reserved</th><th style="' + TH + '">GDIN − Reserved</th></tr></thead><tbody>';
+        list.forEach(function(x) {
+          var res = Math.round(x.reserved || 0);
+          body += '<tr><td style="' + TD + 'text-align:left;"><div style="font-weight:800;color:#2d3748;">' + _mekEsc(x.sku) + '</div>'
+            + '<div style="font-size:10px;color:#a0aec0;max-width:230px;overflow:hidden;text-overflow:ellipsis;">' + _mekEsc(x.nama || '-') + '</div></td>'
+            + '<td style="' + TD + '">' + _mekN(x.gdi2) + '</td>'
+            + '<td style="' + TD + '">' + _mekN(x.gdin) + '</td>'
+            + '<td style="' + TD + 'color:#c05621;">' + (res ? _mekN(res) : '-') + '</td>'
+            + '<td style="' + TD + 'font-weight:800;color:' + (x.net < 0 ? '#c53030' : '#276749') + ';">' + _mekN(x.net) + '</td></tr>';
+        });
+        body += '</tbody></table>';
+      }
+      body += '<div style="font-size:10px;color:#a0aec0;margin-top:8px;">Stok = beginning balance karton di History Kapasitas per '
+        + _mekEsc(latest.split('-').reverse().join('/')) + ' (data terupdate). Reserved = reserved per SKU dari kartu Reserved (ikut filter tipe &amp; SKU/Nama aktif). '
+        + 'GDIN − Reserved merah = reserved lebih besar dari stok GDIN.</div>';
+      _mekRvOpenGenericModal('Stok GDI2 & GDIN', SUB + ' — per ' + latest.split('-').reverse().join('/'), body, 680);
+    });
   });
-  var rest = list.slice(10);
-  if (rest.length) {
-    var restSum = rest.reduce(function(s,x){ return s + x.available; }, 0);
-    items.push({ left: 'Lainnya (' + rest.length + ' SKU)', right: _mekN(Math.round(restSum)) + ' Carton', rightColor: '#718096' });
-  }
-  var body = _mekRvBalanceHeader(totalStock, totalReserved) + _mekRvBuildListRows(items);
-  if (deficit > 0) {
-    body += '<div style="font-size:10px;color:#c53030;margin-top:6px;">Ada reserved yang melebihi stock fisik SKU-nya sebanyak ' + _mekN(Math.round(deficit))
-      + ' Carton (SKU kurang stock) — Available per SKU dibatasi minimal 0, jadi jumlah baris bisa lebih besar dari kartu Available.</div>';
-  }
-  _mekRvOpenGenericModal('Available per SKU', 'Stock fisik − Reserved (dari kartu Reserved, ikut filter aktif). Sama dengan kartu Total Stock / Reserved / Available.', body);
 }
 
 // "Reserved %" → kontribusi tiap tipe ke total reserved (bukan ke total stock,
