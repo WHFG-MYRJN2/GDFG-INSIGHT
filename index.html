@@ -5734,8 +5734,12 @@
           <i class="fas fa-boxes-stacked" style="color:#2c5282;font-size:13px;"></i>
           <span style="font-size:13px;font-weight:800;color:#1a3a5c;letter-spacing:.3px;">KESIAPAN STOCK</span>
         </div>
-        <div style="font-size:11px;color:#718096;">Kebutuhan dari planning 2 minggu terakhir (minggu ini + minggu lalu) yang belum close vs stok BinLoc saat ini</div>
-        <button onclick="mekLoadStockReadiness()" style="margin-left:auto;padding:6px 16px;border-radius:8px;border:none;background:#1a3a5c;color:#fff;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px;transition:background .15s;"
+        <div style="display:flex;background:#e2e8f0;border-radius:24px;padding:3px;">
+          <button id="mekStockModeEkspor" onclick="mekStockSwitchMode('ekspor')" style="padding:4px 14px;border-radius:20px;border:none;font-size:12px;font-weight:700;cursor:pointer;background:#1a3a5c;color:#fff;">Ekspor</button>
+          <button id="mekStockModeLokal" onclick="mekStockSwitchMode('lokal')" style="padding:4px 14px;border-radius:20px;border:none;font-size:12px;font-weight:700;cursor:pointer;background:transparent;color:#4a5568;">Lokal (Direct)</button>
+        </div>
+        <div id="mekStockSubtitle" style="font-size:11px;color:#718096;">Kebutuhan dari planning 2 minggu terakhir (minggu ini + minggu lalu) yang belum close vs stok BinLoc saat ini</div>
+        <button onclick="mekStockRefresh()" style="margin-left:auto;padding:6px 16px;border-radius:8px;border:none;background:#1a3a5c;color:#fff;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px;transition:background .15s;"
           onmouseover="this.style.background='#2d4a6a'" onmouseout="this.style.background='#1a3a5c'">
           <i class="fas fa-sync-alt"></i> Refresh
         </button>
@@ -5765,7 +5769,7 @@
         </button>
       </div>
 
-      <div style="overflow:auto;flex:1;-webkit-overflow-scrolling:touch;padding:14px 16px;">
+      <div id="mekStockEksporBody" style="overflow:auto;flex:1;-webkit-overflow-scrolling:touch;padding:14px 16px;">
 
         <!-- Kartu ringkasan -->
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:16px;max-width:600px;">
@@ -5790,6 +5794,46 @@
         </div>
         <div id="mekStockLoading" style="display:none;text-align:center;padding:50px;color:#a0aec0;">
           <i class="fas fa-spinner fa-spin" style="font-size:24px;"></i>
+        </div>
+      </div>
+
+      <!-- ── KESIAPAN STOCK LOKAL (Direct): planning direct FDOS vs stok GDIN/GDI2 ── -->
+      <div id="mekStockLokalWrap" style="display:none;flex:1;flex-direction:column;min-height:0;">
+        <div class="real-filter-bar" style="flex-shrink:0;">
+          <label>Week</label>
+          <select id="mekKlWeek" onchange="mekKlLoad(this.value)"
+            style="border:1px solid #e2e8f0;border-radius:8px;padding:6px 8px;font-size:13px;background:#fff;min-width:200px;"></select>
+          <label>SKU / Nama</label>
+          <input type="text" id="mekKlFilterSku" placeholder="kode atau nama..." oninput="_mekKlRender()"
+            style="width:160px;border:1px solid #e2e8f0;border-radius:8px;padding:6px 8px;font-size:13px;">
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;">
+            <input type="checkbox" id="mekKlOnlyShort" onchange="_mekKlRender()"> Hanya yang kurang
+          </label>
+          <div style="margin-left:auto;display:flex;gap:6px;">
+            <button onclick="mekKlExportExcel()" style="padding:6px 12px;border-radius:8px;border:1px solid #e2e8f0;background:#fff;font-size:12px;font-weight:600;cursor:pointer;color:#276749;"><i class="fas fa-file-excel"></i> Excel</button>
+            <button onclick="mekKlExportPdf()" style="padding:6px 12px;border-radius:8px;border:1px solid #e2e8f0;background:#fff;font-size:12px;font-weight:600;cursor:pointer;color:#c53030;"><i class="fas fa-file-pdf"></i> PDF</button>
+          </div>
+        </div>
+        <div style="overflow:auto;flex:1;-webkit-overflow-scrolling:touch;padding:14px 16px;">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:12px;max-width:600px;">
+            <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;">
+              <div style="font-size:11px;color:#718096;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;">SKU Kurang</div>
+              <div id="mekKlCardKurang" style="font-size:24px;font-weight:800;color:#c53030;">—</div>
+            </div>
+            <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;">
+              <div style="font-size:11px;color:#718096;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;">SKU Cukup</div>
+              <div id="mekKlCardCukup" style="font-size:24px;font-weight:800;color:#276749;">—</div>
+            </div>
+          </div>
+          <div id="mekKlNote" style="font-size:11px;color:#718096;margin-bottom:8px;"></div>
+          <div id="mekKlWrap" style="overflow:auto;"></div>
+          <div id="mekKlEmpty" style="display:none;text-align:center;padding:40px;color:#a0aec0;">
+            <i class="fas fa-inbox" style="font-size:32px;display:block;margin-bottom:8px;opacity:.4;"></i>
+            Belum ada Planning Direct (FDOS) yang tersimpan
+          </div>
+          <div id="mekKlLoading" style="display:none;text-align:center;padding:50px;color:#a0aec0;">
+            <i class="fas fa-spinner fa-spin" style="font-size:24px;"></i>
+          </div>
         </div>
       </div>
     </div><!-- /mekStockPane -->
