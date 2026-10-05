@@ -380,19 +380,47 @@ var KPI_COLS = [
       .getKpiKembaliSummary(f.from, f.to);
   }
 
+  // Toggle "Tampilkan >= 24 jam": default OFF (pasangan Keluar→Kembali >= 24 jam
+  // disembunyikan dan tidak dihitung). Server mengirim semua pasangan dgn flag long.
+  window._kpiKembaliShowLong = false;
+  function kpiKembaliToggleLong(on){
+    window._kpiKembaliShowLong = !!on;
+    if(window._kpiKembaliRes) _kpiRenderKembali(window._kpiKembaliRes);
+  }
+
   function _kpiRenderKembali(res){
     var pane=document.getElementById('kpiKembaliPane');
     if(!pane) return;
     if(!res||!res.success){ pane.innerHTML='<div style="text-align:center;padding:40px;color:#e53e3e;">'+(res?res.message:'Gagal memuat')+'</div>'; return; }
-    var list=res.perMobil||[];
+    window._kpiKembaliRes = res;
+    var showLong = !!window._kpiKembaliShowLong;
+
+    // Hitung ulang per mobil & global dari gaps sesuai toggle
+    var hidden=0, gSum=0, gCnt=0;
+    var list=(res.perMobil||[]).map(function(m){
+      var all=m.gaps||[];
+      var gs=all.filter(function(g){ if(g.long && !showLong){ hidden++; return false; } return true; });
+      if(!gs.length) return null;
+      var sum=gs.reduce(function(s,g){ return s+g.menit; },0);
+      gSum+=sum; gCnt+=gs.length;
+      return {mobil:m.mobil, gaps:gs, count:gs.length, avgMinutes:sum/gs.length};
+    }).filter(Boolean).sort(function(a,b){ return b.count-a.count; });
+    var globalAvg = gCnt>0 ? gSum/gCnt : 0;
     var html='';
+
+    // ── Toggle >= 24 jam ──
+    html+='<div style="display:flex;align-items:center;gap:10px;margin:14px 0 -6px;flex-wrap:wrap;">'
+        +'<label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12px;font-weight:700;color:#4a5568;user-select:none;">'
+        +'<input type="checkbox" '+(showLong?'checked ':'')+'onchange="kpiKembaliToggleLong(this.checked)"> Tampilkan pasangan &ge; 24 jam</label>'
+        +(!showLong && hidden ? '<span style="font-size:11px;color:#a0aec0;">'+hidden+' pasangan &ge; 24 jam disembunyikan &amp; tidak dihitung</span>' : '')
+        +'</div>';
 
     // ── Kartu ringkasan global — gradient header ala tab lain ──
     html+='<div style="background:#fff;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,.08);border:1px solid #e2e8f0;margin:16px 0 18px;overflow:hidden;">'
         +'<div style="background:linear-gradient(135deg,#0f2027,#2c5364);color:#fff;padding:16px 20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px;">'
         +'<div><div style="font-size:11px;opacity:.7;text-transform:uppercase;letter-spacing:.5px;">Rata-rata Waktu Kembali</div>'
-        +'<div style="font-size:26px;font-weight:800;">'+_kpiFmtMinLong(res.globalAvg)+'</div></div>'
-        +'<div style="text-align:right;"><div style="font-size:10px;opacity:.65;">Pasangan Keluar &rarr; Kembali</div><div style="font-size:15px;font-weight:800;">'+res.globalCount+'</div></div>'
+        +'<div style="font-size:26px;font-weight:800;">'+_kpiFmtMinLong(globalAvg)+'</div></div>'
+        +'<div style="text-align:right;"><div style="font-size:10px;opacity:.65;">Pasangan Keluar &rarr; Kembali</div><div style="font-size:15px;font-weight:800;">'+gCnt+'</div></div>'
         +'<div style="text-align:right;"><div style="font-size:10px;opacity:.65;">Jumlah Mobil</div><div style="font-size:15px;font-weight:800;">'+list.length+'</div></div>'
         +'</div></div>';
 
@@ -408,10 +436,10 @@ var KPI_COLS = [
             +'</div>'
             +'<div style="padding:10px 14px;display:flex;flex-direction:column;gap:6px;">'
             +m.gaps.map(function(g,i){
-              var bg = i%2===0 ? '#fff' : '#f7fafc';
-              return '<div style="padding:6px 8px;background:'+bg+';border-radius:6px;font-size:11px;">'
+              var bg = g.long ? '#fffaf0' : (i%2===0 ? '#fff' : '#f7fafc');
+              return '<div style="padding:6px 8px;background:'+bg+';border-radius:6px;font-size:11px;'+(g.long?'border:1px dashed #f6ad55;':'')+'">'
                 +'<div style="color:#718096;">'+_kpiEsc(g.keluarTgl)+' '+_kpiEsc(g.keluarJam)+' <i class="fas fa-arrow-right" style="margin:0 4px;opacity:.5;"></i> '+_kpiEsc(g.tibaTgl)+' '+_kpiEsc(g.tibaJam)+'</div>'
-                +'<div style="color:#2c5364;font-weight:800;margin-top:2px;">'+_kpiFmtMinLong(g.menit)+'</div>'
+                +'<div style="color:'+(g.long?'#c05621':'#2c5364')+';font-weight:800;margin-top:2px;">'+_kpiFmtMinLong(g.menit)+(g.long?' <span style="font-weight:600;font-size:10px;">(&ge; 24 jam)</span>':'')+'</div>'
                 +'</div>';
             }).join('')
             +'</div>'
