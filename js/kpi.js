@@ -27,6 +27,12 @@ var KPI_COLS = [
     {key:'division_name'},
     {key:'qty'},
     {key:'aktivitas_terakhir'},
+    // 4 kolom dummy: ada di Excel sumber antara Aktivitas Terakhir & Tanggal Mulai Bongkar/Muat.
+    // Cuma buat menjaga urutan kolom saat paste — isinya TIDAK disimpan.
+    {key:'dummy1', dummy:true},
+    {key:'dummy2', dummy:true},
+    {key:'dummy3', dummy:true},
+    {key:'dummy4', dummy:true},
     {key:'tanggal_mulai_bongkar'},
     {key:'mulai_bongkar'},
     {key:'tanggal_selesai_bongkar'},
@@ -38,7 +44,7 @@ var KPI_COLS = [
     {key:'durasi_truck_inout'},
     {key:'pending_bongkar'}
   ];
-  var KPI_NCOLS = KPI_COLS.length; // 32 kolom (A-AF)
+  var KPI_NCOLS = KPI_COLS.length; // 36 kolom (32 data + 4 dummy)
 
   var _kpiZoom = 100;
   var _kpiSel  = {r1:-1,c1:-1,r2:-1,c2:-1};
@@ -581,6 +587,7 @@ var KPI_COLS = [
       if(kpiGrpSepKeys[col.key]){
         td.style.borderRight='2px solid #cbd5e0';
       }
+      if(col.dummy){ td.style.minWidth='60px'; td.style.background='#edf2f7'; td.style.color='#a0aec0'; }
       if(data[col.key]) td.textContent=data[col.key];
 
       td.addEventListener('focus', function(){
@@ -830,10 +837,11 @@ var KPI_COLS = [
     for(var i=0;i<tbody.rows.length;i++){
       var row={}, empty=true;
       KPI_COLS.forEach(function(col){
+        if(col.dummy) return; // kolom dummy: data tidak diambil
         var td=tbody.rows[i].querySelector('[data-key="'+col.key+'"]');
         var v=td?td.textContent.trim():''; row[col.key]=v; if(v) empty=false;
       });
-      KPI_COLS.forEach(function(col){ if(row[col.key]) row[col.key]=String(row[col.key]).replace(/[\u00a0\u200b]/g,'').trim(); });
+      KPI_COLS.forEach(function(col){ if(!col.dummy && row[col.key]) row[col.key]=String(row[col.key]).replace(/[\u00a0\u200b]/g,'').trim(); });
       if(!empty) data.push(row);
     }
     if(!data.length){ showToast('\u26a0 Tidak ada data untuk disimpan',''); return; }
