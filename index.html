@@ -5963,7 +5963,7 @@
             <div style="font-size:10px;color:#718096;text-transform:uppercase;">Total Stock <i class="fas fa-circle-info" style="opacity:.6;"></i></div>
             <div id="mekRvKpiTotal" style="font-size:20px;font-weight:800;color:#2d3748;">—</div>
           </div>
-          <div onclick="mekRvShowAvailableBreakdown()" style="background:#f0fff4;border:1px solid #c6f6d5;border-radius:10px;padding:10px 12px;cursor:pointer;" title="Klik buat lihat stok GDI2 &amp; GDIN (History Kapasitas terbaru) per SKU">
+          <div onclick="mekRvShowAvailableBreakdown()" style="background:#f0fff4;border:1px solid #c6f6d5;border-radius:10px;padding:10px 12px;cursor:pointer;" title="Klik buat lihat stok GDI2, GDIN &amp; Ekspor (History Kapasitas terbaru) per SKU">
             <div style="font-size:10px;color:#276749;text-transform:uppercase;">Available <i class="fas fa-circle-info" style="opacity:.6;"></i></div>
             <div id="mekRvKpiAvailable" style="font-size:20px;font-weight:800;color:#276749;">—</div>
           </div>
@@ -6326,10 +6326,10 @@
             <span class="op-zoom-label" id="kpiZoomLabel">100%</span>
             <button class="op-zoom-btn" onclick="kpiZoom(+10)" title="Zoom In">+</button>
             <span class="op-zoom-reset" onclick="kpiZoomReset()">Reset</span>
-            <span style="margin-left:8px;font-size:11px;color:#a0aec0;">Scroll horizontal untuk lihat semua kolom (32 kolom)</span>
+            <span style="margin-left:8px;font-size:11px;color:#a0aec0;">Scroll horizontal untuk lihat semua kolom (36 kolom, 4 di antaranya dummy)</span>
           </div>
           <div class="op-tbl-scroll" id="kpiTblScroll">
-            <table class="input-tbl kpi-itbl" id="kpiInputTbl" style="min-width:3400px;" tabindex="0">
+            <table class="input-tbl kpi-itbl" id="kpiInputTbl" style="min-width:3700px;" tabindex="0">
               <thead>
                 <tr>
                   <th class="th-no" style="background:#0f2027;color:#fff;text-align:center;width:36px;">#</th>
@@ -6355,6 +6355,10 @@
                   <th style="background:#0f2027;color:#fff;min-width:100px;">Division Name</th>
                   <th style="background:#0f2027;color:#fff;min-width:100px;border-right:2px solid #4a5568;">QTY</th>
                   <th style="background:#0f2027;color:#fff;min-width:100px;">Aktivitas Terakhir</th>
+                  <th style="background:#4a5568;color:#cbd5e0;min-width:60px;font-weight:500;" title="Kolom dummy — data tidak disimpan">Dummy 1</th>
+                  <th style="background:#4a5568;color:#cbd5e0;min-width:60px;font-weight:500;" title="Kolom dummy — data tidak disimpan">Dummy 2</th>
+                  <th style="background:#4a5568;color:#cbd5e0;min-width:60px;font-weight:500;" title="Kolom dummy — data tidak disimpan">Dummy 3</th>
+                  <th style="background:#4a5568;color:#cbd5e0;min-width:60px;font-weight:500;" title="Kolom dummy — data tidak disimpan">Dummy 4</th>
                   <th style="background:#0f2027;color:#fff;min-width:110px;border-right:2px solid #4a5568;">Tanggal Mulai Bongkar/Muat</th>
                   <th style="background:#0f2027;color:#fff;min-width:100px;">Mulai Bongkar/Muat</th>
                   <th style="background:#0f2027;color:#fff;min-width:110px;">Tanggal Selesai Bongkar/Muat</th>
