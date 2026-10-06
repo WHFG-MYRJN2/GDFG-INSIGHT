@@ -2385,11 +2385,13 @@ function _mekRvRenderDoSoCard(baseRows) {
   card.style.display = show ? '' : 'none';
   if (!show) return;
 
-  // Dihitung per NOMOR DO/SO (bagian sebelum "/", tanpa 0 di depan) — satu DO yang
-  // punya beberapa item/SKU (/000040, /000050, ...) tetap dihitung 1.
+  // Unit hitung: 1 DO (bagian sebelum "/", tanpa 0 di depan; item /000040, /000050 tetap 1),
+  // kecuali yang sudah di antrian → 1 mobil.
+  // Proses/Keluar yang sudah ada di ANTRIAN dihitung per MOBIL (1 mobil bisa bawa
+  // beberapa DO → tetap 1). Belum / Keluar-tanpa-antrian belum punya mobil → per DO.
   var b = { belum: 0, proses: 0, keluar: 0 };
-  var stages = {}; // detail tahap antrian utk yang Proses
-  var seen = {};
+  var stages = {}; // detail tahap antrian utk yang Proses (per mobil)
+  var seen = {}, seenTruck = {};
   (baseRows || []).forEach(function(r){
     if ((r.sourceType||'ekspor') !== 'direct') return;
     var k = r.docKey || r.groupId || r.noSo;
@@ -2397,6 +2399,16 @@ function _mekRvRenderDoSoCard(baseRows) {
     seen[k] = true;
     var st = r.docStatus || 'belum';
     if (b[st] === undefined) st = 'belum';
+    if (r.docTrucks && r.docTrucks.length && st !== 'belum') {
+      r.docTrucks.forEach(function(t){
+        var tk = st + '|' + t.id;
+        if (seenTruck[tk]) return;
+        seenTruck[tk] = true;
+        b[st]++;
+        if (st === 'proses') { var d2 = t.label || 'Proses'; stages[d2] = (stages[d2]||0) + 1; }
+      });
+      return;
+    }
     b[st]++;
     if (st === 'proses') { var d = r.docDetail || 'Proses'; stages[d] = (stages[d]||0) + 1; }
   });
