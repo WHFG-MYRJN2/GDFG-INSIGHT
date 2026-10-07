@@ -4402,7 +4402,11 @@ function mekSaveReservedDirect(plant) {
     if (!sku) return;
     rows.push({ sku:sku, nama:g('nama'), buffer:g('buffer'), stockPhisik:g('stockPhisik'), reservedIn:g('reservedIn'), reservedOut:g('reservedOut'), stockEnding:g('stockEnding') });
   });
-  if (!rows.length) { showToast('Belum ada SKU yang diisi', 'warning'); return; }
+  if (!rows.length) {
+    // Tabel kosong = hari ini plant ini tidak punya reservasi. Boleh disimpan sebagai snapshot
+    // kosong, supaya data kemarin tidak terus terbaca aktif.
+    if (!confirm('Tidak ada SKU di tabel Plant ' + plant + '.\n\nSimpan sebagai KOSONG (hari ini tidak ada reserved)? Semua reservasi Plant ' + plant + ' dari hari sebelumnya akan dianggap selesai/closed.')) return;
+  }
   API.run('saveMekReservedDirectHeader', { plant: plant, rows: rows }, function(res) {
     if (res && res.success) {
       showToast(res.message || 'Tersimpan', 'success');
