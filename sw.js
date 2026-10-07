@@ -3,7 +3,7 @@
 // Ganti CACHE_VERSION setiap kali ada update file
 // ============================================================
 
-const CACHE_VERSION  = 'v2.2.9';
+const CACHE_VERSION  = 'v2.3.0';
 const CACHE_NAME     = 'monitoring-gdfg-' + CACHE_VERSION;
 
 // File yang di-cache saat install
