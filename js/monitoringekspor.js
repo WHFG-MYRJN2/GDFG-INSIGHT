@@ -7799,6 +7799,9 @@ function _mekCloseDownloadMenu(e) {
 // bawah peta, dengan warna status yang sama (hijau/oranye/merah).
 // ════════════════════════════════════════════════════════════
 var MEKEXT_COL = { avail: '#10b981', reserved: '#f59e0b', longwait: '#ef4444' };
+var _mekRvExtByLot = false; // false = ringkas per ITEM (SKU), true = rinci per lot/prodate
+
+function mekRvExtToggleByLot() { _mekRvExtByLot = !_mekRvExtByLot; _mekRvRenderExtBlock(); }
 
 function _mekRvRenderExtBlock() {
   var body = document.getElementById('mekRvExtBody');
@@ -7838,21 +7841,37 @@ function _mekRvRenderExtBlock() {
   names.forEach(function(n){ grand += groups[n].total; grandP += groups[n].pallet; });
   if (sub) sub.innerHTML = 'Total ' + _mekN(grandP) + ' pallet / ' + _mekN(grand) + ' karton di ' + names.length + ' gudang &middot; ikut hitungan reserved (FIFO tanggal produksi)';
 
-  body.innerHTML = names.map(function(n) {
+  var toggleRow = '<div style="display:flex;justify-content:flex-end;margin-bottom:6px;"><button onclick="mekRvExtToggleByLot()" style="padding:4px 10px;border-radius:999px;border:1px solid #b794f4;background:#fff;color:#553c9a;font-size:10px;font-weight:700;cursor:pointer;">'
+    + (_mekRvExtByLot ? '<i class="fas fa-layer-group"></i> Ringkas per item' : '<i class="fas fa-calendar-days"></i> Rinci per prodate') + '</button></div>';
+  body.innerHTML = toggleRow + names.map(function(n) {
     var g = groups[n];
     var avail = Math.max(0, g.total - g.reserved);
     var pct = g.total > 0 ? (g.reserved / g.total * 100) : 0;
-    g.lots.sort(function(a,b){ return _mekExtDmyKey(a.prodate).localeCompare(_mekExtDmyKey(b.prodate)) || (a.sku||'').localeCompare(b.sku||''); });
-    var rows = g.lots.map(function(l) {
+    var lots;
+    if (_mekRvExtByLot) {
+      lots = g.lots.slice().sort(function(a,b){ return _mekExtDmyKey(a.prodate).localeCompare(_mekExtDmyKey(b.prodate)) || (a.sku||'').localeCompare(b.sku||''); });
+    } else {
+      // Ringkas: 1 baris per item (SKU), semua lot/prodate digabung
+      var bySku = {};
+      g.lots.forEach(function(l) {
+        var o = bySku[l.sku] || (bySku[l.sku] = { sku: l.sku, nama: l.nama, prodate: '', karton: 0, pallet: 0, reserved: 0, status: 'avail' });
+        o.karton += l.karton; o.pallet += l.pallet; o.reserved += l.reserved;
+        if (l.status === 'longwait') o.status = 'longwait';
+        else if (l.status === 'reserved' && o.status !== 'longwait') o.status = 'reserved';
+      });
+      lots = Object.keys(bySku).map(function(k){ return bySku[k]; })
+        .sort(function(a,b){ return (a.sku||'').localeCompare(b.sku||''); });
+    }
+    var rows = lots.map(function(l) {
       var col = MEKEXT_COL[l.status];
       var lbl = l.status === 'avail' ? 'Available' : (l.status === 'longwait' ? 'Reserved &gt;24h' : 'Reserved');
       var part = (l.reserved > 0 && l.reserved < l.karton) ? ' <span style="color:#a0aec0;">(' + _mekN(l.reserved) + ' res / ' + _mekN(l.karton-l.reserved) + ' avail)</span>' : '';
       return '<tr style="border-bottom:1px solid #edf2f7;">'
         + '<td style="padding:5px 8px;font-size:11px;"><span style="display:inline-block;width:9px;height:9px;border-radius:3px;background:' + col + ';margin-right:6px;"></span><b>' + _mekEsc(l.sku) + '</b>'
         + '<div style="font-size:10px;color:#a0aec0;margin-left:15px;">' + _mekEsc(l.nama||'') + '</div></td>'
-        + '<td style="padding:5px 8px;font-size:11px;white-space:nowrap;">' + _mekEsc(l.prodate||'-') + '</td>'
-        + '<td style="padding:5px 8px;font-size:11px;text-align:right;">' + (l.pallet ? _mekN(l.pallet) : '-') + '</td>'
-        + '<td style="padding:5px 8px;font-size:11px;text-align:right;font-weight:700;">' + _mekN(l.karton) + '</td>'
+        + (_mekRvExtByLot ? '<td style="padding:5px 8px;font-size:11px;white-space:nowrap;">' + _mekEsc(l.prodate||'-') + '</td>' : '')
+        + '<td style="padding:5px 8px;font-size:11px;text-align:right;font-weight:700;">' + (l.pallet ? _mekN(l.pallet) : '-') + '</td>'
+        + '<td style="padding:5px 8px;font-size:11px;text-align:right;">' + _mekN(l.karton) + '</td>'
         + '<td style="padding:5px 8px;font-size:10px;color:' + col + ';font-weight:700;white-space:nowrap;">' + lbl + part + '</td>'
         + '</tr>';
     }).join('');
@@ -7868,7 +7887,7 @@ function _mekRvRenderExtBlock() {
       + '<div style="max-height:260px;overflow:auto;"><table style="width:100%;border-collapse:collapse;">'
       +   '<thead><tr style="border-bottom:2px solid #e2e8f0;position:sticky;top:0;background:#fff;">'
       +     '<th style="padding:5px 8px;font-size:10px;text-align:left;color:#718096;">SKU</th>'
-      +     '<th style="padding:5px 8px;font-size:10px;text-align:left;color:#718096;">PRODATE</th>'
+      +     (_mekRvExtByLot ? '<th style="padding:5px 8px;font-size:10px;text-align:left;color:#718096;">PRODATE</th>' : '')
       +     '<th style="padding:5px 8px;font-size:10px;text-align:right;color:#718096;">PALLET</th>'
       +     '<th style="padding:5px 8px;font-size:10px;text-align:right;color:#718096;">KARTON</th>'
       +     '<th style="padding:5px 8px;font-size:10px;text-align:left;color:#718096;">STATUS</th>'
