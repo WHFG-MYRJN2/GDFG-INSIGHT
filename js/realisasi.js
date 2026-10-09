@@ -975,6 +975,19 @@ function initRealForm(){
     var _rekapSubMode  = 'detail'; // 'detail' | 'grafik' | 'tujuan'
     var _rekapDayFilter = 'all';   // 'all' | 'weekday' | 'weekend'
     var _rekapGrafikTujuan = 'ALL'; // 'ALL'|'MDC'|'MT'|'LK'|'SUB'|'EXP'
+    var _rekapTujuanSel = {};       // mode Tujuan: {MDC:true,...} multi-pilih; kosong = semua tujuan
+
+    // Klik chip tujuan di mode Tujuan: 'ALL' = reset (semua), selain itu toggle masuk/keluar.
+    // Kalau kelima tujuan kepilih semua → otomatis balik jadi ALL (hindari 2 state yang tampak sama).
+    function toggleRekapTujuan(t){
+      if(t === 'ALL'){
+        _rekapTujuanSel = {};
+      } else {
+        if(_rekapTujuanSel[t]) delete _rekapTujuanSel[t]; else _rekapTujuanSel[t] = true;
+        if(Object.keys(_rekapTujuanSel).length >= 5) _rekapTujuanSel = {};
+      }
+      if(window.realSummaryData) renderRekapView(window.realSummaryData, currentSumView);
+    }
 
     function switchRekapDayFilter(f){
       _rekapDayFilter = f;
@@ -1381,11 +1394,22 @@ function initRealForm(){
       var krtIdx={MDC:11,MT:13,LK:15,SUB:17,EXP:19};
       var tujuanColors={MDC:'#2563eb',MT:'#dc2626',LK:'#16a34a',SUB:'#9333ea',EXP:'#d97706'};
 
+      // ── Filter tujuan (multi-pilih). Kosong = semua tujuan. Kalau ada filter, SEMUA angka
+      // (total, SPE, persentase) dihitung HANYA dari tujuan terpilih. ──
+      var selT = tujuan.filter(function(t){ return _rekapTujuanSel[t]; });
+      var filtered = selT.length > 0 && selT.length < tujuan.length;
+      if(!filtered) selT = tujuan.slice();
+      // total KRT/SPE satu baris data: tanpa filter pakai kolom total aslinya (20/21),
+      // dengan filter = jumlah kolom tujuan terpilih saja
+      function rowSpe(r){ return filtered ? selT.reduce(function(s,t){return s+(Number(r[speIdx[t]])||0);},0) : (Number(r[20])||0); }
+      function rowKrt(r){ return filtered ? selT.reduce(function(s,t){return s+(Number(r[krtIdx[t]])||0);},0) : (Number(r[21])||0); }
+      function sumKrt(rows){ return rows.reduce(function(s,r){return s+rowKrt(r);},0); }
+      function sumSpe(rows){ return rows.reduce(function(s,r){return s+rowSpe(r);},0); }
+
       // ── Grand total keseluruhan (semua TIM/Shift digabung jadi satu) ──
-      var gt={spe:0,krt:0}, gtT={};
+      var gt={spe:sumSpe(data), krt:sumKrt(data)}, gtT={};
       tujuan.forEach(function(t){gtT[t]={spe:0,krt:0};});
       data.forEach(function(r){
-        gt.spe+=Number(r[20])||0; gt.krt+=Number(r[21])||0;
         tujuan.forEach(function(t){ gtT[t].spe+=Number(r[speIdx[t]])||0; gtT[t].krt+=Number(r[krtIdx[t]])||0; });
       });
 
@@ -1407,13 +1431,24 @@ function initRealForm(){
 
       var html='';
 
+      // ── Filter tujuan (chip multi-pilih) ──
+      html+='<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;align-items:center;">';
+      html+='<span style="font-size:11px;color:#718096;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-right:2px;">Tujuan:</span>';
+      ['ALL'].concat(tujuan).forEach(function(t){
+        var isActive = t==='ALL' ? !filtered : (filtered && !!_rekapTujuanSel[t]);
+        var col = t==='ALL' ? '#2d3748' : tujuanColors[t];
+        html+='<button onclick="toggleRekapTujuan(\''+t+'\')" style="padding:4px 12px;border-radius:20px;border:1px solid '+(isActive?col:'#e2e8f0')+';background:'+(isActive?col:'#f7fafc')+';color:'+(isActive?'#fff':'#4a5568')+';font-size:11px;font-weight:700;cursor:pointer;transition:all .15s;">'+t+'</button>';
+      });
+      if(filtered) html+='<span style="font-size:11px;color:#a0aec0;">Total &amp; persentase dihitung dari: <b style="color:#4a5568;">'+selT.join(' + ')+'</b></span>';
+      html+='</div>';
+
       // ── Kartu Total Keseluruhan ──
       html+='<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;margin-bottom:14px;">';
       html+='<div style="padding:11px 16px;border-bottom:1px solid #f0f4f8;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">';
-      html+='<span style="font-size:15px;font-weight:700;color:#2d3748;"><i class="fas fa-globe" style="margin-right:6px;color:#718096;"></i>Total Keseluruhan</span>';
+      html+='<span style="font-size:15px;font-weight:700;color:#2d3748;"><i class="fas fa-globe" style="margin-right:6px;color:#718096;"></i>Total Keseluruhan'+(filtered?' <span style="font-size:11px;font-weight:600;color:#a0aec0;">('+selT.join(' + ')+')</span>':'')+'</span>';
       html+='<span style="font-size:13px;font-weight:700;color:#2d3748;">'+fmt(gt.krt)+' KRT / '+fmt(gt.spe)+' SPE</span></div>';
       html+='<div style="padding:14px 16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;">';
-      tujuan.forEach(function(t){
+      selT.forEach(function(t){
         var p = pct(gtT[t].krt, gt.krt);
         html+='<div style="background:#f7fafc;border-radius:8px;padding:10px 12px;">'
           +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'
@@ -1431,13 +1466,13 @@ function initRealForm(){
       html+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(0,1fr));gap:10px;">';
       groupOrder.forEach(function(key){
         var rows=byGroup[key];
-        var gKrt=sumCol(rows,21), gSpe=sumCol(rows,20);
+        var gKrt=sumKrt(rows), gSpe=sumSpe(rows);
         html+='<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;">';
         html+='<div style="padding:11px 16px;border-bottom:1px solid #f0f4f8;display:flex;justify-content:space-between;align-items:center;">';
         html+='<span style="font-size:14px;font-weight:700;color:#2d3748;">'+(viewMode==='rekapShift'?('Shift '+key):timLabel(key))+'</span>';
-        html+='<span style="font-size:12px;font-weight:700;color:#2d3748;">'+fmt(gKrt)+' KRT</span></div>';
+        html+='<span style="font-size:12px;font-weight:700;color:#2d3748;">'+fmt(gKrt)+' KRT / '+fmt(gSpe)+' SPE</span></div>';
         html+='<div style="padding:12px 14px;display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
-        tujuan.forEach(function(t){
+        selT.forEach(function(t){
           var tk = sumCol(rows,krtIdx[t]), tspe = sumCol(rows,speIdx[t]);
           var pIn = pct(tk, gKrt);    // % dari total kelompok (TIM/Shift) ini sendiri
           var pAll = pct(tk, gt.krt); // % dari total keseluruhan gudang
